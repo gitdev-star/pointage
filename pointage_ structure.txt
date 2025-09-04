@@ -1,0 +1,30 @@
+pointage/
+├── .idea/
+├── .venv/
+│   └── ._pycache/
+│── migrations/
+│── main.py
+├── alembic/
+│── requirements
+├── run-sync_attendance.py
+└── app/
+    ├── _pycache/
+    |__ routers/
+    |   |__hr_routes.py
+    ├── devices/
+    │   ├── _pycache/
+    │   ├── __init__.py
+    │   └── zk_reader.py
+    ├── models/
+    │   ├── _pycache/
+    │   ├── attendance.py
+    │   ├── clocker.py
+    │   ├── employee.py
+    │   ├── user.py
+    ├── schemas/
+    │   ├── (similar structure to models)
+    ├── clock_test.py
+    ├── database.py
+    ├── models.py
+    ├── sync_attendance.py
+    └── test.py
