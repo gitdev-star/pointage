@@ -287,6 +287,25 @@ async def get_daily_attendance(
         raise HTTPException(status_code=500, detail=f"Error fetching daily records: {str(e)}")
 
 
+@router.get("/available-ips", response_model=List[str])
+async def get_available_device_ips(
+        db: AsyncSession = Depends(get_async_db),
+):
+    """
+    Get list of unique device IPs from attendance records.
+    """
+    try:
+        query = select(distinct(Attendance.device_ip)).where(
+            Attendance.device_ip.isnot(None)
+        ).order_by(Attendance.device_ip)
+
+        result = await db.execute(query)
+        ips = result.scalars().all()
+
+        return [ip for ip in ips if ip]  # Filter out any None values
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching available IPs: {str(e)}")
+
 # === UTILITIES ===
 
 def build_filters(

@@ -16,6 +16,8 @@ const HRAttendanceDashboard = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [totalRecords, setTotalRecords] = useState(0);
+  const [availableIPs, setAvailableIPs] = useState([]); // New state for available IP addresses
+  const [loadingIPs, setLoadingIPs] = useState(false); // Loading state for IPs
 
   const [filters, setFilters] = useState({
     user_id: '',
@@ -35,6 +37,42 @@ const HRAttendanceDashboard = () => {
   const [filterMode, setFilterMode] = useState('range'); // 'range', 'specific', 'period'
 
   const API_BASE = 'http://192.168.8.247:8000/attendance/';
+
+  // Fetch available IP addresses
+  const fetchAvailableIPs = useCallback(async () => {
+    setLoadingIPs(true);
+    try {
+      const response = await fetch(`${API_BASE}available-ips`);
+      if (response.ok) {
+        const ips = await response.json();
+        setAvailableIPs(ips);
+      } else {
+        // Fallback: extract IPs from current data or use a basic query
+        console.warn('Available IPs endpoint not found, extracting from data');
+        await extractIPsFromData();
+      }
+    } catch (err) {
+      console.error('Error fetching available IPs:', err);
+      // Fallback to extracting IPs from current data
+      await extractIPsFromData();
+    } finally {
+      setLoadingIPs(false);
+    }
+  }, []);
+
+  // Fallback method to extract IPs from attendance data
+  const extractIPsFromData = async () => {
+    try {
+      const response = await fetch(`${API_BASE}?limit=1000&skip=0`);
+      if (response.ok) {
+        const data = await response.json();
+        const uniqueIPs = [...new Set(data.map(record => record.device_ip).filter(ip => ip))];
+        setAvailableIPs(uniqueIPs.sort());
+      }
+    } catch (err) {
+      console.error('Error extracting IPs from data:', err);
+    }
+  };
 
   const fetchAttendance = useCallback(async () => {
     setLoading(true);
@@ -146,17 +184,17 @@ const HRAttendanceDashboard = () => {
       return;
     }
 
-    const headers = ['User ID', 'Timestamp', 'Date', 'Time', 'Device IP'];
+    const headers = ['User ID', 'Date', 'Time']; //['User ID', 'Timestamp', 'Date', 'Time', 'Device IP']
     const csvData = attendanceData.map(r => [
       r.user_id,
-      r.timestamp,
+      //r.timestamp,
       r.date || r.attendance_date,
       new Date(r.timestamp).toLocaleTimeString('fr-FR'),
-      r.device_ip,
+      //r.device_ip,
     ]);
 
     const csv = [headers, ...csvData]
-      .map(row => row.join(','))
+      .map(row => row.join(';'))
       .join('\n');
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -237,6 +275,10 @@ const HRAttendanceDashboard = () => {
     fetchAttendance();
   }, [fetchAttendance]);
 
+  useEffect(() => {
+    fetchAvailableIPs();
+  }, []); // Fetch IPs when component mounts
+
   const RecordModal = ({ record, onClose }) => {
     if (!record) return null;
     return (
@@ -251,11 +293,11 @@ const HRAttendanceDashboard = () => {
           <div className="modal-content">
             <div className="modal-info-grid">
               <div>
-                <p className="modal-label">ID Utilisateur</p>
+                <p className="modal-label">ID employé(e)</p>
                 <p className="modal-value">{record.user_id}</p>
               </div>
               <div>
-                <p className="modal-label">Adresse IP</p>
+                <p className="modal-label">Adresse IP du Clocker</p>
                 <p className="modal-value">{record.device_ip}</p>
               </div>
             </div>
@@ -413,7 +455,7 @@ const HRAttendanceDashboard = () => {
             <div className="filters-grid">
               {/* Common filters */}
               <div className="filter-group">
-                <label className="filter-label">ID Utilisateur</label>
+                <label className="filter-label">ID Employé(e)</label>
                 <input
                   type="number"
                   placeholder="ID Utilisateur"
@@ -429,14 +471,44 @@ const HRAttendanceDashboard = () => {
               </div>
 
               <div className="filter-group">
-                <label className="filter-label">Adresse IP</label>
-                <input
-                  type="text"
-                  placeholder="Adresse IP"
-                  value={filters.device_ip}
-                  onChange={(e) => handleFilterChange('device_ip', e.target.value)}
-                  className="filter-input"
-                />
+                <label className="filter-label">
+                  Adresse IP du Clocker
+                  {loadingIPs && <span className="loading-text"> (Chargement...)</span>}
+                </label>
+                <div className="ip-filter-container">
+                  {availableIPs.length > 0 ? (
+                    <select
+                      value={filters.device_ip}
+                      onChange={(e) => handleFilterChange('device_ip', e.target.value)}
+                      className="filter-input"
+                      disabled={loadingIPs}
+                    >
+                      <option value="">-- Toutes les adresses IP --</option>
+                      {availableIPs.map((ip) => (
+                        <option key={ip} value={ip}>
+                          {ip}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      placeholder="Adresse IP (ou attendez le chargement...)"
+                      value={filters.device_ip}
+                      onChange={(e) => handleFilterChange('device_ip', e.target.value)}
+                      className="filter-input"
+                      disabled={loadingIPs}
+                    />
+                  )}
+                  <button
+                    onClick={fetchAvailableIPs}
+                    className="refresh-ip-btn"
+                    disabled={loadingIPs}
+                    title="Actualiser la liste des IP"
+                  >
+                    <RefreshCw className={`icon small ${loadingIPs ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
               </div>
 
               {/* Mode-specific filters */}
