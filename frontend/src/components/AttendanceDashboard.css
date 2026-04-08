@@ -1,4 +1,42 @@
-/* ===== GLOBAL STYLES ===== */
+/* ========================================================================
+   ATTENDANCE DASHBOARD CSS
+   Organized with clear sections and comments for easy navigation
+   ======================================================================== */
+
+/* ========================================================================
+   TABLE OF CONTENTS
+   ========================================================================
+   1. GLOBAL STYLES & RESET
+   2. LAYOUT & CONTAINER
+   3. UTILITY CLASSES
+   4. BUTTONS & INTERACTIVE ELEMENTS
+   5. HEADER SECTION
+   6. ALERTS & NOTIFICATIONS
+   7. STATS CARDS
+   8. FILTERS SECTION
+      - Filter Mode Selection
+      - Filter Inputs
+      - IP Filter Specific
+      - Quick Time Filters
+      - Filter Actions
+   9. TABLE SECTION
+      - Table Structure
+      - Table Cells
+      - Empty & Loading States
+   10. PAGINATION
+   11. SUMMARY SECTION
+   12. FOOTER
+   13. MODAL/DIALOG
+   14. ANIMATIONS & TRANSITIONS
+   15. RESPONSIVE DESIGN
+   16. PRINT STYLES
+   ======================================================================== */
+
+
+/* ========================================================================
+   1. GLOBAL STYLES & RESET
+   ======================================================================== */
+
 .attendance-dashboard {
   min-height: 100vh;
   background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
@@ -7,13 +45,24 @@
   line-height: 1.6;
 }
 
+
+/* ========================================================================
+   2. LAYOUT & CONTAINER
+   ======================================================================== */
+
+/* Main container - centers content and adds padding */
 .container {
   max-width: 1400px;
   margin: 0 auto;
   padding: 2rem 1rem;
 }
 
-/* ===== COMMON UTILITIES ===== */
+
+/* ========================================================================
+   3. UTILITY CLASSES
+   ======================================================================== */
+
+/* Icon sizing utilities */
 .icon {
   width: 1.25rem;
   height: 1.25rem;
@@ -25,16 +74,29 @@
   height: 3rem;
 }
 
+.icon.small {
+  width: 16px;
+  height: 16px;
+}
+
+/* Spinning animation for loading states */
 .animate-spin {
   animation: spin 1s linear infinite;
 }
 
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+/* Loading text indicator */
+.loading-text {
+  font-size: 0.8em;
+  color: #6c757d;
+  font-style: italic;
 }
 
-/* ===== BUTTONS ===== */
+
+/* ========================================================================
+   4. BUTTONS & INTERACTIVE ELEMENTS
+   ======================================================================== */
+
+/* Base button styles - applies to all buttons */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -50,17 +112,20 @@
   white-space: nowrap;
 }
 
+/* Disabled state for all buttons */
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none !important;
 }
 
+/* Hover effect for enabled buttons */
 .btn:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
+/* Blue button variant - primary actions */
 .btn-blue {
   background: linear-gradient(135deg, #3b82f6, #1d4ed8);
   color: white;
@@ -71,6 +136,7 @@
   background: linear-gradient(135deg, #1d4ed8, #1e40af);
 }
 
+/* Green button variant - success/export actions */
 .btn-green {
   background: linear-gradient(135deg, #10b981, #059669);
   color: white;
@@ -81,6 +147,7 @@
   background: linear-gradient(135deg, #059669, #047857);
 }
 
+/* Gray button variant - secondary/cancel actions */
 .btn-gray {
   background: #6b7280;
   color: white;
@@ -92,6 +159,7 @@
   border-color: #4b5563;
 }
 
+/* View button - for table row actions */
 .btn-view {
   background: rgba(59, 130, 246, 0.1);
   color: #3b82f6;
@@ -104,918 +172,7 @@
   background: rgba(59, 130, 246, 0.2);
 }
 
-/* ===== HEADER ===== */
-.attendance-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 2rem;
-  background: white;
-  padding: 2rem;
-  border-radius: 1rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-.attendance-header h1 {
-  font-size: 2rem;
-  font-weight: 700;
-  color: #111827;
-  margin: 0 0 0.5rem 0;
-  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.attendance-header p {
-  color: #6b7280;
-  margin: 0;
-  font-size: 1.1rem;
-}
-
-.header-actions {
-  display: flex;
-  gap: 1rem;
-  flex-shrink: 0;
-}
-
-/* ===== ERROR ALERT ===== */
-.error-alert {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem;
-  background: linear-gradient(135deg, #fef2f2, #fee2e2);
-  border: 1px solid #fecaca;
-  border-radius: 0.75rem;
-  margin-bottom: 1.5rem;
-  color: #dc2626;
-}
-
-.error-alert .icon {
-  color: #dc2626;
-  flex-shrink: 0;
-}
-
-/* ===== STATS GRID ===== */
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 2rem;
-}
-
-.stats-card {
-  background: white;
-  padding: 1.5rem;
-  border-radius: 1rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(0, 0, 0, 0.05);
-  transition: all 0.3s ease;
-}
-
-.stats-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.1);
-}
-
-.stats-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.stats-label {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #6b7280;
-  margin: 0 0 0.5rem 0;
-}
-
-.stats-value {
-  font-size: 2rem;
-  font-weight: 700;
-  color: #111827;
-  margin: 0;
-}
-
-.stats-value-small {
-  font-size: 1rem;
-  font-weight: 600;
-  color: #111827;
-  margin: 0;
-}
-
-.stats-icon {
-  width: 3rem;
-  height: 3rem;
-  border-radius: 0.75rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.stats-icon.blue {
-  background: linear-gradient(135deg, #dbeafe, #bfdbfe);
-  color: #3b82f6;
-}
-
-.stats-icon.green {
-  background: linear-gradient(135deg, #d1fae5, #a7f3d0);
-  color: #10b981;
-}
-
-.stats-icon.purple {
-  background: linear-gradient(135deg, #ede9fe, #ddd6fe);
-  color: #8b5cf6;
-}
-
-.stats-icon.orange {
-  background: linear-gradient(135deg, #fed7aa, #fdba74);
-  color: #ea580c;
-}
-
-/* ===== FILTERS SECTION ===== */
-.filters-section {
-  background: white;
-  border-radius: 1rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(0, 0, 0, 0.05);
-  margin-bottom: 2rem;
-  overflow: hidden;
-}
-
-.filters-header {
-  padding: 1.5rem 2rem;
-  border-bottom: 1px solid #e5e7eb;
-  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
-}
-
-.filters-header h2 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #111827;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.filters-content {
-  padding: 2rem;
-}
-
-/* Filter Mode Selection */
-.filter-mode-section {
-  margin-bottom: 2rem;
-}
-
-.filter-mode-label {
-  display: block;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #374151;
-  margin-bottom: 1rem;
-}
-
-.filter-mode-buttons {
-  display: flex;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-.filter-mode-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  border: 2px solid #d1d5db;
-  border-radius: 0.5rem;
-  background: white;
-  color: #6b7280;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-weight: 500;
-}
-
-.filter-mode-btn:hover {
-  border-color: #3b82f6;
-  background: #eff6ff;
-  color: #3b82f6;
-}
-
-.filter-mode-btn.active {
-  border-color: #3b82f6;
-  background: linear-gradient(135deg, #eff6ff, #dbeafe);
-  color: #1d4ed8;
-}
-
-/* Filter Inputs */
-.filters-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 1.5rem;
-}
-
-.time-filters-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1.5rem;
-  margin-top: 1.5rem;
-  margin-bottom: 1.5rem;
-}
-
-.filter-group {
-  display: flex;
-  flex-direction: column;
-}
-
-.filter-label {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #374151;
-  margin-bottom: 0.5rem;
-}
-
-.filter-input {
-  padding: 0.75rem;
-  border: 2px solid #d1d5db;
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
-  transition: all 0.2s ease;
-  background: white;
-}
-
-.filter-input:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-/* Quick Time Filters */
-.quick-time-filters {
-  margin-top: 1.5rem;
-}
-
-.quick-time-label {
-  display: block;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #374151;
-  margin-bottom: 1rem;
-}
-
-.quick-time-buttons {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.quick-time-btn {
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 0.375rem;
-  font-size: 0.8rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.quick-time-btn.morning {
-  background: linear-gradient(135deg, #fef3c7, #fde68a);
-  color: #92400e;
-}
-
-.quick-time-btn.morning:hover {
-  background: linear-gradient(135deg, #fde68a, #fcd34d);
-}
-
-.quick-time-btn.afternoon {
-  background: linear-gradient(135deg, #fed7aa, #fdba74);
-  color: #c2410c;
-}
-
-.quick-time-btn.afternoon:hover {
-  background: linear-gradient(135deg, #fdba74, #fb923c);
-}
-
-.quick-time-btn.evening {
-  background: linear-gradient(135deg, #ede9fe, #ddd6fe);
-  color: #7c3aed;
-}
-
-.quick-time-btn.evening:hover {
-  background: linear-gradient(135deg, #ddd6fe, #c4b5fd);
-}
-
-.quick-time-btn.business {
-  background: linear-gradient(135deg, #dbeafe, #bfdbfe);
-  color: #1d4ed8;
-}
-
-.quick-time-btn.business:hover {
-  background: linear-gradient(135deg, #bfdbfe, #93c5fd);
-}
-
-/* Filter Actions */
-.filter-actions {
-  display: flex;
-  gap: 1rem;
-  flex-wrap: wrap;
-  margin-top: 2rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid #e5e7eb;
-}
-
-/* ===== TABLE SECTION ===== */
-.attendance-table-section {
-  background: white;
-  border-radius: 1rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(0, 0, 0, 0.05);
-  margin-bottom: 2rem;
-  overflow: hidden;
-}
-
-.table-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.5rem 2rem;
-  border-bottom: 1px solid #e5e7eb;
-  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
-}
-
-.table-header h2 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #111827;
-  margin: 0;
-}
-
-.table-header p {
-  font-size: 0.875rem;
-  color: #6b7280;
-  margin: 0;
-}
-
-.table-scroll {
-  overflow-x: auto;
-  background: white;
-}
-
-.attendance-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.attendance-table thead th {
-  background: linear-gradient(135deg, #f9fafb, #f3f4f6);
-  padding: 1rem 1.5rem;
-  text-align: left;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #6b7280;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.attendance-table tbody tr {
-  border-bottom: 1px solid #f3f4f6;
-  transition: background-color 0.2s ease;
-}
-
-.attendance-table tbody tr:hover {
-  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
-}
-
-.attendance-table tbody td {
-  padding: 1rem 1.5rem;
-  white-space: nowrap;
-}
-
-.user-cell {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.user-avatar {
-  width: 2rem;
-  height: 2rem;
-  background: linear-gradient(135deg, #dbeafe, #bfdbfe);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #3b82f6;
-}
-
-.user-id {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #111827;
-}
-
-.date-cell {
-  font-size: 0.875rem;
-  color: #111827;
-}
-
-.time-cell {
-  font-size: 0.875rem;
-  color: #111827;
-}
-
-.ip-cell {
-  font-size: 0.875rem;
-  color: #6b7280;
-}
-
-/* Empty and Loading States */
-.no-data, .loading-state {
-  padding: 4rem 2rem;
-  text-align: center;
-  background: white;
-}
-
-.no-data-title {
-  font-size: 1.25rem;
-  color: #6b7280;
-  margin: 1rem 0 0.5rem 0;
-}
-
-.no-data-subtitle {
-  font-size: 0.875rem;
-  color: #9ca3af;
-  margin: 0;
-}
-
-.loading-state p {
-  color: #6b7280;
-  margin: 1rem 0 0 0;
-}
-
-/* ===== PAGINATION ===== */
-.pagination-section {
-  background: white;
-  border-radius: 1rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(0, 0, 0, 0.05);
-  padding: 1.5rem 2rem;
-  margin-bottom: 2rem;
-}
-
-.pagination-content {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  align-items: center;
-}
-
-.pagination-info {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.pagination-info label {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #374151;
-}
-
-.pagination-select {
-  padding: 0.5rem 0.75rem;
-  border: 2px solid #d1d5db;
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
-  background: white;
-  cursor: pointer;
-}
-
-.pagination-select:focus {
-  outline: none;
-  border-color: #3b82f6;
-}
-
-.pagination-stats {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.pagination-stats span:first-child {
-  font-size: 0.875rem;
-  color: #374151;
-  font-weight: 500;
-}
-
-.pagination-range {
-  font-size: 0.8rem;
-  color: #6b7280;
-}
-
-.pagination-controls {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.pagination-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.5rem 0.75rem;
-  border: 2px solid #d1d5db;
-  border-radius: 0.5rem;
-  background: white;
-  color: #374151;
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.pagination-btn:hover:not(:disabled) {
-  border-color: #3b82f6;
-  background: #eff6ff;
-  color: #3b82f6;
-}
-
-.pagination-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.pagination-btn.active {
-  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-  border-color: #3b82f6;
-  color: white;
-}
-
-/* ===== SUMMARY SECTION ===== */
-.summary-section {
-  margin-bottom: 2rem;
-}
-
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1.5rem;
-}
-
-.summary-card {
-  background: white;
-  padding: 2rem;
-  border-radius: 1rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(0, 0, 0, 0.05);
-  text-align: center;
-  transition: all 0.3s ease;
-}
-
-.summary-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.1);
-}
-
-.summary-icon {
-  width: 3rem;
-  height: 3rem;
-  border-radius: 0.75rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto 1rem auto;
-}
-
-.summary-icon.blue {
-  background: linear-gradient(135deg, #dbeafe, #bfdbfe);
-  color: #3b82f6;
-}
-
-.summary-icon.green {
-  background: linear-gradient(135deg, #d1fae5, #a7f3d0);
-  color: #10b981;
-}
-
-.summary-icon.purple {
-  background: linear-gradient(135deg, #ede9fe, #ddd6fe);
-  color: #8b5cf6;
-}
-
-.summary-card h3 {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: #111827;
-  margin: 0 0 0.5rem 0;
-}
-
-.summary-card p {
-  font-size: 0.875rem;
-  color: #6b7280;
-  margin: 0;
-}
-
-/* ===== FOOTER ===== */
-.footer-info {
-  text-align: center;
-  margin-top: 2rem;
-  padding: 1.5rem;
-  color: #6b7280;
-  font-size: 0.875rem;
-}
-
-.footer-content {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
-/* ===== MODAL ===== */
-.attendance-modal-backdrop {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 50;
-  padding: 1rem;
-}
-
-.attendance-modal {
-  background: white;
-  border-radius: 1rem;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-  max-width: 28rem;
-  width: 100%;
-  max-height: 90vh;
-  overflow-y: auto;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.5rem;
-  border-bottom: 1px solid #e5e7eb;
-  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
-  border-radius: 1rem 1rem 0 0;
-}
-
-.modal-header h3 {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: #111827;
-  margin: 0;
-}
-
-.modal-close-btn {
-  background: none;
-  border: none;
-  color: #6b7280;
-  cursor: pointer;
-  padding: 0.5rem;
-  border-radius: 0.375rem;
-  transition: all 0.2s ease;
-}
-
-.modal-close-btn:hover {
-  background: rgba(107, 114, 128, 0.1);
-  color: #374151;
-}
-
-.modal-content {
-  padding: 1.5rem;
-  space-y: 1rem;
-}
-
-.modal-info-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.modal-info-item {
-  margin-bottom: 1rem;
-}
-
-.modal-label {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #6b7280;
-  margin: 0 0 0.25rem 0;
-}
-
-.modal-value {
-  font-size: 1.125rem;
-  color: #111827;
-  margin: 0;
-  font-weight: 500;
-}
-
-.modal-value-small {
-  font-size: 0.875rem;
-  color: #6b7280;
-  margin: 0;
-}
-
-.modal-actions {
-  padding: 1.5rem;
-  border-top: 1px solid #e5e7eb;
-  background: linear-gradient(135deg, #f9fafb, #f3f4f6);
-  border-radius: 0 0 1rem 1rem;
-}
-
-.modal-actions .btn {
-  width: 100%;
-  justify-content: center;
-}
-
-/* ===== RESPONSIVE DESIGN ===== */
-@media (max-width: 1024px) {
-  .container {
-    padding: 1rem;
-  }
-
-  .attendance-header {
-    flex-direction: column;
-    gap: 1rem;
-    text-align: center;
-  }
-
-  .header-actions {
-    justify-content: center;
-  }
-
-  .filters-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .time-filters-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .filter-mode-buttons {
-    justify-content: center;
-  }
-
-  .pagination-content {
-    gap: 1rem;
-  }
-
-  .pagination-controls {
-    gap: 0.25rem;
-  }
-
-  .pagination-btn {
-    padding: 0.4rem 0.6rem;
-    font-size: 0.8rem;
-  }
-}
-
-@media (max-width: 768px) {
-  .attendance-header h1 {
-    font-size: 1.5rem;
-  }
-
-  .stats-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .summary-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .table-header {
-    flex-direction: column;
-    gap: 0.5rem;
-    text-align: center;
-  }
-
-  .attendance-table {
-    font-size: 0.8rem;
-  }
-
-  .attendance-table th,
-  .attendance-table td {
-    padding: 0.75rem 0.5rem;
-  }
-
-  .user-cell {
-    flex-direction: column;
-    gap: 0.5rem;
-    text-align: center;
-  }
-
-  .quick-time-buttons {
-    justify-content: center;
-  }
-
-  .filter-actions {
-    justify-content: center;
-  }
-}
-
-@media (max-width: 640px) {
-  .container {
-    padding: 0.5rem;
-  }
-
-  .attendance-header,
-  .filters-section,
-  .attendance-table-section,
-  .pagination-section,
-  .stats-card,
-  .summary-card {
-    padding: 1rem;
-  }
-
-  .filters-content {
-    padding: 1rem;
-  }
-
-  .table-header {
-    padding: 1rem;
-  }
-
-  .attendance-table th,
-  .attendance-table td {
-    padding: 0.5rem 0.25rem;
-  }
-
-  .btn {
-    padding: 0.6rem 0.8rem;
-    font-size: 0.8rem;
-  }
-
-  .filter-mode-btn {
-    padding: 0.6rem 0.8rem;
-    font-size: 0.8rem;
-  }
-
-  .quick-time-btn {
-    padding: 0.4rem 0.8rem;
-    font-size: 0.7rem;
-  }
-}
-
-/* ===== PRINT STYLES ===== */
-@media print {
-  .attendance-dashboard {
-    background: white;
-  }
-
-  .header-actions,
-  .filter-actions,
-  .pagination-section,
-  .btn,
-  .modal-backdrop {
-    display: none !important;
-  }
-
-  .container {
-    padding: 0;
-  }
-
-  .attendance-table {
-    border-collapse: collapse;
-  }
-
-  .attendance-table th,
-  .attendance-table td {
-    border: 1px solid #ccc;
-    padding: 0.5rem;
-  }
-}
-
-
-/* IP Filter Specific Styles */
-.ip-filter-container {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  position: relative;
-}
-
-.ip-filter-container .filter-input {
-  flex: 1;
-}
-
+/* IP refresh button - specific to IP filter */
 .refresh-ip-btn {
   display: flex;
   align-items: center;
@@ -1040,160 +197,79 @@
   cursor: not-allowed;
 }
 
-.refresh-ip-btn .icon.small {
-  width: 16px;
-  height: 16px;
-}
 
-.loading-text {
-  font-size: 0.8em;
-  color: #6c757d;
-  font-style: italic;
-}
+/* ========================================================================
+   5. HEADER SECTION
+   ======================================================================== */
 
-/* Enhanced Filter Styles */
-.filter-input:disabled {
-  background-color: #f8f9fa;
-  color: #6c757d;
-  cursor: not-allowed;
-}
-
-/* Animation for spinning refresh icon */
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.animate-spin {
-  animation: spin 1s linear infinite;
-}
-
-/* Rest of the existing CSS styles */
-.attendance-dashboard {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-}
-
-.container {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 2rem;
-}
-
-/* Header Styles */
+/* Main header containing title and action buttons */
 .attendance-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 2rem;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
+  background: white;
   padding: 2rem;
-  border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  border-radius: 1rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(0, 0, 0, 0.05);
 }
 
+/* Main heading with gradient text effect */
 .attendance-header h1 {
-  color: #2d3748;
-  font-size: 2.5rem;
+  font-size: 2rem;
   font-weight: 700;
+  color: #111827;
   margin: 0 0 0.5rem 0;
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
+/* Subtitle/description text */
 .attendance-header p {
-  color: #718096;
-  font-size: 1.1rem;
+  color: #6b7280;
   margin: 0;
+  font-size: 1.1rem;
 }
 
+/* Container for header action buttons */
 .header-actions {
   display: flex;
   gap: 1rem;
+  flex-shrink: 0;
 }
 
-/* Button Styles */
-.btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 10px;
-  font-weight: 600;
-  font-size: 0.95rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  text-decoration: none;
-  white-space: nowrap;
-}
 
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none !important;
-}
+/* ========================================================================
+   6. ALERTS & NOTIFICATIONS
+   ======================================================================== */
 
-.btn:not(:disabled):hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-}
-
-.btn-blue {
-  background: linear-gradient(135deg, #4299e1, #3182ce);
-  color: white;
-}
-
-.btn-green {
-  background: linear-gradient(135deg, #48bb78, #38a169);
-  color: white;
-}
-
-.btn-gray {
-  background: linear-gradient(135deg, #a0aec0, #718096);
-  color: white;
-}
-
-.btn-view {
-  background: linear-gradient(135deg, #ed8936, #dd6b20);
-  color: white;
-  padding: 0.5rem 1rem;
-  font-size: 0.85rem;
-}
-
-.icon {
-  width: 18px;
-  height: 18px;
-  stroke-width: 2;
-}
-
-.icon.large {
-  width: 48px;
-  height: 48px;
-}
-
-/* Error Alert */
+/* Error alert banner */
 .error-alert {
   display: flex;
   align-items: center;
   gap: 1rem;
-  background: linear-gradient(135deg, #feb2b2, #f56565);
-  color: white;
-  padding: 1rem 1.5rem;
-  border-radius: 12px;
-  margin-bottom: 2rem;
-  box-shadow: 0 4px 12px rgba(245, 101, 101, 0.3);
+  padding: 1rem;
+  background: linear-gradient(135deg, #fef2f2, #fee2e2);
+  border: 1px solid #fecaca;
+  border-radius: 0.75rem;
+  margin-bottom: 1.5rem;
+  color: #dc2626;
 }
 
-/* Stats Grid */
+.error-alert .icon {
+  color: #dc2626;
+  flex-shrink: 0;
+}
+
+
+/* ========================================================================
+   7. STATS CARDS
+   ======================================================================== */
+
+/* Grid layout for statistics cards */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -1201,93 +277,124 @@
   margin-bottom: 2rem;
 }
 
+/* Individual stat card */
 .stats-card {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  border-radius: 16px;
+  background: white;
   padding: 1.5rem;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  transition: transform 0.3s ease;
+  border-radius: 1rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
 }
 
+/* Hover effect - lift card slightly */
 .stats-card:hover {
-  transform: translateY(-4px);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.1);
 }
 
+/* Stats card content layout */
 .stats-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
+/* Stats label text */
 .stats-label {
-  color: #718096;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-weight: 500;
+  color: #6b7280;
   margin: 0 0 0.5rem 0;
 }
 
+/* Large stats value */
 .stats-value {
-  color: #2d3748;
   font-size: 2rem;
   font-weight: 700;
+  color: #111827;
   margin: 0;
 }
 
+/* Smaller stats value (for text-heavy stats) */
 .stats-value-small {
-  color: #2d3748;
-  font-size: 1.2rem;
+  font-size: 1rem;
   font-weight: 600;
+  color: #111827;
   margin: 0;
 }
 
+/* Icon container in stats cards */
 .stats-icon {
-  padding: 1rem;
-  border-radius: 12px;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.75rem;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
+/* Stats icon color variants */
 .stats-icon.blue {
-  background: linear-gradient(135deg, #ebf8ff, #bee3f8);
-  color: #3182ce;
+  background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+  color: #3b82f6;
 }
 
 .stats-icon.green {
-  background: linear-gradient(135deg, #f0fff4, #c6f6d5);
-  color: #38a169;
+  background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+  color: #10b981;
 }
 
 .stats-icon.purple {
-  background: linear-gradient(135deg, #faf5ff, #e9d8fd);
-  color: #805ad5;
+  background: linear-gradient(135deg, #ede9fe, #ddd6fe);
+  color: #8b5cf6;
 }
 
 .stats-icon.orange {
-  background: linear-gradient(135deg, #fffaf0, #fed7aa);
-  color: #dd6b20;
+  background: linear-gradient(135deg, #fed7aa, #fdba74);
+  color: #ea580c;
 }
 
-/* Filters Section */
+
+/* ========================================================================
+   8. FILTERS SECTION
+   ======================================================================== */
+
+/* Main filters container */
 .filters-section {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  border-radius: 16px;
-  padding: 2rem;
+  background: white;
+  border-radius: 1rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(0, 0, 0, 0.05);
   margin-bottom: 2rem;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+/* Filters header with title */
+.filters-header {
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid #e5e7eb;
+  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
 }
 
 .filters-header h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 0;
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  color: #2d3748;
-  font-size: 1.5rem;
-  font-weight: 600;
-  margin: 0 0 1.5rem 0;
 }
+
+/* Filters content area */
+.filters-content {
+  padding: 2rem;
+}
+
+
+/* -------- Filter Mode Selection -------- */
 
 .filter-mode-section {
   margin-bottom: 2rem;
@@ -1295,430 +402,571 @@
 
 .filter-mode-label {
   display: block;
-  color: #4a5568;
-  font-weight: 600;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
   margin-bottom: 1rem;
 }
 
+/* Mode selector buttons container */
 .filter-mode-buttons {
   display: flex;
   gap: 1rem;
   flex-wrap: wrap;
 }
 
+/* Individual filter mode button */
 .filter-mode-btn {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  background: #f7fafc;
-  border: 2px solid #e2e8f0;
-  border-radius: 10px;
-  color: #4a5568;
+  padding: 0.75rem 1rem;
+  border: 2px solid #d1d5db;
+  border-radius: 0.5rem;
+  background: white;
+  color: #6b7280;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
   font-weight: 500;
 }
 
+/* Hover state for mode buttons */
 .filter-mode-btn:hover {
-  background: #edf2f7;
-  border-color: #cbd5e0;
+  border-color: #3b82f6;
+  background: #eff6ff;
+  color: #3b82f6;
 }
 
+/* Active/selected mode button */
 .filter-mode-btn.active {
-  background: linear-gradient(135deg, #4299e1, #3182ce);
-  border-color: #3182ce;
-  color: white;
+  border-color: #3b82f6;
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  color: #1d4ed8;
 }
 
+
+/* -------- Filter Inputs -------- */
+
+/* Grid layout for filter inputs */
 .filters-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 1.5rem;
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
 }
 
-.filter-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.filter-label {
-  color: #4a5568;
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-
-.filter-input {
-  padding: 0.75rem 1rem;
-  border: 2px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 1rem;
-  transition: all 0.3s ease;
-  background: white;
-}
-
-.filter-input:focus {
-  outline: none;
-  border-color: #4299e1;
-  box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
-}
-
+/* Grid for time-specific filters */
 .time-filters-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 1.5rem;
+  margin-top: 1.5rem;
   margin-bottom: 1.5rem;
 }
 
-/* Quick Time Filters */
+/* Individual filter group container */
+.filter-group {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Filter label text */
+.filter-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 0.5rem;
+}
+
+/* Input field styling */
+.filter-input {
+  padding: 0.75rem;
+  border: 2px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  background: white;
+}
+
+/* Focus state for inputs */
+.filter-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Disabled input state */
+.filter-input:disabled {
+  background-color: #f8f9fa;
+  color: #6c757d;
+  cursor: not-allowed;
+}
+
+
+/* -------- IP Filter Specific -------- */
+
+/* Container for IP filter with refresh button */
+.ip-filter-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+.ip-filter-container .filter-input {
+  flex: 1;
+}
+
+
+/* -------- Quick Time Filters -------- */
+
 .quick-time-filters {
-  margin-bottom: 2rem;
+  margin-top: 1.5rem;
 }
 
 .quick-time-label {
   display: block;
-  color: #4a5568;
-  font-weight: 600;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
   margin-bottom: 1rem;
 }
 
+/* Container for quick time buttons */
 .quick-time-buttons {
   display: flex;
   gap: 0.75rem;
   flex-wrap: wrap;
 }
 
+/* Base style for quick time buttons */
 .quick-time-btn {
   padding: 0.5rem 1rem;
   border: none;
-  border-radius: 8px;
-  font-size: 0.85rem;
+  border-radius: 0.375rem;
+  font-size: 0.8rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.3s ease;
-  color: white;
+  transition: all 0.2s ease;
 }
 
+/* Morning time slot button (yellow theme) */
 .quick-time-btn.morning {
-  background: linear-gradient(135deg, #fbd38d, #ed8936);
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  color: #92400e;
 }
 
+.quick-time-btn.morning:hover {
+  background: linear-gradient(135deg, #fde68a, #fcd34d);
+}
+
+/* Afternoon time slot button (orange theme) */
 .quick-time-btn.afternoon {
-  background: linear-gradient(135deg, #90cdf4, #4299e1);
+  background: linear-gradient(135deg, #fed7aa, #fdba74);
+  color: #c2410c;
 }
 
+.quick-time-btn.afternoon:hover {
+  background: linear-gradient(135deg, #fdba74, #fb923c);
+}
+
+/* Evening time slot button (purple theme) */
 .quick-time-btn.evening {
-  background: linear-gradient(135deg, #d6bcfa, #805ad5);
+  background: linear-gradient(135deg, #ede9fe, #ddd6fe);
+  color: #7c3aed;
 }
 
+.quick-time-btn.evening:hover {
+  background: linear-gradient(135deg, #ddd6fe, #c4b5fd);
+}
+
+/* Business hours button (blue theme) */
 .quick-time-btn.business {
-  background: linear-gradient(135deg, #9ae6b4, #48bb78);
+  background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+  color: #1d4ed8;
 }
 
-.quick-time-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+.quick-time-btn.business:hover {
+  background: linear-gradient(135deg, #bfdbfe, #93c5fd);
 }
 
+
+/* -------- Filter Actions -------- */
+
+/* Container for filter action buttons (search, reset) */
 .filter-actions {
   display: flex;
   gap: 1rem;
-  justify-content: flex-end;
-  margin-top: 1.5rem;
+  flex-wrap: wrap;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e5e7eb;
 }
 
-/* Table Section */
+
+/* ========================================================================
+   9. TABLE SECTION
+   ======================================================================== */
+
+/* Main table container */
 .attendance-table-section {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  border-radius: 16px;
-  padding: 2rem;
+  background: white;
+  border-radius: 1rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(0, 0, 0, 0.05);
   margin-bottom: 2rem;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
 }
 
+/* Table header with title and count */
 .table-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.5rem;
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid #e5e7eb;
+  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
 }
 
 .table-header h2 {
-  color: #2d3748;
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: 600;
+  color: #111827;
   margin: 0;
 }
 
 .table-header p {
-  color: #718096;
+  font-size: 0.875rem;
+  color: #6b7280;
   margin: 0;
 }
 
+/* Scrollable table container */
 .table-scroll {
   overflow-x: auto;
-  border-radius: 12px;
-  border: 1px solid #e2e8f0;
-}
-
-.attendance-table {
-  width: 100%;
-  border-collapse: collapse;
   background: white;
 }
 
-.attendance-table th {
-  background: linear-gradient(135deg, #4299e1, #3182ce);
-  color: white;
-  padding: 1rem;
+
+/* -------- Table Structure -------- */
+
+/* Main table element */
+.attendance-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+/* Table header cells */
+.attendance-table thead th {
+  background: linear-gradient(135deg, #f9fafb, #f3f4f6);
+  padding: 1rem 1.5rem;
   text-align: left;
+  font-size: 0.75rem;
   font-weight: 600;
-  font-size: 0.9rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #e5e7eb;
 }
 
-.attendance-table th:first-child {
-  border-top-left-radius: 12px;
-}
-
-.attendance-table th:last-child {
-  border-top-right-radius: 12px;
-}
-
-.attendance-table td {
-  padding: 1rem;
-  border-bottom: 1px solid #e2e8f0;
-  vertical-align: middle;
-}
-
+/* Table body rows */
 .attendance-table tbody tr {
+  border-bottom: 1px solid #f3f4f6;
   transition: background-color 0.2s ease;
 }
 
+/* Row hover effect */
 .attendance-table tbody tr:hover {
-  background: #f8f9fa;
+  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
 }
 
+/* Table data cells */
+.attendance-table tbody td {
+  padding: 1rem 1.5rem;
+  white-space: nowrap;
+}
+
+
+/* -------- Table Cells -------- */
+
+/* User cell with avatar and info */
 .user-cell {
   display: flex;
   align-items: center;
   gap: 0.75rem;
 }
 
+/* User avatar circle */
 .user-avatar {
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(135deg, #e9d8fd, #d6bcfa);
-  border-radius: 10px;
+  width: 2rem;
+  height: 2rem;
+  background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #805ad5;
+  color: #3b82f6;
 }
 
+/* User ID text */
 .user-id {
-  font-weight: 600;
-  color: #2d3748;
-}
-
-.date-cell,
-.time-cell,
-.ip-cell {
-  font-family: 'Monaco', 'Menlo', monospace;
-  color: #4a5568;
+  font-size: 0.875rem;
   font-weight: 500;
+  color: #111827;
 }
 
-/* No Data State */
+/* Date cell styling */
+.date-cell {
+  font-size: 0.875rem;
+  color: #111827;
+}
+
+/* Time cell styling */
+.time-cell {
+  font-size: 0.875rem;
+  color: #111827;
+}
+
+/* IP address cell styling */
+.ip-cell {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+
+/* -------- Empty & Loading States -------- */
+
+/* No data message container */
 .no-data {
-  text-align: center;
   padding: 4rem 2rem;
-  color: #718096;
-}
-
-.no-data-title {
-  font-size: 1.5rem;
-  font-weight: 600;
-  margin: 1rem 0 0.5rem 0;
-  color: #4a5568;
-}
-
-.no-data-subtitle {
-  font-size: 1rem;
-  margin: 0;
-}
-
-/* Loading State */
-.loading-state {
   text-align: center;
-  padding: 4rem 2rem;
-  color: #718096;
-}
-
-.loading-state p {
-  font-size: 1.1rem;
-  margin: 1rem 0 0 0;
-  color: #4a5568;
-}
-
-/* Pagination */
-.pagination-section {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  border-radius: 16px;
-  padding: 1.5rem 2rem;
-  margin-bottom: 2rem;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-}
-
-.pagination-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 1rem;
-}
-
-.pagination-info {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: #4a5568;
-}
-
-.pagination-select {
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
   background: white;
 }
 
+.no-data-title {
+  font-size: 1.25rem;
+  color: #6b7280;
+  margin: 1rem 0 0.5rem 0;
+}
+
+.no-data-subtitle {
+  font-size: 0.875rem;
+  color: #9ca3af;
+  margin: 0;
+}
+
+/* Loading state container */
+.loading-state {
+  padding: 4rem 2rem;
+  text-align: center;
+  background: white;
+}
+
+.loading-state p {
+  color: #6b7280;
+  margin: 1rem 0 0 0;
+}
+
+
+/* ========================================================================
+   10. PAGINATION
+   ======================================================================== */
+
+/* Main pagination container */
+.pagination-section {
+  background: white;
+  border-radius: 1rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  padding: 1.5rem 2rem;
+  margin-bottom: 2rem;
+}
+
+/* Pagination content layout */
+.pagination-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  align-items: center;
+}
+
+/* Results per page selector */
+.pagination-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.pagination-info label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+/* Dropdown for items per page */
+.pagination-select {
+  padding: 0.5rem 0.75rem;
+  border: 2px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  background: white;
+  cursor: pointer;
+}
+
+.pagination-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+/* Page information display */
 .pagination-stats {
   display: flex;
   flex-direction: column;
   align-items: center;
-  color: #4a5568;
-  font-size: 0.9rem;
+  gap: 0.25rem;
 }
 
+.pagination-stats span:first-child {
+  font-size: 0.875rem;
+  color: #374151;
+  font-weight: 500;
+}
+
+/* Range of items shown */
 .pagination-range {
   font-size: 0.8rem;
-  color: #718096;
+  color: #6b7280;
 }
 
+/* Pagination button controls */
 .pagination-controls {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
+  justify-content: center;
 }
 
+/* Individual pagination button */
 .pagination-btn {
   display: flex;
   align-items: center;
   gap: 0.25rem;
   padding: 0.5rem 0.75rem;
+  border: 2px solid #d1d5db;
+  border-radius: 0.5rem;
   background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  color: #4a5568;
+  color: #374151;
+  font-size: 0.875rem;
   cursor: pointer;
   transition: all 0.2s ease;
-  font-size: 0.9rem;
 }
 
+/* Pagination button hover */
 .pagination-btn:hover:not(:disabled) {
-  background: #f7fafc;
-  border-color: #cbd5e0;
+  border-color: #3b82f6;
+  background: #eff6ff;
+  color: #3b82f6;
 }
 
+/* Disabled pagination button */
 .pagination-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
+/* Active/current page button */
 .pagination-btn.active {
-  background: linear-gradient(135deg, #4299e1, #3182ce);
-  border-color: #3182ce;
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  border-color: #3b82f6;
   color: white;
 }
 
-/* Summary Section */
+
+/* ========================================================================
+   11. SUMMARY SECTION
+   ======================================================================== */
+
 .summary-section {
   margin-bottom: 2rem;
 }
 
+/* Grid for summary cards */
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 1.5rem;
 }
 
+/* Individual summary card */
 .summary-card {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  border-radius: 16px;
-  padding: 1.5rem;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  transition: transform 0.3s ease;
+  background: white;
+  padding: 2rem;
+  border-radius: 1rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  text-align: center;
+  transition: all 0.3s ease;
 }
 
 .summary-card:hover {
-  transform: translateY(-4px);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.1);
 }
 
+/* Summary card icon */
 .summary-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.75rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 1rem;
+  margin: 0 auto 1rem auto;
 }
 
 .summary-card h3 {
-  color: #2d3748;
-  font-size: 1.2rem;
+  font-size: 1.125rem;
   font-weight: 600;
+  color: #111827;
   margin: 0 0 0.5rem 0;
 }
 
 .summary-card p {
-  color: #718096;
+  font-size: 0.875rem;
+  color: #6b7280;
   margin: 0;
-  line-height: 1.5;
 }
 
-/* Footer */
+
+/* ========================================================================
+   12. FOOTER
+   ======================================================================== */
+
+/* Footer information section */
 .footer-info {
   text-align: center;
-  padding: 2rem;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  margin-bottom: 2rem;
+  margin-top: 2rem;
+  padding: 1.5rem;
+  color: #6b7280;
+  font-size: 0.875rem;
 }
 
+/* Footer content with icon */
 .footer-content {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  color: #4a5568;
-  font-weight: 500;
   margin-bottom: 0.5rem;
 }
 
-.footer-info p {
-  color: #718096;
-  margin: 0;
-  font-size: 0.9rem;
-}
 
-/* Modal Styles */
+/* ========================================================================
+   13. MODAL/DIALOG
+   ======================================================================== */
+
+/* Modal backdrop overlay */
 .attendance-modal-backdrop {
   position: fixed;
   top: 0;
@@ -1726,162 +974,328 @@
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(5px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 50;
   padding: 1rem;
 }
 
+/* Modal dialog box */
 .attendance-modal {
   background: white;
-  border-radius: 16px;
+  border-radius: 1rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  max-width: 28rem;
   width: 100%;
-  max-width: 500px;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 }
 
+/* Modal header section */
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.5rem 2rem;
-  border-bottom: 1px solid #e2e8f0;
+  padding: 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
+  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+  border-radius: 1rem 1rem 0 0;
 }
 
 .modal-header h3 {
-  color: #2d3748;
-  font-size: 1.3rem;
+  font-size: 1.125rem;
   font-weight: 600;
+  color: #111827;
   margin: 0;
 }
 
+/* Modal close button */
 .modal-close-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
+  background: none;
   border: none;
-  background: #f7fafc;
-  border-radius: 8px;
-  color: #718096;
+  color: #6b7280;
   cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 0.375rem;
   transition: all 0.2s ease;
 }
 
 .modal-close-btn:hover {
-  background: #edf2f7;
-  color: #4a5568;
+  background: rgba(107, 114, 128, 0.1);
+  color: #374151;
 }
 
+/* Modal content area */
 .modal-content {
-  padding: 2rem;
+  padding: 1.5rem;
+  space-y: 1rem;
 }
 
+/* Grid for modal info items */
 .modal-info-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 1.5rem;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1rem;
 }
 
+/* Individual modal info item */
 .modal-info-item {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 }
 
+/* Modal field label */
 .modal-label {
-  color: #718096;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-weight: 500;
-  margin: 0 0 0.5rem 0;
+  color: #6b7280;
+  margin: 0 0 0.25rem 0;
 }
 
+/* Modal field value (large) */
 .modal-value {
-  color: #2d3748;
-  font-size: 1.1rem;
-  font-weight: 600;
+  font-size: 1.125rem;
+  color: #111827;
   margin: 0;
-}
-
-.modal-value-small {
-  color: #2d3748;
-  font-size: 0.95rem;
   font-weight: 500;
+}
+
+/* Modal field value (small) */
+.modal-value-small {
+  font-size: 0.875rem;
+  color: #6b7280;
   margin: 0;
-  font-family: 'Monaco', 'Menlo', monospace;
 }
 
+/* Modal action buttons area */
 .modal-actions {
-  padding: 1rem 2rem 2rem;
-  display: flex;
-  justify-content: flex-end;
+  padding: 1.5rem;
+  border-top: 1px solid #e5e7eb;
+  background: linear-gradient(135deg, #f9fafb, #f3f4f6);
+  border-radius: 0 0 1rem 1rem;
 }
 
-/* Responsive Design */
-@media (max-width: 768px) {
+.modal-actions .btn {
+  width: 100%;
+  justify-content: center;
+}
+
+
+/* ========================================================================
+   14. ANIMATIONS & TRANSITIONS
+   ======================================================================== */
+
+/* Spinning animation for loading indicators */
+@keyframes spin {
+  from { 
+    transform: rotate(0deg); 
+  }
+  to { 
+    transform: rotate(360deg); 
+  }
+}
+
+
+/* ========================================================================
+   15. RESPONSIVE DESIGN
+   ======================================================================== */
+
+/* -------- Tablet & Medium Screens (1024px and below) -------- */
+@media (max-width: 1024px) {
+  /* Reduce container padding on smaller screens */
   .container {
     padding: 1rem;
   }
 
+  /* Stack header vertically */
   .attendance-header {
     flex-direction: column;
-    align-items: flex-start;
     gap: 1rem;
+    text-align: center;
   }
 
+  /* Center header action buttons */
   .header-actions {
-    width: 100%;
-    justify-content: stretch;
-  }
-
-  .header-actions .btn {
-    flex: 1;
     justify-content: center;
   }
 
-  .stats-grid {
-    grid-template-columns: 1fr;
-  }
-
+  /* Single column for filters */
   .filters-grid {
     grid-template-columns: 1fr;
   }
 
+  /* Single column for time filters */
   .time-filters-grid {
     grid-template-columns: 1fr;
   }
 
+  /* Center filter mode buttons */
   .filter-mode-buttons {
-    flex-direction: column;
-  }
-
-  .quick-time-buttons {
-    flex-direction: column;
-  }
-
-  .pagination-content {
-    flex-direction: column;
-    text-align: center;
-  }
-
-  .pagination-controls {
     justify-content: center;
   }
 
-  .table-scroll {
-    font-size: 0.9rem;
+  /* Reduce pagination spacing */
+  .pagination-content {
+    gap: 1rem;
   }
 
+  .pagination-controls {
+    gap: 0.25rem;
+  }
+
+  /* Smaller pagination buttons */
+  .pagination-btn {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.8rem;
+  }
+}
+
+
+/* -------- Mobile & Small Screens (768px and below) -------- */
+@media (max-width: 768px) {
+  /* Smaller main heading */
+  .attendance-header h1 {
+    font-size: 1.5rem;
+  }
+
+  /* Single column for stats cards */
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Single column for summary cards */
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Stack table header vertically */
+  .table-header {
+    flex-direction: column;
+    gap: 0.5rem;
+    text-align: center;
+  }
+
+  /* Reduce table font size */
+  .attendance-table {
+    font-size: 0.8rem;
+  }
+
+  /* Reduce table cell padding */
   .attendance-table th,
   .attendance-table td {
     padding: 0.75rem 0.5rem;
   }
 
-  .summary-grid {
-    grid-template-columns: 1fr;
+  /* Stack user cell vertically */
+  .user-cell {
+    flex-direction: column;
+    gap: 0.5rem;
+    text-align: center;
+  }
+
+  /* Center quick time buttons */
+  .quick-time-buttons {
+    justify-content: center;
+  }
+
+  /* Center filter actions */
+  .filter-actions {
+    justify-content: center;
   }
 }
+
+
+/* -------- Extra Small Screens (640px and below) -------- */
+@media (max-width: 640px) {
+  /* Minimal container padding */
+  .container {
+    padding: 0.5rem;
+  }
+
+  /* Reduce padding for all major sections */
+  .attendance-header,
+  .filters-section,
+  .attendance-table-section,
+  .pagination-section,
+  .stats-card,
+  .summary-card {
+    padding: 1rem;
+  }
+
+  /* Reduce filters content padding */
+  .filters-content {
+    padding: 1rem;
+  }
+
+  /* Reduce table header padding */
+  .table-header {
+    padding: 1rem;
+  }
+
+  /* Minimal table cell padding */
+  .attendance-table th,
+  .attendance-table td {
+    padding: 0.5rem 0.25rem;
+  }
+
+  /* Smaller buttons */
+  .btn {
+    padding: 0.6rem 0.8rem;
+    font-size: 0.8rem;
+  }
+
+  /* Smaller filter mode buttons */
+  .filter-mode-btn {
+    padding: 0.6rem 0.8rem;
+    font-size: 0.8rem;
+  }
+
+  /* Smaller quick time buttons */
+  .quick-time-btn {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.7rem;
+  }
+}
+
+
+/* ========================================================================
+   16. PRINT STYLES
+   ======================================================================== */
+
+@media print {
+  /* Remove background for printing */
+  .attendance-dashboard {
+    background: white;
+  }
+
+  /* Hide interactive elements when printing */
+  .header-actions,
+  .filter-actions,
+  .pagination-section,
+  .btn,
+  .modal-backdrop {
+    display: none !important;
+  }
+
+  /* Remove padding for print */
+  .container {
+    padding: 0;
+  }
+
+  /* Ensure table borders are visible */
+  .attendance-table {
+    border-collapse: collapse;
+  }
+
+  .attendance-table th,
+  .attendance-table td {
+    border: 1px solid #ccc;
+    padding: 0.5rem;
+  }
+}
+
+
+/* ========================================================================
+   END OF STYLESHEET
+   ======================================================================== */

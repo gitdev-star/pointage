@@ -1,0 +1,11 @@
+Django>=4.2
+djangorestframework
+djangorestframework-simplejwt
+psycopg2-binary
+django-cors-headers
+
+requests
+ldap3
+gunicorn>=21.0
+whitenoise>=6.0
+dj-database-url==2.1.0

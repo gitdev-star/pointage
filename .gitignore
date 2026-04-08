@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+migrations/
+*.db
+*.sqlite3
+.env
+
+# Node / React
+node_modules/
+build/
+
+# IDEs
+.idea/
+.vscode/
+
+# Docker
+docker-compose.override.yml
+*.log
+
+
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual env
+venv/
+env/
+
+# Django
+*.sqlite3
+media/
+staticfiles/
+
+# Node
+node_modules/
+
+# Env files
+.env
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Alembic
+alembic/versions/*.pyc

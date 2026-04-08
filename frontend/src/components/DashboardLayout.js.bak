@@ -1,0 +1,131 @@
+import React from "react";
+import { Link, Outlet, useLocation } from "react-router-dom";
+import { logout } from "../api/auth";
+import { useNavigate } from "react-router-dom";
+import { useHRAuth } from "../contexts/HRAuthContext";
+import "./DashboardLayout.css";
+import NotificationBell from "./hr/NotificationBell";
+
+const DashboardLayout = () => {
+  const navigate      = useNavigate();
+  const location      = useLocation();
+  const { hrProfile, canSee } = useHRAuth();
+
+  const handleLogout = () => { logout(); navigate("/login"); };
+
+  const hrMenuItems = [
+    { to: "/hr/employees",  label: "Employés",           module: "employees" },
+    { to: "/hr/import",     label: "Import CSV",          module: "employees" },
+    { to: "/hr/leaves",     label: "Congés",              module: "leaves" },
+    { to: "/hr/maternity",  label: "Congé maternité",     module: "leaves" },
+    { to: "/hr/payroll",    label: "Fiches de paie",      module: "payroll" },
+    { to: "/hr/reports",    label: "Rapports",            module: "reports" },
+    { to: "/hr/shifts",     label: "Shifts & Événements", module: "shifts" },
+    { to: "/hr/registre",    label: "Registre du personnel", module: "employees" },
+    { to: "/hr/events",     label: "Événements RH",      module: "sanctions" },
+    { to: "/hr/sanctions",  label: "Sanctions",           module: "sanctions" },
+    { to: "/hr/cdd-alerts", label: "Alertes CDD",         module: "alerts" },
+  ].filter(item => canSee(item.module));
+
+  const hrAdminItems = [
+    { to: "/hr/organisation",  label: "Organisation",      module: "organisation" },
+    { to: "/hr/notifications", label: "Notifications RH",  module: "alerts" },
+    { to: "/hr/users",         label: "Utilisateurs RH",   module: "hr_users" },
+    { to: "/hr/permissions",   label: "Permissions",        module: "hr_users" },
+  ].filter(item => canSee(item.module));
+
+  return (
+    <div className="dashboard-container">
+      <aside className="sidebar">
+        <h2>HR System</h2>
+
+        {hrProfile && (
+          <div className="role-badge" style={{
+            borderColor: hrProfile.is_director ? "#f44336" : "#1976d2"
+          }}>
+            <span className="role-dot" style={{
+              backgroundColor: hrProfile.is_director ? "#f44336" : "#1976d2"
+            }} />
+            <span>{hrProfile.username}</span>
+            <small>{hrProfile.is_director ? "Directeur RH" : hrProfile.job_title || "RH"}</small>
+          </div>
+        )}
+
+        <nav>
+          <div className="nav-section">
+            <div className="nav-section-title">Pointage</div>
+            <ul>
+              {[
+                { to: "/dashboard",           label: "Dashboard" },
+                { to: "/attendance",          label: "Présences" },
+                { to: "/attendance/analysis", label: "Analyse" },
+                { to: "/devices",             label: "Appareils" },
+              ].map(item => (
+                <li key={item.to}>
+                  <Link to={item.to} className={location.pathname === item.to ? "active" : ""}>
+                    {item.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {hrMenuItems.length > 0 && (
+            <div className="nav-section">
+              <div className="nav-section-title">RH</div>
+              <ul>
+                {hrMenuItems.map(item => (
+                  <li key={item.to}>
+                    <Link to={item.to} className={location.pathname === item.to ? "active" : ""}>
+                      {item.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {hrAdminItems.length > 0 && (
+            <div className="nav-section">
+              <div className="nav-section-title">Administration RH</div>
+              <ul>
+                {hrAdminItems.map(item => (
+                  <li key={item.to}>
+                    <Link to={item.to} className={location.pathname === item.to ? "active" : ""}>
+                      {item.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="nav-section">
+            <div className="nav-section-title">Compte</div>
+            <ul>
+              <li>
+                <Link to="/profile" className={location.pathname === "/profile" ? "active" : ""}>
+                  Profil
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          <div className="nav-section">
+            <ul>
+              <li><button onClick={handleLogout} className="logout-btn">Déconnexion</button></li>
+            </ul>
+          </div>
+        </nav>
+      </aside>
+      <main className="main-content">
+        <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", padding:"8px 20px", borderBottom:"1px solid #eee", background:"#1565c0", minHeight:"48px" }}>
+          <NotificationBell />
+        </div>
+        <div style={{ padding: "0" }}><Outlet /></div>
+      </main>
+    </div>
+  );
+};
+
+export default DashboardLayout;

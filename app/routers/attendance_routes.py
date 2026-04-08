@@ -1,29 +1,61 @@
+# app/routers/attendance_routes.py
+# ============================================================
+# HTTP layer only — no business logic here
+# Delegates to services for any computation
+# ============================================================
+
 from typing import List, Optional
+from datetime import datetime, date, time, timedelta
+import hashlib
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, desc, distinct
-from pydantic import BaseModel, Field, validator
-from datetime import datetime, date, time, timedelta
+from sqlalchemy import select, func, and_, desc, distinct, text
+from pydantic import BaseModel, Field
 
 from app.database import get_async_db
 from app.models.attendance import Attendance
+from app.auth.django_auth import get_current_user
+from app.services.analysis_service import compute_user_analysis
 
 router = APIRouter()
 
+# --------------------------------------------------
+# CACHE
+# --------------------------------------------------
+_stats_cache: dict = {}
+_ip_cache: list = []
+_ip_cache_time: Optional[datetime] = None
+STATS_CACHE_TTL = 30    # seconds
+IP_CACHE_TTL    = 300   # 5 minutes
 
-# === SCHEMAS ===
 
-class AttendanceBase(BaseModel):
+def _cache_key(**kwargs) -> str:
+    params = {k: str(v) for k, v in sorted(kwargs.items()) if v is not None}
+    return hashlib.md5(json.dumps(params).encode()).hexdigest()
+
+
+def _get_cache(cache: dict, key: str, ttl: int):
+    if key in cache:
+        data, ts = cache[key]
+        if (datetime.now() - ts).total_seconds() < ttl:
+            return data
+    return None
+
+
+def _set_cache(cache: dict, key: str, data):
+    cache[key] = (data, datetime.now())
+
+
+# --------------------------------------------------
+# SCHEMAS
+# --------------------------------------------------
+class AttendanceResponse(BaseModel):
+    id: int
     uid: int
     user_id: int
     device_ip: str
-
-    class Config:
-        orm_mode = True
-
-
-class AttendanceResponse(AttendanceBase):
-    id: int
     timestamp: datetime
     attendance_date: date = Field(..., alias="date")
 
@@ -54,282 +86,54 @@ class StatsResponse(BaseModel):
         orm_mode = True
 
 
-# === ROUTES ===
-
-# Fetch full attendance with pagination
-@router.get("/", response_model=List[AttendanceResponse])
-async def get_all_attendance(
-        response: Response,
-        skip: int = Query(0, ge=0),
-        limit: int = Query(100, ge=1, le=1000),
-        user_id: Optional[int] = Query(None),
-        device_ip: Optional[str] = Query(None),
-        date_from: Optional[date] = Query(None),
-        date_to: Optional[date] = Query(None),
-        time_from: Optional[time] = Query(None, description="Start time filter (HH:MM:SS)"),
-        time_to: Optional[time] = Query(None, description="End time filter (HH:MM:SS)"),
-        target_date: Optional[date] = Query(None, description="Specific date for time filtering"),
-        period: Optional[str] = Query(None),
-        db: AsyncSession = Depends(get_async_db),
-):
-    """
-    Fetch attendance records with comprehensive filtering options.
-
-    - **time_from/time_to**: Filter by time of day (requires target_date or works with date_from/date_to)
-    - **target_date**: Specific date to combine with time filtering
-    - **period**: Predefined periods (today, yesterday, this_week, last_week)
-    """
-    try:
-        query = select(Attendance)
-        filters = build_filters(
-            period=period,
-            user_id=user_id,
-            device_ip=device_ip,
-            date_from=date_from,
-            date_to=date_to,
-            time_from=time_from,
-            time_to=time_to,
-            target_date=target_date
-        )
-
-        if filters:
-            query = query.where(and_(*filters))
-
-        count_query = select(func.count(Attendance.id)).where(and_(*filters)) if filters else select(
-            func.count(Attendance.id))
-        total_result = await db.execute(count_query)
-        total_count = total_result.scalar() or 0
-        response.headers["X-Total-Count"] = str(total_count)
-
-        query = query.order_by(desc(Attendance.timestamp)).offset(skip).limit(limit)
-        result = await db.execute(query)
-        return result.scalars().all()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching records: {str(e)}")
+# Analysis schemas (mirrors analysis_service dataclasses for HTTP response)
+class DayRecordResponse(BaseModel):
+    date: date
+    day_name: str
+    is_weekend: bool
+    first_punch: Optional[datetime]      # Keep for frontend compatibility
+    last_punch: Optional[datetime]       # Keep for frontend compatibility
+    arrival: Optional[datetime]
+    departure: Optional[datetime]
+    hours_worked: Optional[float]
+    overtime_hours: float                # ← ADDED: Individual day overtime
+    is_late: bool
+    is_early_leave: bool
+    is_overtime: bool
+    punch_count: int
 
 
-# Fetch minimal data with pagination
-@router.get("/minimal", response_model=List[MinimalAttendanceResponse])
-async def get_minimal_attendance(
-        response: Response,
-        skip: int = Query(0, ge=0),
-        limit: int = Query(100, ge=1, le=1000),
-        user_id: Optional[int] = Query(None),
-        device_ip: Optional[str] = Query(None),
-        date_from: Optional[date] = Query(None),
-        date_to: Optional[date] = Query(None),
-        time_from: Optional[time] = Query(None, description="Start time filter (HH:MM:SS)"),
-        time_to: Optional[time] = Query(None, description="End time filter (HH:MM:SS)"),
-        target_date: Optional[date] = Query(None, description="Specific date for time filtering"),
-        period: Optional[str] = Query(None),
-        db: AsyncSession = Depends(get_async_db),
-):
-    try:
-        filters = build_filters(
-            period=period,
-            user_id=user_id,
-            device_ip=device_ip,
-            date_from=date_from,
-            date_to=date_to,
-            time_from=time_from,
-            time_to=time_to,
-            target_date=target_date
-        )
-
-        query = select(
-            Attendance.user_id,
-            Attendance.timestamp,
-            Attendance.date,
-            Attendance.device_ip,
-        )
-        if filters:
-            query = query.where(and_(*filters))
-
-        count_query = select(func.count(Attendance.id)).where(and_(*filters)) if filters else select(
-            func.count(Attendance.id))
-        total_result = await db.execute(count_query)
-        total_count = total_result.scalar() or 0
-        response.headers["X-Total-Count"] = str(total_count)
-
-        query = query.order_by(desc(Attendance.timestamp)).offset(skip).limit(limit)
-        result = await db.execute(query)
-        rows = result.all()
-
-        return [
-            MinimalAttendanceResponse(
-                user_id=row.user_id,
-                timestamp=row.timestamp,
-                attendance_date=row.date,
-                device_ip=row.device_ip,
-            )
-            for row in rows
-        ]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching records: {str(e)}")
+class UserAnalysisResponse(BaseModel):
+    user_id: int
+    date_from: date
+    date_to: date
+    total_days_present: int
+    total_days_late: int
+    total_days_early_leave: int
+    total_days_overtime: int
+    total_weekend_days: int
+    total_hours_worked: float
+    total_overtime_hours: float          # ← ADDED
+    average_hours_per_day: float
+    days: List[DayRecordResponse]
 
 
-# Statistics endpoint
-@router.get("/stats", response_model=StatsResponse)
-async def get_attendance_stats(
-        user_id: Optional[int] = Query(None),
-        device_ip: Optional[str] = Query(None),
-        date_from: Optional[date] = Query(None),
-        date_to: Optional[date] = Query(None),
-        time_from: Optional[time] = Query(None, description="Start time filter (HH:MM:SS)"),
-        time_to: Optional[time] = Query(None, description="End time filter (HH:MM:SS)"),
-        target_date: Optional[date] = Query(None, description="Specific date for time filtering"),
-        period: Optional[str] = Query(None),
-        db: AsyncSession = Depends(get_async_db),
-):
-    try:
-        filters = build_filters(
-            period=period,
-            user_id=user_id,
-            device_ip=device_ip,
-            date_from=date_from,
-            date_to=date_to,
-            time_from=time_from,
-            time_to=time_to,
-            target_date=target_date
-        )
-        filter_clause = and_(*filters) if filters else None
-
-        total_query = select(func.count(Attendance.id))
-        if filter_clause:
-            total_query = total_query.where(filter_clause)
-        total_result = await db.execute(total_query)
-        total_records = total_result.scalar() or 0
-
-        unique_query = select(func.count(distinct(Attendance.user_id)))
-        if filter_clause:
-            unique_query = unique_query.where(filter_clause)
-        unique_result = await db.execute(unique_query)
-        unique_users = unique_result.scalar() or 0
-
-        latest_query = select(func.max(Attendance.timestamp))
-        if filter_clause:
-            latest_query = latest_query.where(filter_clause)
-        latest_result = await db.execute(latest_query)
-        latest_punch = latest_result.scalar()
-
-        return StatsResponse(
-            total_records=total_records,
-            unique_users=unique_users,
-            present_count=total_records,
-            absent_count=0,
-            latest_punch=latest_punch,
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching stats: {str(e)}")
-
-
-# Get by ID
-@router.get("/{attendance_id}", response_model=AttendanceResponse)
-async def get_attendance_by_id(
-        attendance_id: int,
-        db: AsyncSession = Depends(get_async_db),
-):
-    try:
-        query = select(Attendance).where(Attendance.id == attendance_id)
-        result = await db.execute(query)
-        attendance = result.scalar_one_or_none()
-
-        if not attendance:
-            raise HTTPException(status_code=404, detail="Attendance record not found")
-
-        return attendance
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching record: {str(e)}")
-
-
-# New endpoint: Get attendance for specific day with hourly breakdown
-@router.get("/daily/{target_date}", response_model=List[AttendanceResponse])
-async def get_daily_attendance(
-        target_date: date,
-        response: Response,
-        skip: int = Query(0, ge=0),
-        limit: int = Query(100, ge=1, le=1000),
-        user_id: Optional[int] = Query(None),
-        device_ip: Optional[str] = Query(None),
-        time_from: Optional[time] = Query(None, description="Start time filter (HH:MM:SS)"),
-        time_to: Optional[time] = Query(None, description="End time filter (HH:MM:SS)"),
-        db: AsyncSession = Depends(get_async_db),
-):
-    """
-    Get attendance records for a specific date with optional time filtering.
-    """
-    try:
-        filters = build_filters(
-            period=None,
-            user_id=user_id,
-            device_ip=device_ip,
-            date_from=target_date,
-            date_to=target_date,
-            time_from=time_from,
-            time_to=time_to,
-            target_date=target_date
-        )
-
-        query = select(Attendance)
-        if filters:
-            query = query.where(and_(*filters))
-
-        count_query = select(func.count(Attendance.id)).where(and_(*filters)) if filters else select(
-            func.count(Attendance.id))
-        total_result = await db.execute(count_query)
-        total_count = total_result.scalar() or 0
-        response.headers["X-Total-Count"] = str(total_count)
-
-        query = query.order_by(Attendance.timestamp).offset(skip).limit(limit)
-        result = await db.execute(query)
-        return result.scalars().all()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching daily records: {str(e)}")
-
-
-@router.get("/available-ips", response_model=List[str])
-async def get_available_device_ips(
-        db: AsyncSession = Depends(get_async_db),
-):
-    """
-    Get list of unique device IPs from attendance records.
-    """
-    try:
-        query = select(distinct(Attendance.device_ip)).where(
-            Attendance.device_ip.isnot(None)
-        ).order_by(Attendance.device_ip)
-
-        result = await db.execute(query)
-        ips = result.scalars().all()
-
-        return [ip for ip in ips if ip]  # Filter out any None values
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching available IPs: {str(e)}")
-
-# === UTILITIES ===
-
+# --------------------------------------------------
+# FILTER BUILDER
+# --------------------------------------------------
 def build_filters(
-        period: Optional[str],
-        user_id: Optional[int],
-        device_ip: Optional[str],
-        date_from: Optional[date],
-        date_to: Optional[date],
-        time_from: Optional[time] = None,
-        time_to: Optional[time] = None,
-        target_date: Optional[date] = None,
+    period: Optional[str],
+    user_id: Optional[int],
+    device_ip: Optional[str],
+    date_from: Optional[date],
+    date_to: Optional[date],
+    time_from: Optional[time] = None,
+    time_to: Optional[time] = None,
+    target_date: Optional[date] = None,
 ) -> List:
-    """
-    Build SQL filters for attendance queries.
-
-    Args:
-        time_from: Start time for filtering (works with target_date or date range)
-        time_to: End time for filtering (works with target_date or date range)
-        target_date: Specific date for time filtering (overrides date_from/date_to for time filters)
-    """
     filters = []
     today = date.today()
 
-    # Handle predefined periods
     if period:
         if period == "today":
             filters.append(Attendance.date == today)
@@ -343,78 +147,463 @@ def build_filters(
             end = start + timedelta(days=6)
             filters.extend([Attendance.date >= start, Attendance.date <= end])
 
-    # Handle date range filters
-    if date_from:
-        filters.append(Attendance.date >= date_from)
-    if date_to:
-        filters.append(Attendance.date <= date_to)
+    # Only apply date_from/date_to if no period is active
+    if not period:
+        if date_from:
+            filters.append(Attendance.date >= date_from)
+        if date_to:
+            filters.append(Attendance.date <= date_to)
 
-    # Handle time-based filtering
-    if time_from is not None or time_to is not None:
-        # Use target_date if provided, otherwise use date_from/date_to range
-        if target_date:
-            # Filter for specific date with time range
-            base_datetime = datetime.combine(target_date, time(0, 0, 0))
+    # target_date alone always filters the date column
+    if target_date and not period:
+        filters.append(Attendance.date == target_date)
 
-            if time_from is not None:
-                start_datetime = datetime.combine(target_date, time_from)
-                filters.append(Attendance.timestamp >= start_datetime)
-
-            if time_to is not None:
-                end_datetime = datetime.combine(target_date, time_to)
-                filters.append(Attendance.timestamp <= end_datetime)
-
-            # Ensure we're only looking at the target date
-            filters.append(Attendance.date == target_date)
-
+    if time_from or time_to:
+        filter_date = target_date or date_from or date_to
+        if filter_date:
+            if time_from:
+                filters.append(Attendance.timestamp >= datetime.combine(filter_date, time_from))
+            if time_to:
+                filters.append(Attendance.timestamp <= datetime.combine(filter_date, time_to))
         else:
-            # Apply time filtering to existing date range
-            if time_from is not None:
-                # Extract time from timestamp and compare
-                filters.append(func.extract('hour', Attendance.timestamp) * 3600 +
-                               func.extract('minute', Attendance.timestamp) * 60 +
-                               func.extract('second', Attendance.timestamp) >=
-                               time_from.hour * 3600 + time_from.minute * 60 + time_from.second)
+            if time_from:
+                filters.append(
+                    func.extract('hour', Attendance.timestamp) * 3600 +
+                    func.extract('minute', Attendance.timestamp) * 60 +
+                    func.extract('second', Attendance.timestamp) >=
+                    time_from.hour * 3600 + time_from.minute * 60 + time_from.second
+                )
+            if time_to:
+                filters.append(
+                    func.extract('hour', Attendance.timestamp) * 3600 +
+                    func.extract('minute', Attendance.timestamp) * 60 +
+                    func.extract('second', Attendance.timestamp) <=
+                    time_to.hour * 3600 + time_to.minute * 60 + time_to.second
+                )
 
-            if time_to is not None:
-                filters.append(func.extract('hour', Attendance.timestamp) * 3600 +
-                               func.extract('minute', Attendance.timestamp) * 60 +
-                               func.extract('second', Attendance.timestamp) <=
-                               time_to.hour * 3600 + time_to.minute * 60 + time_to.second)
-
-    # Handle other filters
     if user_id:
         filters.append(Attendance.user_id == user_id)
     if device_ip:
-        filters.append(Attendance.device_ip == device_ip)
+        # Support multiple IPs (comma-separated for group filtering)
+        if ',' in device_ip:
+            ip_list = [ip.strip() for ip in device_ip.split(',')]
+            filters.append(Attendance.device_ip.in_(ip_list))
+        else:
+            filters.append(Attendance.device_ip == device_ip)
 
     return filters
 
 
-def get_time_range_filters(
-        target_date: date,
-        time_from: Optional[time] = None,
-        time_to: Optional[time] = None
-) -> List:
+# --------------------------------------------------
+# ROUTES
+# --------------------------------------------------
+
+@router.get("/secure-data")
+async def secure_endpoint(user=Depends(get_current_user)):
+    return {"message": f"Hello {user['username']}, this is protected by Django JWT!"}
+
+
+@router.get("/", response_model=List[AttendanceResponse])
+async def get_all_attendance(
+    response: Response,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    user_id: Optional[int] = Query(None),
+    device_ip: Optional[str] = Query(None),
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
+    time_from: Optional[time] = Query(None),
+    time_to: Optional[time] = Query(None),
+    target_date: Optional[date] = Query(None),
+    period: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_async_db),
+):
+    try:
+        filters = build_filters(
+            period=period, user_id=user_id, device_ip=device_ip,
+            date_from=date_from, date_to=date_to,
+            time_from=time_from, time_to=time_to, target_date=target_date
+        )
+        query = select(Attendance, func.count().over().label("total_count"))
+        if filters:
+            query = query.where(and_(*filters))
+        query = query.order_by(desc(Attendance.timestamp)).offset(skip).limit(limit)
+
+        result = await db.execute(query)
+        rows = result.all()
+
+        response.headers["X-Total-Count"] = str(rows[0].total_count if rows else 0)
+        return [row[0] for row in rows]
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/minimal", response_model=List[MinimalAttendanceResponse])
+async def get_minimal_attendance(
+    response: Response,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    user_id: Optional[int] = Query(None),
+    device_ip: Optional[str] = Query(None),
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
+    time_from: Optional[time] = Query(None),
+    time_to: Optional[time] = Query(None),
+    target_date: Optional[date] = Query(None),
+    period: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_async_db),
+):
+    try:
+        filters = build_filters(
+            period=period, user_id=user_id, device_ip=device_ip,
+            date_from=date_from, date_to=date_to,
+            time_from=time_from, time_to=time_to, target_date=target_date
+        )
+        query = select(
+            Attendance.user_id,
+            Attendance.timestamp,
+            Attendance.date,
+            Attendance.device_ip,
+            func.count().over().label("total_count")
+        )
+        if filters:
+            query = query.where(and_(*filters))
+        query = query.order_by(desc(Attendance.timestamp)).offset(skip).limit(limit)
+
+        result = await db.execute(query)
+        rows = result.all()
+
+        response.headers["X-Total-Count"] = str(rows[0].total_count if rows else 0)
+        return [
+            MinimalAttendanceResponse(
+                user_id=row.user_id,
+                timestamp=row.timestamp,
+                attendance_date=row.date,
+                device_ip=row.device_ip,
+            )
+            for row in rows
+        ]
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/stats", response_model=StatsResponse)
+async def get_attendance_stats(
+    user_id: Optional[int] = Query(None),
+    device_ip: Optional[str] = Query(None),
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
+    time_from: Optional[time] = Query(None),
+    time_to: Optional[time] = Query(None),
+    target_date: Optional[date] = Query(None),
+    period: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_async_db),
+):
+    try:
+        key = _cache_key(
+            user_id=user_id, device_ip=device_ip,
+            date_from=date_from, date_to=date_to,
+            time_from=time_from, time_to=time_to,
+            target_date=target_date, period=period
+        )
+        cached = _get_cache(_stats_cache, key, STATS_CACHE_TTL)
+        if cached:
+            return cached
+
+        filters = build_filters(
+            period=period, user_id=user_id, device_ip=device_ip,
+            date_from=date_from, date_to=date_to,
+            time_from=time_from, time_to=time_to, target_date=target_date
+        )
+        filter_clause = and_(*filters) if filters else text("1=1")
+
+        result = await db.execute(
+            select(
+                func.count(Attendance.id).label("total_records"),
+                func.count(distinct(Attendance.user_id)).label("unique_users"),
+                func.max(Attendance.timestamp).label("latest_punch"),
+            ).where(filter_clause)
+        )
+        row = result.first()
+
+        stats = StatsResponse(
+            total_records=row.total_records or 0,
+            unique_users=row.unique_users or 0,
+            present_count=row.total_records or 0,
+            absent_count=0,
+            latest_punch=row.latest_punch,
+        )
+        _set_cache(_stats_cache, key, stats)
+        return stats
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/analysis/{user_id}", response_model=UserAnalysisResponse)
+async def get_user_analysis(
+    user_id: int,
+    date_from: date = Query(..., description="Start date e.g. 2026-02-01"),
+    date_to: date = Query(..., description="End date e.g. 2026-02-17"),
+    db: AsyncSession = Depends(get_async_db),
+):
     """
-    Helper function to create datetime range filters for a specific date.
+    Full attendance analysis for one user over a date range.
+    Computed by analysis_service.py.
     """
-    filters = []
+    result = await compute_user_analysis(db, user_id, date_from, date_to)
 
-    if time_from is not None:
-        start_datetime = datetime.combine(target_date, time_from)
-        filters.append(Attendance.timestamp >= start_datetime)
-    else:
-        # Default to start of day
-        start_datetime = datetime.combine(target_date, time(0, 0, 0))
-        filters.append(Attendance.timestamp >= start_datetime)
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No records found for user {user_id} between {date_from} and {date_to}"
+        )
 
-    if time_to is not None:
-        end_datetime = datetime.combine(target_date, time_to)
-        filters.append(Attendance.timestamp <= end_datetime)
-    else:
-        # Default to end of day
-        end_datetime = datetime.combine(target_date, time(23, 59, 59))
-        filters.append(Attendance.timestamp <= end_datetime)
+    return result
 
-    return filters
+
+@router.get("/analysis/{user_id}/export")
+async def export_user_analysis_csv(
+    user_id: int,
+    date_from: date = Query(..., description="Start date e.g. 2026-02-01"),
+    date_to: date = Query(..., description="End date e.g. 2026-02-17"),
+    db: AsyncSession = Depends(get_async_db),
+):
+    """
+    Export user analysis as CSV file.
+    Returns CSV with proper arrival/departure columns.
+    """
+    result = await compute_user_analysis(db, user_id, date_from, date_to)
+
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No records found for user {user_id} between {date_from} and {date_to}"
+        )
+
+    # Helper to format time
+    def fmt_time(dt):
+        return dt.strftime("%H:%M") if dt else "—"
+    
+    def fmt_hours(h):
+        if h is None or h == 0:
+            return "0h00"
+        hh = int(h)
+        mm = int(round((h - hh) * 60))
+        return f"{hh}h{mm:02d}"
+
+    # Build CSV
+    headers = ["Date", "Jour", "Arrivée", "Départ", "Heures", "Pointages", "Retard", "Départ tôt", "Heures sup.", "Week-end"]
+    rows = [headers]
+    
+    for d in result.days:
+        rows.append([
+            str(d.date),
+            d.day_name,
+            fmt_time(d.arrival),
+            fmt_time(d.departure),
+            fmt_hours(d.hours_worked),
+            str(d.punch_count),
+            "Oui" if d.is_late else "Non",
+            "Oui" if d.is_early_leave else "Non",
+            "Oui" if d.is_overtime else "Non",
+            "Oui" if d.is_weekend else "Non",
+        ])
+    
+    csv_content = "\n".join([";".join(row) for row in rows])
+    
+    # Return as downloadable file
+    return Response(
+        content=csv_content,
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f"attachment; filename=analyse_employe{user_id}_{date_from}_{date_to}.csv"
+        }
+    )
+
+
+@router.get("/available-ips", response_model=List[str])
+async def get_available_device_ips(db: AsyncSession = Depends(get_async_db)):
+    global _ip_cache, _ip_cache_time
+    try:
+        if _ip_cache and _ip_cache_time:
+            if (datetime.now() - _ip_cache_time).total_seconds() < IP_CACHE_TTL:
+                return _ip_cache
+
+        result = await db.execute(
+            select(distinct(Attendance.device_ip))
+            .where(Attendance.device_ip.isnot(None))
+            .order_by(Attendance.device_ip)
+        )
+        ips = [ip for ip in result.scalars().all() if ip]
+        _ip_cache = ips
+        _ip_cache_time = datetime.now()
+        return ips
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/daily/{target_date}", response_model=List[AttendanceResponse])
+async def get_daily_attendance(
+    target_date: date,
+    response: Response,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    user_id: Optional[int] = Query(None),
+    device_ip: Optional[str] = Query(None),
+    time_from: Optional[time] = Query(None),
+    time_to: Optional[time] = Query(None),
+    db: AsyncSession = Depends(get_async_db),
+):
+    try:
+        filters = build_filters(
+            period=None, user_id=user_id, device_ip=device_ip,
+            date_from=target_date, date_to=target_date,
+            time_from=time_from, time_to=time_to, target_date=target_date
+        )
+        query = select(Attendance, func.count().over().label("total_count"))
+        if filters:
+            query = query.where(and_(*filters))
+        query = query.order_by(Attendance.timestamp).offset(skip).limit(limit)
+
+        result = await db.execute(query)
+        rows = result.all()
+
+        response.headers["X-Total-Count"] = str(rows[0].total_count if rows else 0)
+        return [row[0] for row in rows]
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+
+
+# --------------------------------------------------
+# KPI ENDPOINT
+# --------------------------------------------------
+class KpiResponse(BaseModel):
+    date: date
+    presents: int
+    late: int
+    late_threshold: str
+
+
+@router.get("/kpi", response_model=KpiResponse)
+async def get_daily_kpi(
+    target_date: Optional[date] = Query(None),
+    db: AsyncSession = Depends(get_async_db),
+):
+    """présents and late count for a given day (default: today)."""
+    import datetime as dt_module
+    kpi_date = target_date or date.today()
+    late_cutoff = dt_module.datetime.combine(kpi_date, dt_module.time(7, 40, 0))
+
+    # 1. Présents = unique users who punched today
+    r1 = await db.execute(
+        select(func.count(distinct(Attendance.user_id)))
+        .where(Attendance.date == kpi_date)
+    )
+    presents = r1.scalar() or 0
+
+    # 2. Late = users whose first punch > 07:40
+    subq = (
+        select(
+            Attendance.user_id,
+            func.min(Attendance.timestamp).label("first_punch"),
+        )
+        .where(Attendance.date == kpi_date)
+        .group_by(Attendance.user_id)
+        .subquery()
+    )
+    r2 = await db.execute(
+        select(func.count())
+        .select_from(subq)
+        .where(subq.c.first_punch > late_cutoff)
+    )
+    late = r2.scalar() or 0
+
+    return KpiResponse(
+        date=kpi_date,
+        presents=presents,
+        late=late,
+        late_threshold="07:40",
+    )
+
+
+# --------------------------------------------------
+# GROUPED ATTENDANCE — first/last punch per user per day
+# --------------------------------------------------
+class GroupedAttendanceResponse(BaseModel):
+    user_id: int
+    attendance_date: date
+    arrival: Optional[datetime]
+    departure: Optional[datetime]
+    punch_count: int
+    device_ip: Optional[str]
+
+
+@router.get("/grouped", response_model=List[GroupedAttendanceResponse])
+async def get_grouped_attendance(
+    response: Response,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    user_id: Optional[int] = Query(None),
+    device_ip: Optional[str] = Query(None),
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
+    time_from: Optional[time] = Query(None),
+    time_to: Optional[time] = Query(None),
+    target_date: Optional[date] = Query(None),
+    period: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_async_db),
+):
+    """Returns one row per user per day with first punch (arrival) and last punch (departure)."""
+    filters = build_filters(
+        period=period, user_id=user_id, device_ip=device_ip,
+        date_from=date_from, date_to=date_to,
+        time_from=time_from, time_to=time_to,
+        target_date=target_date,
+    )
+    query = (
+        select(
+            Attendance.user_id,
+            Attendance.date.label("attendance_date"),
+            func.min(Attendance.timestamp).label("arrival"),
+            func.max(Attendance.timestamp).label("departure"),
+            func.count(Attendance.id).label("punch_count"),
+            func.max(Attendance.device_ip).label("device_ip"),
+            func.count().over().label("total_count"),
+        )
+        .where(and_(*filters) if filters else text("1=1"))
+        .group_by(Attendance.user_id, Attendance.date)
+        .order_by(desc(Attendance.date), Attendance.user_id)
+        .offset(skip)
+        .limit(limit)
+    )
+    result = await db.execute(query)
+    rows = result.all()
+    response.headers["X-Total-Count"] = str(rows[0].total_count if rows else 0)
+
+    return [
+        GroupedAttendanceResponse(
+            user_id=row.user_id,
+            attendance_date=row.attendance_date,
+            arrival=row.arrival,
+            departure=(
+                row.departure
+                if (
+                    row.punch_count > 1
+                    and row.arrival != row.departure
+                    and (row.departure - row.arrival).total_seconds() >= 30 * 60
+                )
+                else None
+            ),
+            punch_count=row.punch_count,
+            device_ip=row.device_ip,
+        )
+        for row in rows
+    ]
