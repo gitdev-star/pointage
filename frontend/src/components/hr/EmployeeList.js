@@ -1,0 +1,439 @@
+import React, { useEffect, useState, useCallback } from "react";
+import {
+  Box, Typography, TextField, MenuItem, Select, FormControl,
+  InputLabel, Table, TableBody, TableCell, TableContainer,
+  TableHead, TableRow, Paper, Chip, IconButton, Tooltip,
+  TablePagination, CircularProgress, Avatar, InputAdornment,
+  Button, Dialog, DialogTitle, DialogContent, DialogActions,
+  Grid, Alert, Divider,
+} from "@mui/material";
+import SearchIcon from "@mui/icons-material/Search";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import AddIcon from "@mui/icons-material/Add";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
+import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
+import hrClient from "../../api/hrClient";
+import { useNavigate } from "react-router-dom";
+import { useHRAuth } from "../../contexts/HRAuthContext";
+
+const STATUS_COLORS = {
+  ACTIVE: "success", INACTIVE: "default", ON_LEAVE: "warning", TERMINATED: "error",
+};
+const STATUS_LABELS = {
+  ACTIVE: "Actif", INACTIVE: "Inactif", ON_LEAVE: "En congé", TERMINATED: "Résilié",
+};
+const CONTRACT_LABELS = {
+  CDI: "CDI", CDD: "CDD", INTERN: "Stage", PART: "Temps partiel", SEASONAL: "Saisonnier",
+};
+const EMPTY_FORM = {
+  employee_id: "", first_name: "", last_name: "", email: "",
+  phone: "", job_title: "", contract_type: "CDI", hire_date: "",
+  termination_date: "", status: "ACTIVE", factory: "", department: "",
+  device_user_id: "", auth_user_id: "",
+};
+
+export default function EmployeeList() {
+  const { can } = useHRAuth();
+  const navigate = useNavigate();
+
+  const [employees, setEmployees]     = useState([]);
+  const [factories, setFactories]     = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [loading, setLoading]         = useState(false);
+  const [total, setTotal]             = useState(0);
+  const [search, setSearch]           = useState("");
+  const [factory, setFactory]         = useState("");
+  const [department, setDepartment]   = useState("");
+  const [statusFilter, setStatus]     = useState("");
+  const [page, setPage]               = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(20);
+  const [modalOpen, setModalOpen]     = useState(false);
+  const [modalMode, setModalMode]     = useState("add");
+  const [formData, setFormData]       = useState(EMPTY_FORM);
+  const [formErrors, setFormErrors]   = useState({});
+  const [saving, setSaving]           = useState(false);
+  const [alert, setAlert]             = useState(null);
+  const [deleteDialog, setDeleteDialog] = useState(null);
+  const [deleting, setDeleting]         = useState(false);
+  const [photoFile, setPhotoFile]       = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
+
+  const filteredDepts = formData.factory
+    ? departments.filter(d => String(d.factory) === String(formData.factory))
+    : departments;
+
+  const fetchEmployees = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = { page: page + 1, page_size: rowsPerPage };
+      if (search)       params.search     = search;
+      if (factory)      params.factory    = factory;
+      if (department)   params.department = department;
+      if (statusFilter) params.status     = statusFilter;
+      const res = await hrClient.get("employees/", { params });
+      setEmployees(res.data.results || res.data);
+      setTotal(res.data.count || 0);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, rowsPerPage, search, factory, department, statusFilter]);
+
+  useEffect(() => { fetchEmployees(); }, [fetchEmployees]);
+  useEffect(() => {
+    hrClient.get("employees/factories/?page_size=100").then(r => setFactories(r.data.results || r.data)).catch(() => {});
+    hrClient.get("employees/departments/?page_size=200").then(r => setDepartments(r.data.results || r.data)).catch(() => {});
+  }, []);
+
+  const openAdd = () => {
+    setFormData(EMPTY_FORM); setFormErrors({});
+    setPhotoFile(null); setPhotoPreview(null);
+    setModalMode("add"); setModalOpen(true);
+  };
+
+  const openEdit = (emp) => {
+    setFormData({
+      employee_id: emp.employee_id || "", first_name: emp.first_name || "",
+      last_name: emp.last_name || "", email: emp.email || "",
+      phone: emp.phone || "", job_title: emp.job_title || "",
+      contract_type: emp.contract_type || "CDI", hire_date: emp.hire_date || "",
+      termination_date: emp.termination_date || "", status: emp.status || "ACTIVE",
+      factory: emp.factory || "", department: emp.department || "",
+      device_user_id: emp.device_user_id ?? "", auth_user_id: emp.auth_user_id ?? "",
+      _id: emp.id,
+    });
+    setFormErrors({}); setPhotoFile(null);
+    setPhotoPreview(emp.photo || null);
+    setModalMode("edit"); setModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setModalOpen(false); setFormData(EMPTY_FORM);
+    setFormErrors({}); setPhotoFile(null); setPhotoPreview(null);
+  };
+
+  const handleFormChange = (field, value) => {
+    let extra = {};
+    if (field === "factory") extra = { department: "" };
+    // Auto-set status to TERMINATED when termination_date is filled
+    if (field === "termination_date" && value) extra.status = "TERMINATED";
+    // Auto-clear termination_date status when date is removed
+    if (field === "termination_date" && !value) extra.status = "ACTIVE";
+    setFormData(prev => ({ ...prev, [field]: value, ...extra }));
+    if (formErrors[field]) setFormErrors(prev => ({ ...prev, [field]: "" }));
+  };
+
+  const handlePhotoChange = (e) => {
+    const file = e.target.files[0];
+    if (file) { setPhotoFile(file); setPhotoPreview(URL.createObjectURL(file)); }
+  };
+
+  const validate = () => {
+    const errors = {};
+    if (!formData.employee_id.trim()) errors.employee_id = "Requis";
+    if (!formData.first_name.trim())  errors.first_name  = "Requis";
+    if (!formData.last_name.trim())   errors.last_name   = "Requis";
+    if (!formData.factory)            errors.factory     = "Requis";
+    if (!formData.department)         errors.department  = "Requis";
+    if (!formData.job_title.trim())   errors.job_title   = "Requis";
+    if (!formData.hire_date)          errors.hire_date   = "Requis";
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email))
+      errors.email = "Email invalide";
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleSave = async () => {
+    if (!validate()) return;
+    setSaving(true);
+    try {
+      const payload = new FormData();
+      ["employee_id","first_name","last_name","email","phone","job_title",
+       "contract_type","hire_date","termination_date","status","factory","department"]
+        .forEach(f => { if (formData[f] !== "" && formData[f] != null) payload.append(f, formData[f]); });
+      if (formData.device_user_id !== "") payload.append("device_user_id", formData.device_user_id);
+      if (formData.auth_user_id   !== "") payload.append("auth_user_id",   formData.auth_user_id);
+      if (photoFile) payload.append("photo", photoFile);
+
+      if (modalMode === "add") {
+        await hrClient.post("employees/", payload, { headers: { "Content-Type": "multipart/form-data" } });
+        setAlert({ type: "success", msg: "Employé créé avec succès." });
+      } else {
+        await hrClient.patch(`employees/${formData._id}/`, payload, { headers: { "Content-Type": "multipart/form-data" } });
+        setAlert({ type: "success", msg: "Employé mis à jour avec succès." });
+      }
+      closeModal(); fetchEmployees();
+    } catch (err) {
+      const data = err.response?.data;
+      if (data && typeof data === "object") {
+        const be = {};
+        Object.entries(data).forEach(([k, v]) => { be[k] = Array.isArray(v) ? v.join(" ") : v; });
+        setFormErrors(be);
+      } else {
+        setAlert({ type: "error", msg: "Erreur lors de la sauvegarde." });
+      }
+    } finally { setSaving(false); }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await hrClient.delete(`employees/${deleteDialog.id}/`);
+      setAlert({ type: "success", msg: `${deleteDialog.name} supprimé.` });
+      setDeleteDialog(null); fetchEmployees();
+    } catch {
+      setAlert({ type: "error", msg: "Erreur lors de la suppression." });
+    } finally { setDeleting(false); }
+  };
+
+  return (
+    <Box sx={{ p: 3 }}>
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
+        <Typography variant="h5" fontWeight={700}>
+          Employés <Chip label={total} size="small" color="primary" sx={{ ml: 1 }} />
+        </Typography>
+        <Box sx={{ display: "flex", gap: 1 }}>
+          <Tooltip title="Actualiser"><IconButton onClick={fetchEmployees}><RefreshIcon /></IconButton></Tooltip>
+          {can("employees_write") && (
+            <Button variant="contained" startIcon={<AddIcon />} onClick={openAdd}>Ajouter</Button>
+          )}
+        </Box>
+      </Box>
+
+      {alert && <Alert severity={alert.type} sx={{ mb: 2 }} onClose={() => setAlert(null)}>{alert.msg}</Alert>}
+
+      <Box sx={{ display: "flex", gap: 2, mb: 3, flexWrap: "wrap" }}>
+        <TextField placeholder="Rechercher nom, ID, poste..." value={search}
+          onChange={e => { setSearch(e.target.value); setPage(0); }}
+          size="small" sx={{ minWidth: 260 }}
+          InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }} />
+        <FormControl size="small" sx={{ minWidth: 160 }}>
+          <InputLabel>Usine</InputLabel>
+          <Select value={factory} label="Usine" onChange={e => { setFactory(e.target.value); setPage(0); }}>
+            <MenuItem value="">Toutes</MenuItem>
+            {factories.map(f => <MenuItem key={f.id} value={f.id}>{f.name}</MenuItem>)}
+          </Select>
+        </FormControl>
+        <FormControl size="small" sx={{ minWidth: 160 }}>
+          <InputLabel>Département</InputLabel>
+          <Select value={department} label="Département" onChange={e => { setDepartment(e.target.value); setPage(0); }}>
+            <MenuItem value="">Tous</MenuItem>
+            {departments.map(d => <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>)}
+          </Select>
+        </FormControl>
+        <FormControl size="small" sx={{ minWidth: 140 }}>
+          <InputLabel>Statut</InputLabel>
+          <Select value={statusFilter} label="Statut" onChange={e => { setStatus(e.target.value); setPage(0); }}>
+            <MenuItem value="">Tous</MenuItem>
+            {Object.entries(STATUS_LABELS).map(([k, v]) => <MenuItem key={k} value={k}>{v}</MenuItem>)}
+          </Select>
+        </FormControl>
+      </Box>
+
+      <TableContainer component={Paper} elevation={2}>
+        <Table size="small">
+          <TableHead>
+            <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
+              <TableCell><strong>Photo</strong></TableCell>
+              <TableCell><strong>ID</strong></TableCell>
+              <TableCell><strong>Nom complet</strong></TableCell>
+              <TableCell><strong>Poste</strong></TableCell>
+              <TableCell><strong>Usine</strong></TableCell>
+              <TableCell><strong>Département</strong></TableCell>
+              <TableCell><strong>Contrat</strong></TableCell>
+              <TableCell><strong>Statut</strong></TableCell>
+              {(can("employees_write") || can("employees_delete")) && <TableCell><strong>Actions</strong></TableCell>}
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {loading ? (
+              <TableRow><TableCell colSpan={9} align="center" sx={{ py: 4 }}><CircularProgress size={32} /></TableCell></TableRow>
+            ) : employees.length === 0 ? (
+              <TableRow><TableCell colSpan={9} align="center" sx={{ py: 4, color: "text.secondary" }}>Aucun employé trouvé</TableCell></TableRow>
+            ) : employees.map(emp => (
+              <TableRow key={emp.id} hover sx={{ cursor: "pointer" }} onClick={() => navigate(`/hr/employees/${emp.id}`)}>
+                <TableCell>
+                  <Avatar src={emp.photo} sx={{ width: 36, height: 36 }}>
+                    {emp.first_name?.[0]}{emp.last_name?.[0]}
+                  </Avatar>
+                </TableCell>
+                <TableCell sx={{ fontFamily: "monospace", fontSize: 13 }}>{emp.employee_id}</TableCell>
+                <TableCell><strong>{emp.last_name} {emp.first_name}</strong></TableCell>
+                <TableCell>{emp.job_title}</TableCell>
+                <TableCell>{emp.factory_name}</TableCell>
+                <TableCell>{emp.department_name}</TableCell>
+                <TableCell><Chip label={CONTRACT_LABELS[emp.contract_type] || emp.contract_type} size="small" variant="outlined" /></TableCell>
+                <TableCell><Chip label={STATUS_LABELS[emp.status] || emp.status} color={STATUS_COLORS[emp.status] || "default"} size="small" /></TableCell>
+                {(can("employees_write") || can("employees_delete")) && (
+                  <TableCell>
+                    <Box sx={{ display: "flex", gap: 0.5 }}>
+                      {can("employees_write") && (
+                        <Tooltip title="Modifier">
+                          <span onClick={(e) => e.stopPropagation()}>
+                            <IconButton size="small" color="primary" onClick={() => openEdit(emp)}>
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                      )}
+                      {can("employees_delete") && (
+                        <Tooltip title="Supprimer">
+                          <span onClick={(e) => e.stopPropagation()}>
+                            <IconButton size="small" color="error"
+                              onClick={() => setDeleteDialog({ id: emp.id, name: `${emp.last_name} ${emp.first_name}` })}>
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                      )}
+                    </Box>
+                  </TableCell>
+                )}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      <TablePagination component="div" count={total} page={page}
+        onPageChange={(_, p) => setPage(p)} rowsPerPage={rowsPerPage}
+        onRowsPerPageChange={e => { setRowsPerPage(parseInt(e.target.value)); setPage(0); }}
+        rowsPerPageOptions={[10, 20, 50, 100]} labelRowsPerPage="Lignes par page"
+        labelDisplayedRows={({ from, to, count }) => `${from}–${to} sur ${count}`} />
+
+      {/* Add/Edit Modal */}
+      <Dialog open={modalOpen} onClose={closeModal} maxWidth="md" fullWidth>
+        <DialogTitle fontWeight={700}>
+          {modalMode === "add" ? "➕ Ajouter un employé" : "✏️ Modifier l'employé"}
+        </DialogTitle>
+        <DialogContent dividers>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sx={{ display: "flex", alignItems: "center", gap: 2, mb: 1 }}>
+              <Avatar src={photoPreview} sx={{ width: 72, height: 72, fontSize: 28 }}>
+                {formData.first_name?.[0]}{formData.last_name?.[0]}
+              </Avatar>
+              <Button component="label" variant="outlined" startIcon={<PhotoCameraIcon />} size="small">
+                {photoPreview ? "Changer la photo" : "Ajouter une photo"}
+                <input type="file" accept="image/*" hidden onChange={handlePhotoChange} />
+              </Button>
+            </Grid>
+            <Grid item xs={12}><Divider><Typography variant="caption" color="text.secondary">Identité</Typography></Divider></Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField fullWidth size="small" label="ID Employé *" value={formData.employee_id}
+                onChange={e => handleFormChange("employee_id", e.target.value)}
+                error={!!formErrors.employee_id} helperText={formErrors.employee_id}
+                disabled={modalMode === "edit"} />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField fullWidth size="small" label="Prénom *" value={formData.first_name}
+                onChange={e => handleFormChange("first_name", e.target.value)}
+                error={!!formErrors.first_name} helperText={formErrors.first_name} />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField fullWidth size="small" label="Nom *" value={formData.last_name}
+                onChange={e => handleFormChange("last_name", e.target.value)}
+                error={!!formErrors.last_name} helperText={formErrors.last_name} />
+            </Grid>
+            <Grid item xs={12}><Divider><Typography variant="caption" color="text.secondary">Contact</Typography></Divider></Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField fullWidth size="small" label="Email" value={formData.email}
+                onChange={e => handleFormChange("email", e.target.value)}
+                error={!!formErrors.email} helperText={formErrors.email} />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField fullWidth size="small" label="Téléphone" value={formData.phone}
+                onChange={e => handleFormChange("phone", e.target.value)} />
+            </Grid>
+            <Grid item xs={12}><Divider><Typography variant="caption" color="text.secondary">Organisation</Typography></Divider></Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth size="small" error={!!formErrors.factory}>
+                <InputLabel>Usine *</InputLabel>
+                <Select value={formData.factory} label="Usine *" onChange={e => handleFormChange("factory", e.target.value)}>
+                  {factories.map(f => <MenuItem key={f.id} value={f.id}>{f.name}</MenuItem>)}
+                </Select>
+                {formErrors.factory && <Typography variant="caption" color="error">{formErrors.factory}</Typography>}
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth size="small" error={!!formErrors.department}>
+                <InputLabel>Département *</InputLabel>
+                <Select value={formData.department} label="Département *"
+                  onChange={e => handleFormChange("department", e.target.value)} disabled={!formData.factory}>
+                  {filteredDepts.map(d => <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>)}
+                </Select>
+                {formErrors.department && <Typography variant="caption" color="error">{formErrors.department}</Typography>}
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField fullWidth size="small" label="Poste *" value={formData.job_title}
+                onChange={e => handleFormChange("job_title", e.target.value)}
+                error={!!formErrors.job_title} helperText={formErrors.job_title} />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Type de contrat</InputLabel>
+                <Select value={formData.contract_type} label="Type de contrat"
+                  onChange={e => handleFormChange("contract_type", e.target.value)}>
+                  {Object.entries(CONTRACT_LABELS).map(([k, v]) => <MenuItem key={k} value={k}>{v}</MenuItem>)}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12}><Divider><Typography variant="caption" color="text.secondary">Emploi</Typography></Divider></Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField fullWidth size="small" label="Date d'embauche *" type="date"
+                value={formData.hire_date} onChange={e => handleFormChange("hire_date", e.target.value)}
+                error={!!formErrors.hire_date} helperText={formErrors.hire_date}
+                InputLabelProps={{ shrink: true }} />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField fullWidth size="small" label="Date de fin" type="date"
+                value={formData.termination_date} onChange={e => handleFormChange("termination_date", e.target.value)}
+                InputLabelProps={{ shrink: true }} />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Statut</InputLabel>
+                <Select value={formData.status} label="Statut" onChange={e => handleFormChange("status", e.target.value)}>
+                  {Object.entries(STATUS_LABELS).map(([k, v]) => <MenuItem key={k} value={k}>{v}</MenuItem>)}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12}><Divider><Typography variant="caption" color="text.secondary">Liaisons (optionnel)</Typography></Divider></Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField fullWidth size="small" label="ID Appareil biométrique" type="number"
+                value={formData.device_user_id} onChange={e => handleFormChange("device_user_id", e.target.value)} />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField fullWidth size="small" label="ID Utilisateur Auth" type="number"
+                value={formData.auth_user_id} onChange={e => handleFormChange("auth_user_id", e.target.value)} />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={closeModal} disabled={saving}>Annuler</Button>
+          <Button variant="contained" onClick={handleSave} disabled={saving}>
+            {saving ? "Enregistrement..." : modalMode === "add" ? "Créer" : "Enregistrer"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Dialog */}
+      <Dialog open={!!deleteDialog} onClose={() => setDeleteDialog(null)} maxWidth="xs" fullWidth>
+        <DialogTitle fontWeight={700}>🗑️ Supprimer l'employé</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Êtes-vous sûr de vouloir supprimer <strong>{deleteDialog?.name}</strong> ? Cette action est irréversible.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialog(null)} disabled={deleting}>Annuler</Button>
+          <Button variant="contained" color="error" onClick={handleDelete} disabled={deleting}>
+            {deleting ? "Suppression..." : "Supprimer"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+}

@@ -1,7 +1,7 @@
 # app/schemas/attendance.py
 from pydantic import BaseModel
 from datetime import datetime, date
-from typing import Optional
+
 
 class AttendanceSchema(BaseModel):
     id: int
@@ -13,3 +13,5 @@ class AttendanceSchema(BaseModel):
 
     class Config:
         from_attributes = True  # For Pydantic v2 compatibility with SQLAlchemy
+        populate_by_name = True
+

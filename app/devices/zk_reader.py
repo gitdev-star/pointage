@@ -1,123 +1,136 @@
-import asyncio
-from app.models.attendance import Attendance
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.database import AsyncSessionLocal
-from zk import ZK
+# app/devices/zk_reader.py
+import logging
 from datetime import datetime
+from typing import List, Optional
+
+from zk import ZK
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.dialects.postgresql import insert
+
+logger = logging.getLogger(__name__)
+YEAR_CUTOFF = 2026
 
 
 class ZKReader:
-    def __init__(self, device_ip, device_port=4370, timeout=10, polling_interval=5):
+    """
+    Thin, safe ZK device wrapper.
+    - Fetch logs latest-first
+    - Only fetch logs from YEAR_CUTOFF onward
+    - DB owned by caller
+    - Lifecycle controlled by main.py
+    """
+
+    def __init__(self, device_ip: str, device_port: int = 4370, timeout: int = 10):
         self.device_ip = device_ip
         self.device_port = device_port
         self.timeout = timeout
-        self.polling_interval = polling_interval
-        self.zk = ZK(device_ip, port=device_port, timeout=timeout, password=0)
+        self.zk = ZK(self.device_ip, port=self.device_port, timeout=self.timeout, password=0)
         self.connection = None
+        self.consecutive_errors = 0
 
-    async def connect(self):
-        """Establish connection with the device."""
+    # ----------------------------
+    # Connection management
+    # ----------------------------
+    async def connect(self) -> None:
+        if self.connection:
+            return
         try:
             self.connection = self.zk.connect()
-            if self.connection:
-                print(f"Connected to {self.device_ip}:{self.device_port}")
-            else:
-                print(f"Failed to connect to device at {self.device_ip}")
+            logger.info(f"[ZK] Connected to {self.device_ip}")
         except Exception as e:
-            print(f"Failed to connect to {self.device_ip}: {e}")
-            await self.retry_connect()
+            self.connection = None
+            raise RuntimeError(f"Connection failed to {self.device_ip}: {e}")
 
-    async def retry_connect(self):
-        """Try reconnecting if the initial connection fails."""
-        print(f"Retrying connection to {self.device_ip}...")
-        await asyncio.sleep(5)  # Retry after 5 seconds
-        await self.connect()
-
-    async def fetch_attendance_logs(self):
-        """Fetch live attendance logs from the device."""
-        try:
-            if self.connection:
-                logs = self.zk.get_attendance()
-                print(f"Fetched {len(logs)} logs from {self.device_ip}.")
-                return logs
-            else:
-                print(f"No connection to device {self.device_ip}.")
-                return []
-        except Exception as e:
-            print(f"Error fetching logs from {self.device_ip}: {e}")
-            return []
-
-    async def process_logs(self, db: AsyncSession):
-        """Process logs and store them in the database."""
-        logs = await self.fetch_attendance_logs()
-        if logs:
-
-            processed_count = 0
-            failed_count = 0
-
-            for log in logs:
-                try:
-                    user_id = int(log.user_id)
-                    timestamp = log.timestamp
-
-                    # Handle missing check-in/check-out
-                    check_in = log.check_in if hasattr(log, 'check_in') else timestamp
-                    check_out = log.check_out if hasattr(log, 'check_out') else None
-                    date = check_in.date() if check_in else timestamp.date()
-
-                    # Generate uid if not available from device
-                    if hasattr(log, 'uid') and log.uid is not None:
-                        uid_value = log.uid
-                    else:
-                        uid_value = int(f"{user_id}{int(timestamp.timestamp())}")
-
-                    # Insert attendance without status and punch
-                    await Attendance.insert_attendance(
-                        session=db,
-                        uid=uid_value,  # ✅ Always provide a valid uid
-                        user_id=user_id,
-                        timestamp=timestamp,
-                        date=date,
-                        device_ip=self.device_ip  # ✅ Pass the device IP
-                    )
-
-                    processed_count += 1
-                    print(f"Processed record for user {user_id} from device {self.device_ip}")
-
-                except Exception as e:
-                    print(f"Failed to process log {log}: {e}")
-                    failed_count += 1
-                    continue
-
-            print(f"Device {self.device_ip}: Processed {processed_count} records, Failed {failed_count} records")
-
-    async def poll_logs(self, db: AsyncSession):
-        """Continuously fetch and process logs in real-time."""
-        while True:
-            print(f"Fetching attendance logs from device {self.device_ip}...")
+    async def disconnect(self) -> None:
+        if self.connection:
             try:
-                await self.process_logs(db)
+                self.connection.disconnect()
+            except Exception:
+                pass
+            finally:
+                self.connection = None
+                logger.info(f"[ZK] Disconnected from {self.device_ip}")
+
+    async def _force_cleanup(self) -> None:
+        """Hard reset device connection"""
+        await self.disconnect()
+        self.consecutive_errors = 0
+
+    async def force_reset(self) -> None:
+        """Called by daily reset task"""
+        logger.warning(f"[ZK] Force reset for {self.device_ip}")
+        await self._force_cleanup()
+
+    # ----------------------------
+    # Attendance fetching
+    # ----------------------------
+    async def fetch_attendance_logs(self, since_year: int = YEAR_CUTOFF) -> List:
+        if not self.connection:
+            await self.connect()
+        try:
+            logs = self.zk.get_attendance() or []
+            logs = list(reversed(logs))  # latest logs first
+            logs = [log for log in logs if log.timestamp.year >= since_year]
+            self.consecutive_errors = 0
+            logger.info(f"[ZK] {self.device_ip} fetched {len(logs)} logs since {since_year}")
+            return logs
+        except Exception as e:
+            self.consecutive_errors += 1
+            logger.error(f"[ZK] {self.device_ip} fetch error ({self.consecutive_errors}): {e}")
+            if self.consecutive_errors >= 3:
+                await self._force_cleanup()
+            raise
+
+    # ----------------------------
+    # Processing logs (bulk insert)
+    # ----------------------------
+    async def process_logs(self, db: AsyncSession) -> int:
+        """
+        Fetch + persist logs in bulk.
+        Returns number of saved records.
+        """
+        from app.models.attendance import Attendance
+
+        logs = await self.fetch_attendance_logs()
+        if not logs:
+            return 0
+
+        values = []
+        for log in logs:
+            try:
+                user_id = int(log.user_id)
+                timestamp = log.timestamp
+                uid = getattr(log, "uid", None)
+                if uid is None:
+                    uid = int(f"{user_id}{int(timestamp.timestamp())}")
+                else:
+                    uid = int(uid)
+                values.append({
+                    "uid": uid,
+                    "user_id": user_id,
+                    "timestamp": timestamp,
+                    "date": timestamp.date(),
+                    "device_ip": self.device_ip,
+                })
             except Exception as e:
-                print(f"Error during polling for device {self.device_ip}: {e}")
-                await db.rollback()
+                logger.warning(f"[ZK] {self.device_ip} bad log skipped: {e}")
 
-            print(f"Waiting for {self.polling_interval} seconds before fetching again...")
-            await asyncio.sleep(self.polling_interval)  # Wait before next fetch
+        if not values:
+            return 0
 
-
-async def run_device_polling(device_ip, db: AsyncSession):
-    """Initialize and start polling for attendance logs for a single device."""
-    zk_reader = ZKReader(device_ip=device_ip)
-    await zk_reader.connect()
-    await zk_reader.poll_logs(db)
-
-
-async def main():
-    async with AsyncSessionLocal() as session:
-        device_ips = ["192.168.8.200", "192.168.8.201", "192.168.8.202", "192.168.8.203", "192.168.8.204", "192.168.8.205", "192.168.8.206"]
-        tasks = [run_device_polling(device_ip, session) for device_ip in device_ips]
-        await asyncio.gather(*tasks)
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+        BATCH_SIZE = 500
+        total_inserted = 0
+        try:
+            for i in range(0, len(values), BATCH_SIZE):
+                chunk = values[i:i + BATCH_SIZE]
+                stmt = insert(Attendance.__table__).values(chunk)
+                stmt = stmt.on_conflict_do_nothing(index_elements=["user_id", "timestamp", "date"])
+                await db.execute(stmt)
+                await db.commit()
+                total_inserted += len(chunk)
+                logger.info(f"[ZK] {self.device_ip} inserted {total_inserted}/{len(values)} logs")
+            return total_inserted
+        except Exception as e:
+            logger.error(f"[ZK] {self.device_ip} bulk insert failed: {e}")
+            await db.rollback()
+            return 0

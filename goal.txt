@@ -20,3 +20,39 @@ Need robust, maintainable, well-structured FastAPI backend with optional filters
         "http://127.0.0.1:3001",
         "http://127.0.0.1:8001",
         "*"  # Allow all origins for development
+
+
+
+SELECT COUNT(*) FROM attendance;
+Fetch data from the database only — no insert or delete required for your current task.
+
+Need to filter attendance:
+
+By device ID (or IP, e.g. device_ip)
+
+By specific moment (timestamp)
+
+By date range
+
+Possibly by device + date or all devices on a given date
+
+Display this data in a React dashboard, so responses should be clean and REST-friendly.
+
+Need robust, maintainable, well-structured FastAPI backend with optional filters and good defaults
+"http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+        "http://127.0.0.1:8001",
+        "*"  # Allow all origins for development
+
+
+ docker exec -it postgres psql -U user -d attendance
+
+ copy project from VM to windows using powershell:scp -r root@192.168.8.210:/root/pointage C:\Users\odilon\Desktop\backup_VM
+
+
+docker compose exec django-auth python manage.py makemigrations
+docker compose exec django-auth python manage.py migrate
+docker compose exec django-auth python manage.py createsuperuser
+

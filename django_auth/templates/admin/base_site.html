@@ -1,0 +1,17 @@
+{% extends "admin/base.html" %}
+{% load i18n %}
+
+{% block branding %}
+<div id="site-name">
+  <a href="{% url 'admin:index' %}">{% block site_header %}{% translate 'Django administration' %}{% endblock %}</a>
+</div>
+{% endblock %}
+
+{% block nav-global %}
+<div style="background:#417690; padding:8px 20px;">
+  <a href="/admin/ldap-import/" 
+     style="color:white; font-weight:bold; text-decoration:none; font-size:13px;">
+    👥 Importer depuis Active Directory
+  </a>
+</div>
+{% endblock %}

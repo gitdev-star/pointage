@@ -1,0 +1,136 @@
+pointage/                                  # ROOT of the project
+├── .gitignore
+├── docker-compose.yml                     # Docker orchestration (FastAPI + Django + React + Postgres)
+├── .env.example                           # Environment variables template
+├── requirements                           # FastAPI global requirements (optional)
+├── main.py                                # FastAPI entrypoint
+├── run-sync_attendance.py                 # Script to sync biometric devices
+├── requirements.txt
+│
+├── alembic/                               # FastAPI database migrations
+├── migrations/                            # Optional migration folder
+│
+├── app/                                   # 🚀 FASTAPI BACKEND (UNCHANGED)
+│   ├── __pycache__/
+│   ├── __init__.py
+│   ├── crud
+│   ├── base.py
+│   ├── database.py
+│   ├── models.py
+│   ├── sync_attendance
+|   |
+│   ├── routers/
+│   │   └── hr_routes.py
+│   │
+│   ├── devices/
+│   │   ├── __init__.py
+│   │   └── zk_reader.py                   # Biometric device integration
+│   │
+│   ├── models/
+│   │   ├── attendance.py
+│   │   ├── clocker.py
+│   │   ├── employee.py
+│   │   └── user.py
+│   │
+│   ├── schemas/
+│   │   ├── attendance.py
+│   │   ├── clocker.py
+│   │   ├── employee.py
+│   │   └── user.py
+│   │
+│   ├── database.py                        # Async SQLAlchemy connection
+│   ├── sync_attendance.py
+│   ├── clock_test.py
+│   ├── test.py
+│   └── __init__.py
+│
+├── django_auth/                            # 🔐 DJANGO AUTH & PRIVILEGES (ADDED)
+│   ├── manage.py
+│   │
+│   ├── config/    
+│   │   ├── __pycache__/                        # Django project config
+│   │   ├── __init__.py
+│   │   ├── settings.py                    # DB, JWT, installed apps
+│   │   ├── urls.py                        # Auth endpoints
+│   │   ├── asgi.py
+│   │   └── wsgi.py
+│   │
+│   ├── accounts/
+│   │   ├── __pycache__/
+│   │   ├── migrations/                          # Custom authentication app
+│   │   ├── __init__.py
+│   │   ├── admin.py                       # Admin panel config
+│   │   ├── apps.py
+│   │   ├── models.py                      # Custom User + roles
+│   │   ├── serializers.py                 # DRF serializers
+│   │   ├── permissions.py                 # Role-based permissions
+│   │   ├── views.py                       # /me endpoint
+│   │   ├── urls.py
+│   │   └── migrations/
+│   │
+│   ├── devices/                            # Django project config
+│   │   ├── __pycache__/
+│   │   ├── migrations/
+│   │   ├── admin.py
+│   │   ├── models.py
+│   │   ├── serializers.py                    # DB, JWT, installed apps
+│   │   ├── urls.py                        # Auth endpoints
+│   │   └── views.py
+│   │
+│   └── requirements.txt 
+|
+|
+├── django_hr/                        # New standalone Django proj3318106816546ect
+|    ├── config/                       # Settings, URLs, JWT config
+|    ├── employees/                    # Employee, Factory, Department
+|    ├── leaves/                       # LeaveType, LeaveRequest, LeaveBalance
+|    ├── events/                       # Holiday, CompanyEvent, Shift
+|    ├── payroll/                      # SalaryStructure, Payslip
+|    └── reports/                      # Cross-app analytics endpoints                  # Django dependencies
+│
+├── frontend/                              # 🎨 REACT FRONTEND (UNCHANGED)
+│   ├── node_modules/                     # ignored by git
+│   ├── public/
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── README.md
+│   └── src/
+│       ├── App.js
+│       ├── App.css
+│       ├── index.css
+│       ├── index.js
+│       | 
+│       | 
+│       ├── routes/
+│       |    |
+│       |    └── ProtectedRoute.js
+│       | 
+│       | 
+│       | 
+│       ├── api/
+│       |    ├── apiClient.js
+│       |    └── auth.js
+│       | 
+│       | 
+│       ├── index.js
+│       ├── index.css
+│       ├── logo.svg
+│       └── components/
+│           ├── AttendanceAnalysis.css
+│           ├── AttendanceAnalysis.js
+│           ├── AttendanceDashboard.css
+│           ├── AttendanceDashboard.js
+│           ├── AttendanceLayout.css
+│           ├── AttendanceLayout.js
+│           ├── DeviceStatus.js
+│           ├── LoginPage.js
+│           └── ProfilePage.css
+│
+└── Dockerfiles/                           # 🐳 DOCKER CONFIGS
+    ├── fastapi.Dockerfile
+    ├── django.Dockerfile                  # Django container
+    └── react.Dockerfile
+
+
+
+

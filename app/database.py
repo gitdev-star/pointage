@@ -1,30 +1,35 @@
-#database.py
+# database.py
 import os
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-# Declarative base for SQLAlchemy models (This will be used to map your models)
 Base = declarative_base()
 
-# Get database URL from environment variables (or hardcoded here)
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:YES@localhost:5432/pointage_db")
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql+asyncpg://user:pass@postgres:5432/pointage_db"
+)
 
-# Create an asynchronous engine for the PostgreSQL database
-engine = create_async_engine(DATABASE_URL, echo=True)
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=False,          # was True — was logging every query to stdout
+    pool_size=20,        # up from default 5 — handles 100 concurrent users
+    max_overflow=40,     # allows burst up to 60 total connections
+    pool_timeout=30,     # wait max 30s for a free connection before error
+    pool_recycle=1800,   # recycle connections every 30min to avoid stale ones
+    pool_pre_ping=True,  # test connection before using it (avoids dead conn errors)
+)
 
-# Create a sessionmaker that produces async sessions
 AsyncSessionLocal = sessionmaker(
     bind=engine,
     class_=AsyncSession,
     expire_on_commit=False,
 )
 
-# Dependency function to get async DB session
 async def get_async_db():
     async with AsyncSessionLocal() as session:
         yield session
 
-# Create tables if they don't exist
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

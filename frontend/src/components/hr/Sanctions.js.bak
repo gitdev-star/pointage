@@ -1,0 +1,406 @@
+import React, { useEffect, useState, useCallback } from "react";
+import {
+  Box, Typography, Table, TableBody, TableCell, TableContainer,
+  TableHead, TableRow, Paper, Chip, Button, Dialog, DialogTitle,
+  DialogContent, DialogActions, TextField, FormControl, InputLabel,
+  Select, MenuItem, Alert, CircularProgress, Tabs, Tab,
+  IconButton, Grid, InputAdornment, ListSubheader,
+} from "@mui/material";
+import AddIcon     from "@mui/icons-material/Add";
+import EditIcon    from "@mui/icons-material/Edit";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import SearchIcon  from "@mui/icons-material/Search";
+import hrClient    from "../../api/hrClient";
+import { useHRAuth } from "../../contexts/HRAuthContext";
+
+const STATUS_COLORS = { ACTIVE: "error", CANCELLED: "default", APPEALED: "warning" };
+const STATUS_LABELS = { ACTIVE: "Active", CANCELLED: "Annulée", APPEALED: "En appel" };
+
+const EMPTY_FORM = {
+  employee: "", sanction_type: "", date: "", reason: "", note: "", status: "ACTIVE",
+};
+
+export default function Sanctions() {
+  const { can } = useHRAuth();
+  const [tab, setTab]                     = useState(0);
+  const [sanctions, setSanctions]         = useState([]);
+  const [sanctionTypes, setSanctionTypes] = useState([]);
+  const [employees, setEmployees]         = useState([]);
+  const [loading, setLoading]             = useState(false);
+  const [alert, setAlert]                 = useState(null);
+  const [dialog, setDialog]               = useState(false);
+  const [editItem, setEditItem]           = useState(null);
+  const [form, setForm]                   = useState(EMPTY_FORM);
+  const [saving, setSaving]               = useState(false);
+  const [searchEmp, setSearchEmp]         = useState("");
+  // Search text inside the employee dropdown
+  const [empDropdownSearch, setEmpDropdownSearch] = useState("");
+
+  const TABS     = ["Toutes", "Actives", "Annulées", "En appel"];
+  const TAB_STAT = ["", "ACTIVE", "CANCELLED", "APPEALED"];
+
+  // ── Fetch sanctions + sanction types ──────────────────────────────────────
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = {};
+      if (TAB_STAT[tab]) params.status = TAB_STAT[tab];
+      if (searchEmp)     params.search = searchEmp;
+      const [s, t] = await Promise.all([
+        hrClient.get("/sanctions/",       { params }),
+        hrClient.get("/sanctions/types/", { params: { is_active: true } }),
+      ]);
+      setSanctions(s.data.results ?? s.data);
+      setSanctionTypes(t.data.results ?? t.data);
+    } catch {
+      setAlert({ type: "error", msg: "Erreur de chargement des sanctions" });
+    } finally {
+      setLoading(false);
+    }
+  }, [tab, searchEmp]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // ── Search employees server-side (debounced, max 30 results) ───────────────
+  // No longer loads all 5000+ employees at once — queries only on user input.
+  const searchEmployees = React.useCallback(async (query) => {
+    setEmpSearchLoading(true);
+    try {
+      const params = { page: 1, page_size: 30 };
+      if (query.trim()) params.search = query.trim();
+      const res  = await hrClient.get("employees/", { params });
+      const list = res.data.results ?? res.data ?? [];
+      setEmployees(list);
+    } catch (err) {
+      console.error("searchEmployees error:", err?.response?.data || err);
+    } finally {
+      setEmpSearchLoading(false);
+    }
+  }, []);
+
+  // On dropdown open or search text change — debounce 300ms
+  useEffect(() => {
+    if (empDebounceRef.current) clearTimeout(empDebounceRef.current);
+    empDebounceRef.current = setTimeout(() => {
+      searchEmployees(empDropdownSearch);
+    }, 300);
+    return () => clearTimeout(empDebounceRef.current);
+  }, [empDropdownSearch, searchEmployees]);
+
+  // employees list is already filtered server-side — use directly
+  const filteredEmployees = employees;
+
+  // ── Dialog helpers ─────────────────────────────────────────────────────────
+  const openCreate = () => {
+    setEditItem(null);
+    setForm(EMPTY_FORM);
+    setEmpDropdownSearch("");
+    setDialog(true);
+  };
+
+  const openEdit = (row) => {
+    setEditItem(row);
+    setForm({
+      employee:      row.employee,
+      sanction_type: row.sanction_type,
+      date:          row.date,
+      reason:        row.reason,
+      note:          row.note || "",
+      status:        row.status,
+    });
+    setEmpDropdownSearch("");
+    setDialog(true);
+  };
+
+  // ── Licenciement detection ─────────────────────────────────────────────────
+  const isLicenciement = (typeId) => {
+    // eslint-disable-next-line eqeqeq
+    const found = sanctionTypes.find(t => t.id == typeId);
+    return found && (
+      found.code === "LIC" ||
+      found.code === "LICENCIEMENT" ||
+      found.name.toLowerCase().includes("licenci")
+    );
+  };
+
+  // ── Save (create or update) ────────────────────────────────────────────────
+  const handleSave = async () => {
+    if (!form.employee || !form.sanction_type || !form.date || !form.reason) {
+      setAlert({ type: "warning", msg: "Employé, type, date et motif sont obligatoires" });
+      return;
+    }
+    setSaving(true);
+    try {
+      if (editItem) {
+        await hrClient.patch(`/sanctions/${editItem.id}/`, form);
+      } else {
+        await hrClient.post("/sanctions/", form);
+      }
+
+      // Auto-terminate employee if sanction type is licenciement
+      if (form.status === "ACTIVE" && isLicenciement(form.sanction_type)) {
+        try {
+          await hrClient.patch(`/employees/${form.employee}/`, {
+            status:           "TERMINATED",
+            termination_date: form.date,
+            motif_depart:     form.reason,
+          });
+          setAlert({
+            type: "success",
+            msg:  `${editItem ? "Sanction mise à jour" : "Sanction créée"} — Employé automatiquement résilié.`,
+          });
+        } catch (patchErr) {
+          console.error("Auto-terminate failed:", patchErr?.response?.data || patchErr);
+          setAlert({
+            type: "warning",
+            msg:  `${editItem ? "Sanction mise à jour" : "Sanction créée"}, mais impossible de mettre à jour le statut de l'employé.`,
+          });
+        }
+      } else {
+        setAlert({ type: "success", msg: editItem ? "Sanction mise à jour" : "Sanction créée" });
+      }
+
+      setDialog(false);
+      fetchAll();
+    } catch {
+      setAlert({ type: "error", msg: "Erreur lors de l'enregistrement" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  return (
+    <Box p={3}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+        <Typography variant="h5" fontWeight={700}>Sanctions disciplinaires</Typography>
+        <Box display="flex" gap={1}>
+          <IconButton onClick={fetchAll}><RefreshIcon /></IconButton>
+          {can("sanctions_write") && (
+            <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
+              Nouvelle sanction
+            </Button>
+          )}
+        </Box>
+      </Box>
+
+      {alert && (
+        <Alert severity={alert.type} onClose={() => setAlert(null)} sx={{ mb: 2 }}>
+          {alert.msg}
+        </Alert>
+      )}
+
+      <Box display="flex" gap={2} mb={2} alignItems="center">
+        <Tabs value={tab} onChange={(_, v) => setTab(v)}>
+          {TABS.map((t, i) => <Tab key={i} label={t} />)}
+        </Tabs>
+        <TextField
+          size="small"
+          placeholder="Rechercher employé..."
+          value={searchEmp}
+          onChange={e => setSearchEmp(e.target.value)}
+          sx={{ ml: "auto", width: 250 }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>
+            ),
+          }}
+        />
+      </Box>
+
+      {loading ? (
+        <Box display="flex" justifyContent="center" py={6}><CircularProgress /></Box>
+      ) : (
+        <TableContainer component={Paper} variant="outlined">
+          <Table size="small">
+            <TableHead>
+              <TableRow sx={{ bgcolor: "grey.50" }}>
+                <TableCell><strong>Employé</strong></TableCell>
+                <TableCell><strong>Matricule</strong></TableCell>
+                <TableCell><strong>Sanction</strong></TableCell>
+                <TableCell><strong>Date</strong></TableCell>
+                <TableCell><strong>Motif</strong></TableCell>
+                <TableCell><strong>Statut</strong></TableCell>
+                {can("sanctions_write") && <TableCell align="center"><strong>Actions</strong></TableCell>}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {sanctions.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} align="center" sx={{ py: 4, color: "text.secondary" }}>
+                    Aucune sanction trouvée
+                  </TableCell>
+                </TableRow>
+              ) : sanctions.map(row => (
+                <TableRow key={row.id} hover>
+                  <TableCell>{row.employee_name}</TableCell>
+                  <TableCell sx={{ fontFamily: "monospace" }}>{row.employee_id_str}</TableCell>
+                  <TableCell>
+                    <Chip
+                      label={row.sanction_type_name}
+                      size="small"
+                      sx={{ bgcolor: row.sanction_color, color: "#fff", fontWeight: 600 }}
+                    />
+                  </TableCell>
+                  <TableCell>{row.date}</TableCell>
+                  <TableCell sx={{ maxWidth: 250, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {row.reason}
+                  </TableCell>
+                  <TableCell>
+                    <Chip label={STATUS_LABELS[row.status]} color={STATUS_COLORS[row.status]} size="small" />
+                  </TableCell>
+                  {can("sanctions_write") && (
+                    <TableCell align="center">
+                      <IconButton size="small" onClick={() => openEdit(row)}>
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+
+      {/* ── Create / Edit Dialog ── */}
+      <Dialog open={dialog} onClose={() => setDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>{editItem ? "Modifier la sanction" : "Nouvelle sanction"}</DialogTitle>
+        <DialogContent>
+          {form.sanction_type && isLicenciement(form.sanction_type) && form.status === "ACTIVE" && (
+            <Alert severity="warning" sx={{ mb: 2, mt: 1 }}>
+              Ce type de sanction entraînera la résiliation automatique de l'employé.
+            </Alert>
+          )}
+          <Grid container spacing={2} mt={0.5}>
+
+            {/* ── Employee dropdown with inline search ── */}
+            <Grid item xs={12}>
+              <FormControl fullWidth size="small" required>
+                <InputLabel>Employé</InputLabel>
+                <Select
+                  value={form.employee}
+                  label="Employé"
+                  onChange={e => setForm(p => ({ ...p, employee: e.target.value }))}
+                  // Prevent the dropdown from closing when typing in the search box
+                  onClose={() => setEmpDropdownSearch("")}
+                  MenuProps={{ autoFocus: false }}
+                  renderValue={(val) => {
+                    // eslint-disable-next-line eqeqeq
+                    const emp = employees.find(e => e.id == val);
+                    return emp
+                      ? `${emp.last_name} ${emp.first_name} — ${emp.employee_id}`
+                      : val;
+                  }}
+                >
+                  {/* Sticky search field inside dropdown */}
+                  <ListSubheader sx={{ pt: 1, pb: 0.5, bgcolor: "background.paper" }}>
+                    <TextField
+                      size="small"
+                      fullWidth
+                      autoFocus
+                      placeholder="Rechercher un employé..."
+                      value={empDropdownSearch}
+                      onChange={e => setEmpDropdownSearch(e.target.value)}
+                      onKeyDown={e => e.stopPropagation()}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            {empSearchLoading
+                              ? <CircularProgress size={16} />
+                              : <SearchIcon fontSize="small" />}
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  </ListSubheader>
+
+                  {filteredEmployees.length === 0 ? (
+                    <MenuItem disabled>
+                      {empSearchLoading ? "Recherche..." : empDropdownSearch ? "Aucun employé trouvé" : "Tapez pour rechercher..."}
+                    </MenuItem>
+                  ) : (
+                    filteredEmployees.map(emp => (
+                      <MenuItem key={emp.id} value={emp.id}>
+                        {emp.last_name} {emp.first_name}
+                        <Typography variant="caption" color="text.secondary" ml={1}>
+                          — {emp.employee_id}
+                        </Typography>
+                      </MenuItem>
+                    ))
+                  )}
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth size="small" required>
+                <InputLabel>Type de sanction</InputLabel>
+                <Select
+                  value={form.sanction_type}
+                  label="Type de sanction"
+                  onChange={e => setForm(p => ({ ...p, sanction_type: e.target.value }))}
+                >
+                  {sanctionTypes.map(t => (
+                    <MenuItem key={t.id} value={t.id}>
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <Box width={10} height={10} borderRadius="50%" bgcolor={t.color} />
+                        {t.name}
+                      </Box>
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth size="small" label="Date" type="date"
+                InputLabelProps={{ shrink: true }} required
+                value={form.date}
+                onChange={e => setForm(p => ({ ...p, date: e.target.value }))}
+              />
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Statut</InputLabel>
+                <Select
+                  value={form.status}
+                  label="Statut"
+                  onChange={e => setForm(p => ({ ...p, status: e.target.value }))}
+                >
+                  <MenuItem value="ACTIVE">Active</MenuItem>
+                  <MenuItem value="CANCELLED">Annulée</MenuItem>
+                  <MenuItem value="APPEALED">En appel</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid item xs={12}>
+              <TextField
+                fullWidth size="small" label="Motif" multiline rows={3} required
+                value={form.reason}
+                onChange={e => setForm(p => ({ ...p, reason: e.target.value }))}
+              />
+            </Grid>
+
+            <Grid item xs={12}>
+              <TextField
+                fullWidth size="small" label="Note interne" multiline rows={2}
+                value={form.note}
+                onChange={e => setForm(p => ({ ...p, note: e.target.value }))}
+              />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDialog(false)} disabled={saving}>Annuler</Button>
+          <Button variant="contained" onClick={handleSave} disabled={saving}>
+            {saving ? "Enregistrement..." : editItem ? "Mettre à jour" : "Créer"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+}
