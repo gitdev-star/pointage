@@ -6,14 +6,18 @@ from pathlib import Path
 from datetime import timedelta
 import os
 import dj_database_url
-import ssl
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "change-me-in-production")
-DEBUG = os.environ.get("DEBUG", "True") == "True"
+# ── Core ──────────────────────────────────────────────
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY")
+if not SECRET_KEY:
+    raise ValueError("DJANGO_SECRET_KEY environment variable is not set")
+
+DEBUG = os.environ.get("DEBUG", "False") == "True"
 ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
+# ── Apps ──────────────────────────────────────────────
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -25,8 +29,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt",
     "corsheaders",
     "django_filters",
-   # "employees",
-    "employees.apps.EmployeesConfig",  # ✅ FIX
+    "employees.apps.EmployeesConfig",
     "leaves",
     "events",
     "payroll",
@@ -38,6 +41,7 @@ INSTALLED_APPS = [
     "documents",
 ]
 
+# ── Middleware ─────────────────────────────────────────
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
@@ -69,27 +73,33 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
+# ── Database ───────────────────────────────────────────
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL environment variable is not set")
+
 DATABASES = {
-    "default": dj_database_url.config(
-        env="DATABASE_URL",
-        default="postgresql://user:pass@localhost:5432/hr_db",
-        conn_max_age=600,
-    ),
-    "attendance": dj_database_url.config(
-        env="ATTENDANCE_DB_URL",
-        default="postgresql://user:pass@localhost:5432/attendance",
-        conn_max_age=600,
-    ),
+    "default": dj_database_url.parse(DATABASE_URL, conn_max_age=600),
 }
+
+ATTENDANCE_DB_URL = os.environ.get("ATTENDANCE_DB_URL")
+if ATTENDANCE_DB_URL:
+    DATABASES["attendance"] = dj_database_url.parse(ATTENDANCE_DB_URL, conn_max_age=600)
+
+# ── JWT ────────────────────────────────────────────────
+JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY")
+if not JWT_SECRET_KEY:
+    raise ValueError("JWT_SECRET_KEY environment variable is not set")
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(hours=24),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
     "ALGORITHM": "HS256",
-    "SIGNING_KEY": os.environ.get("JWT_SECRET_KEY", SECRET_KEY),
+    "SIGNING_KEY": JWT_SECRET_KEY,
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
+# ── REST Framework ─────────────────────────────────────
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "accounts.authentication.ServiceAuthentication",
@@ -107,16 +117,18 @@ REST_FRAMEWORK = {
     "PAGE_SIZE": 20,
 }
 
-
+# ── CORS ───────────────────────────────────────────────
 CORS_ALLOWED_ORIGINS = os.environ.get(
     "CORS_ALLOWED_ORIGINS", "http://localhost:3000"
 ).split(",")
 
+# ── Localisation ───────────────────────────────────────
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = os.environ.get("TIME_ZONE", "Indian/Antananarivo")
 USE_I18N = True
 USE_TZ = True
 
+# ── Static & Media ─────────────────────────────────────
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "/media/"
@@ -124,34 +136,39 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# ── Internal service URLs ──────────────────────────────
 DJANGO_AUTH_URL = os.environ.get("DJANGO_AUTH_URL", "http://django_auth:8000")
 
-# ── Redis Cache ───────────────────────────────────────
+# ── Redis Cache ────────────────────────────────────────
+REDIS_URL = os.environ.get("REDIS_URL", "redis://redis_pointage:6379/1")
+
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": "redis://redis_pointage:6379/1",
+        "LOCATION": REDIS_URL,
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
         },
-        "TIMEOUT": 300,  # 5 minutes
+        "TIMEOUT": 300,
     }
 }
 
-# ── Cache timeouts ────────────────────────────────────
-CACHE_TTL_SHORT  = 60 * 5    # 5 minutes
-CACHE_TTL_MEDIUM = 60 * 30   # 30 minutes
-CACHE_TTL_LONG   = 60 * 60   # 1 hour
+CACHE_TTL_SHORT  = 60 * 5
+CACHE_TTL_MEDIUM = 60 * 30
+CACHE_TTL_LONG   = 60 * 60
 
-# ── Email Configuration ───────────────────────────────
+# ── Email ──────────────────────────────────────────────
+EMAIL_BACKEND       = os.environ.get("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
+EMAIL_HOST          = os.environ.get("EMAIL_HOST")
+EMAIL_PORT          = int(os.environ.get("EMAIL_PORT", 465))
+EMAIL_USE_SSL       = os.environ.get("EMAIL_USE_SSL", "True") == "True"
+EMAIL_USE_TLS       = os.environ.get("EMAIL_USE_TLS", "False") == "True"
+EMAIL_HOST_USER     = os.environ.get("EMAIL_HOST_USER")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
+DEFAULT_FROM_EMAIL  = os.environ.get("DEFAULT_FROM_EMAIL", "")
 
-# ── Email ─────────────────────────────────────────────
-EMAIL_BACKEND       = "django.core.mail.backends.smtp.EmailBackend"
-EMAIL_HOST          = "smtpauth.moov.mg"
-EMAIL_PORT          = 465
-EMAIL_USE_SSL       = True
-EMAIL_USE_TLS       = False
-EMAIL_HOST_USER     = "noreply@pb-industries.mg"
-EMAIL_HOST_PASSWORD = "XFphaGzDKbzCTj7"
-DEFAULT_FROM_EMAIL  = "Système RH <noreply@pb-industries.mg>"
-HR_ALERT_DAYS       = [int(x) for x in os.environ.get("HR_ALERT_DAYS", "30,60,90").split(",")]
+if not EMAIL_HOST or not EMAIL_HOST_USER or not EMAIL_HOST_PASSWORD:
+    raise ValueError("Email environment variables (EMAIL_HOST, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD) are not set")
+
+# ── HR Alerts ──────────────────────────────────────────
+HR_ALERT_DAYS = [int(x) for x in os.environ.get("HR_ALERT_DAYS", "30,60,90").split(",")]

@@ -55,3 +55,5 @@ node_modules/
 
 # Alembic
 alembic/versions/*.pyc
+.env
+django_hr/.env
