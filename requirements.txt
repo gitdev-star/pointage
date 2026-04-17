@@ -30,3 +30,4 @@ requests>=2.31.0
 httpx
 python-dateutil==2.9.0
 docx2pdf
+psycopg2-binary

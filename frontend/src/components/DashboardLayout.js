@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { logout } from "../api/auth";
 import { useNavigate } from "react-router-dom";
@@ -7,34 +7,45 @@ import "./DashboardLayout.css";
 import NotificationBell from "./hr/NotificationBell";
 
 const DashboardLayout = () => {
-  const navigate      = useNavigate();
-  const location      = useLocation();
+  const navigate  = useNavigate();
+  const location  = useLocation();
   const { hrProfile, canSee } = useHRAuth();
+
+  const [analysesOpen, setAnalysesOpen] = useState(
+    location.pathname.startsWith("/attendance/analysis") ||
+    location.pathname.startsWith("/attendance/late-report")
+  );
 
   const handleLogout = () => { logout(); navigate("/login"); };
 
   const hrMenuItems = [
-    { to: "/hr/employees",      label: "Employés",              module: "employees" },
-    { to: "/hr/import",         label: "Import CSV",            module: "employees" },
-    { to: "/hr/leaves",         label: "Congés",                module: "leaves" },
-    { to: "/hr/maternity",      label: "Congé maternité",       module: "leaves" },
-    { to: "/hr/payroll",        label: "Fiches de paie",        module: "payroll" },
-    { to: "/hr/reports",        label: "Rapports",              module: "reports" },
-    { to: "/hr/shifts",         label: "Shifts & Événements",   module: "shifts" },
-    { to: "/hr/registre",       label: "Registre du personnel", module: "employees" },
-    { to: "/hr/events",         label: "Événements RH",         module: "sanctions" },
-    { to: "/hr/sanctions",      label: "Sanctions",             module: "sanctions" },
-    { to: "/hr/cdd-alerts",     label: "Alertes CDD",           module: "alerts" },
-    { to: "/hr/work-schedules", label: "Horaires de travail", module: "employees" },
-    { to: "/hr/schedule-assignment", label: "Assignation horaires", module: "employees" },
+    { to: "/hr/employees",           label: "Employés",              module: "employees" },
+//    { to: "/hr/import",              label: "Import CSV",            module: "employees" },
+    { to: "/hr/leaves",              label: "Événements",            module: "leaves" },
+    { to: "/hr/payroll",             label: "Fiches de paie",        module: "payroll" },
+    { to: "/hr/reports",             label: "Rapports",              module: "reports" },
+ //   { to: "/hr/shifts",              label: "Shifts & Événements",   module: "shifts" },
+//    { to: "/hr/registre",            label: "Registre du personnel", module: "employees" },
+//    { to: "/hr/events",              label: "Événements RH",         module: "sanctions" },
+//    { to: "/hr/sanctions",           label: "Sanctions",             module: "sanctions" },
+    { to: "/hr/cdd-alerts",          label: "Alertes CDD",           module: "alerts" },
+    { to: "/hr/work-schedules",      label: "Horaires de travail",   module: "employees" },
+    { to: "/hr/schedule-assignment", label: "Assignation horaires",  module: "employees" },
   ].filter(item => canSee(item.module));
 
   const hrAdminItems = [
-    { to: "/hr/organisation",  label: "Organisation",      module: "organisation" },
-    { to: "/hr/notifications", label: "Notifications RH",  module: "alerts" },
-    { to: "/hr/users",         label: "Utilisateurs RH",   module: "hr_users" },
-    { to: "/hr/permissions",   label: "Permissions",        module: "hr_users" },
+    { to: "/hr/organisation",  label: "Organisation",     module: "organisation" },
+    { to: "/hr/notifications", label: "Notifications RH", module: "alerts" },
+    { to: "/hr/users",         label: "Utilisateurs RH",  module: "hr_users" },
+    { to: "/hr/permissions",   label: "Permissions",      module: "hr_users" },
   ].filter(item => canSee(item.module));
+
+  const analysesItems = [
+    { to: "/attendance/analysis",    label: "Présences" },
+    { to: "/attendance/late-report", label: "Retards" },
+  ];
+
+  const isAnalysesActive = analysesItems.some(i => location.pathname.startsWith(i.to));
 
   return (
     <div className="dashboard-container">
@@ -58,10 +69,9 @@ const DashboardLayout = () => {
             <div className="nav-section-title">Pointage</div>
             <ul>
               {[
-                { to: "/dashboard",           label: "Dashboard" },
-                { to: "/attendance",          label: "Présences" },
-                { to: "/attendance/analysis", label: "Analyse" },
-                { to: "/devices",             label: "Appareils" },
+                { to: "/dashboard",  label: "Dashboard" },
+                { to: "/attendance", label: "Présences" },
+                { to: "/devices",    label: "Appareils" },
               ].map(item => (
                 <li key={item.to}>
                   <Link to={item.to} className={location.pathname === item.to ? "active" : ""}>
@@ -69,6 +79,31 @@ const DashboardLayout = () => {
                   </Link>
                 </li>
               ))}
+
+              {/* Analyses collapsible group */}
+              <li>
+                <button
+                  className={`nav-group-btn ${isAnalysesActive ? "active" : ""}`}
+                  onClick={() => setAnalysesOpen(v => !v)}
+                >
+                  <span>Analyses</span>
+                  <span className="nav-group-arrow">{analysesOpen ? "▾" : "▸"}</span>
+                </button>
+                {analysesOpen && (
+                  <ul className="nav-sub-list">
+                    {analysesItems.map(item => (
+                      <li key={item.to}>
+                        <Link
+                          to={item.to}
+                          className={`nav-sub-link ${location.pathname.startsWith(item.to) ? "active" : ""}`}
+                        >
+                          {item.label}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
             </ul>
           </div>
 
@@ -120,11 +155,14 @@ const DashboardLayout = () => {
           </div>
         </nav>
       </aside>
+
       <main className="main-content">
-        <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", padding:"8px 20px", borderBottom:"1px solid #eee", background:"#1565c0", minHeight:"48px" }}>
+        <div className="topbar">
           <NotificationBell />
         </div>
-        <div style={{ padding: "0" }}><Outlet /></div>
+        <div className="page-content">
+          <Outlet />
+        </div>
       </main>
     </div>
   );

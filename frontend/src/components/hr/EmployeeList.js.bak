@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 import {
   Box, Typography, TextField, MenuItem, Select, FormControl,
@@ -8,20 +8,15 @@ import {
   Button, Dialog, DialogTitle, DialogContent, DialogActions,
   Grid, Alert, Divider,
 } from "@mui/material";
-import SearchIcon        from "@mui/icons-material/Search";
-import RefreshIcon       from "@mui/icons-material/Refresh";
-import AddIcon           from "@mui/icons-material/Add";
-import EditIcon          from "@mui/icons-material/Edit";
-import DeleteIcon        from "@mui/icons-material/Delete";
-import PhotoCameraIcon   from "@mui/icons-material/PhotoCamera";
-import DownloadIcon      from "@mui/icons-material/Download";
-import PrintIcon         from "@mui/icons-material/Print";
-import FilterListOffIcon from "@mui/icons-material/FilterListOff";
-import hrClient          from "../../api/hrClient";
-import { useNavigate }   from "react-router-dom";
-import { useHRAuth }     from "../../contexts/HRAuthContext";
-
-// ─── Constants ────────────────────────────────────────────────────────────────
+import SearchIcon from "@mui/icons-material/Search";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import AddIcon from "@mui/icons-material/Add";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
+import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
+import hrClient from "../../api/hrClient";
+import { useNavigate } from "react-router-dom";
+import { useHRAuth } from "../../contexts/HRAuthContext";
 
 const STATUS_COLORS = {
   ACTIVE: "success", INACTIVE: "default", ON_LEAVE: "warning", TERMINATED: "error",
@@ -36,74 +31,45 @@ const SEXE_OPTIONS = [
   { value: "Masculin", label: "Masculin" },
   { value: "Féminin",  label: "Féminin"  },
 ];
-const STATUS_STYLE = {
-  ACTIVE:     { bg: "#e8f5e9", color: "#2e7d32" },
-  INACTIVE:   { bg: "#f5f5f5", color: "#616161" },
-  TERMINATED: { bg: "#fce4ec", color: "#c62828" },
-  ON_LEAVE:   { bg: "#fff8e1", color: "#f57f17" },
-};
-const CONTRACT_STYLE = {
-  CDI:      { bg: "#e3f2fd", color: "#1565c0" },
-  CDD:      { bg: "#fff8e1", color: "#f57f17" },
-  INTERN:   { bg: "#f3e5f5", color: "#6a1b9a" },
-  PART:     { bg: "#e8f5e9", color: "#2e7d32" },
-  SEASONAL: { bg: "#fce4ec", color: "#c62828" },
-};
 
 const EMPTY_FORM = {
+  // Identity
   employee_id: "", first_name: "", last_name: "", sexe: "",
   birth_date: "", birth_place: "",
+  // Contact
   email: "", phone: "", address: "",
+  // Civil
   cin: "", cin_date: "", cin_place: "",
   cnaps: "", nbre_enfants: "",
+  // Organisation
   factory: "", department: "", section: "",
   job_title: "", contract_type: "CDI",
+  // Employment
   hire_date: "", termination_date: "", status: "ACTIVE",
   motif_depart: "",
+  // Payroll / misc
   matricule_paie: "", affectation: "", hk_ou_pbi: "",
   n_rh: "", salaire: "", classification: "",
+  // System links
   device_user_id: "", auth_user_id: "",
 };
-
-function InlineBadge({ value, styleMap, labelMap }) {
-  const s = styleMap[value] || { bg: "#f5f5f5", color: "#616161" };
-  return (
-    <span style={{ background: s.bg, color: s.color, fontSize: 11, fontWeight: 600,
-      padding: "2px 8px", borderRadius: 10, whiteSpace: "nowrap" }}>
-      {(labelMap && labelMap[value]) || value || "—"}
-    </span>
-  );
-}
-
-// ─── Main component ───────────────────────────────────────────────────────────
 
 export default function EmployeeList() {
   const { can } = useHRAuth();
   const navigate = useNavigate();
 
-  const [employees, setEmployees]     = useState([]);
-  const [factories, setFactories]     = useState([]);
-  const [departments, setDepartments] = useState([]);
-  const [sections, setSections]       = useState([]);
-  const [loading, setLoading]         = useState(false);
-  const [exporting, setExporting]     = useState(false);
-  const [total, setTotal]             = useState(0);
-
-  // Filters
-  const [searchInput, setSearchInput] = useState("");
-  const [search, setSearch]           = useState("");
-  const [factory, setFactory]         = useState("");
-  const [department, setDepartment]   = useState("");
-  const [statusFilter, setStatus]     = useState("");
-  const [contractFilter, setContract] = useState("");
-  const [sexeFilter, setSexe]         = useState("");
-  const debounceRef                   = useRef(null);
-
-  // Pagination
-  const [page, setPage]               = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(50);
-
-  // Modal
+  const [employees, setEmployees]       = useState([]);
+  const [factories, setFactories]       = useState([]);
+  const [departments, setDepartments]   = useState([]);
+  const [sections, setSections]         = useState([]);
+  const [loading, setLoading]           = useState(false);
+  const [total, setTotal]               = useState(0);
+  const [search, setSearch]             = useState("");
+  const [factory, setFactory]           = useState("");
+  const [department, setDepartment]     = useState("");
+  const [statusFilter, setStatus]       = useState("");
+  const [page, setPage]                 = useState(0);
+  const [rowsPerPage, setRowsPerPage]   = useState(20);
   const [modalOpen, setModalOpen]       = useState(false);
   const [modalMode, setModalMode]       = useState("add");
   const [formData, setFormData]         = useState(EMPTY_FORM);
@@ -115,36 +81,31 @@ export default function EmployeeList() {
   const [photoFile, setPhotoFile]       = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
 
-  // Cascading selects
-  const filteredDepts = factory
-    ? departments.filter(d => String(d.factory) === String(factory))
-    : departments;
-  const filteredModalDepts = formData.factory
+  const filteredDepts = formData.factory
     ? departments.filter(d => String(d.factory) === String(formData.factory))
     : departments;
+
   const filteredSections = formData.department
     ? sections.filter(s => String(s.department) === String(formData.department))
     : [];
 
-  const hasActiveFilter = search || factory || department || statusFilter || contractFilter || sexeFilter;
-
-  // ── Fetch ──
   const fetchEmployees = useCallback(async () => {
     setLoading(true);
     try {
       const params = { page: page + 1, page_size: rowsPerPage };
-      if (search)         params.search        = search;
-      if (factory)        params.factory       = factory;
-      if (department)     params.department    = department;
-      if (statusFilter)   params.status        = statusFilter;
-      if (contractFilter) params.contract_type = contractFilter;
-      if (sexeFilter)     params.sexe          = sexeFilter;
+      if (search)       params.search     = search;
+      if (factory)      params.factory    = factory;
+      if (department)   params.department = department;
+      if (statusFilter) params.status     = statusFilter;
       const res = await hrClient.get("employees/", { params });
       setEmployees(res.data.results || res.data);
       setTotal(res.data.count || 0);
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
-  }, [page, rowsPerPage, search, factory, department, statusFilter, contractFilter, sexeFilter]);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, rowsPerPage, search, factory, department, statusFilter]);
 
   useEffect(() => { fetchEmployees(); }, [fetchEmployees]);
 
@@ -157,63 +118,6 @@ export default function EmployeeList() {
       .then(r => setSections(r.data.results || r.data)).catch(() => {});
   }, []);
 
-  const handleSearchChange = (val) => {
-    setSearchInput(val);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => { setSearch(val); setPage(0); }, 350);
-  };
-
-  const resetFilters = () => {
-    setSearchInput(""); setSearch("");
-    setFactory(""); setDepartment("");
-    setStatus(""); setContract(""); setSexe("");
-    setPage(0);
-  };
-
-  // ── Export CSV ──
-  const exportCSV = async () => {
-    setExporting(true);
-    try {
-      const params = { page_size: 5000 };
-      if (search)         params.search        = search;
-      if (factory)        params.factory       = factory;
-      if (department)     params.department    = department;
-      if (statusFilter)   params.status        = statusFilter;
-      if (contractFilter) params.contract_type = contractFilter;
-      if (sexeFilter)     params.sexe          = sexeFilter;
-      const r    = await hrClient.get("employees/export/", { params });
-      const rows = r.data.results ?? r.data;
-      const headers = [
-        "N RH","Matricule","Nom","Prénom","Sexe","Date naissance",
-        "CIN","Date CIN","Lieu CIN","CNAPS",
-        "Usine","Département","Section","Poste","Contrat",
-        "Date embauche","Statut","Email","Téléphone","Adresse",
-        "Nbre enfants","Affectation",
-      ];
-      const csvRows = [
-        "\uFEFF" + headers.join(";"),
-        ...rows.map(e =>
-          [
-            e.n_rh, e.employee_id, e.last_name, e.first_name, e.sexe,
-            e.birth_date, e.cin, e.cin_date, e.cin_place, e.cnaps,
-            e.factory_name, e.department_name, e.section_name || "", e.job_title, e.contract_type,
-            e.hire_date, e.status, e.email, e.phone, e.address,
-            e.nbre_enfants, e.affectation,
-          ].map(v => '"' + (v ?? "").toString().replace(/"/g, '""') + '"').join(";")
-        ),
-      ];
-      const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement("a");
-      a.href = url;
-      a.download = "employes_" + new Date().toISOString().slice(0, 10) + ".csv";
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch { setAlert({ type: "error", msg: "Erreur lors de l'export." }); }
-    finally { setExporting(false); }
-  };
-
-  // ── Modal ──
   const openAdd = () => {
     setFormData(EMPTY_FORM); setFormErrors({});
     setPhotoFile(null); setPhotoPreview(null);
@@ -222,37 +126,37 @@ export default function EmployeeList() {
 
   const openEdit = (emp) => {
     setFormData({
-      employee_id:      emp.employee_id      || "",
-      first_name:       emp.first_name       || "",
-      last_name:        emp.last_name        || "",
-      sexe:             emp.sexe             || "",
-      birth_date:       emp.birth_date       || "",
-      birth_place:      emp.birth_place      || "",
-      email:            emp.email            || "",
-      phone:            emp.phone            || "",
-      address:          emp.address          || "",
-      cin:              emp.cin              || "",
-      cin_date:         emp.cin_date         || "",
-      cin_place:        emp.cin_place        || "",
-      cnaps:            emp.cnaps            || "",
-      nbre_enfants:     emp.nbre_enfants     ?? "",
-      factory:          emp.factory          || "",
-      department:       emp.department       || "",
-      section:          emp.section          || "",
-      job_title:        emp.job_title        || "",
-      contract_type:    emp.contract_type    || "CDI",
-      hire_date:        emp.hire_date        || "",
+      employee_id:    emp.employee_id    || "",
+      first_name:     emp.first_name     || "",
+      last_name:      emp.last_name      || "",
+      sexe:           emp.sexe           || "",
+      birth_date:     emp.birth_date     || "",
+      birth_place:    emp.birth_place    || "",
+      email:          emp.email          || "",
+      phone:          emp.phone          || "",
+      address:        emp.address        || "",
+      cin:            emp.cin            || "",
+      cin_date:       emp.cin_date       || "",
+      cin_place:      emp.cin_place      || "",
+      cnaps:          emp.cnaps          || "",
+      nbre_enfants:   emp.nbre_enfants   ?? "",
+      factory:        emp.factory        || "",
+      department:     emp.department     || "",
+      section:        emp.section        || "",
+      job_title:      emp.job_title      || "",
+      contract_type:  emp.contract_type  || "CDI",
+      hire_date:      emp.hire_date      || "",
       termination_date: emp.termination_date || "",
-      status:           emp.status           || "ACTIVE",
-      motif_depart:     emp.motif_depart     || "",
-      matricule_paie:   emp.matricule_paie   || "",
-      affectation:      emp.affectation      || "",
-      hk_ou_pbi:        emp.hk_ou_pbi        || "",
-      n_rh:             emp.n_rh             || "",
-      salaire:          emp.salaire          || "",
-      classification:   emp.classification   || "",
-      device_user_id:   emp.device_user_id   ?? "",
-      auth_user_id:     emp.auth_user_id     ?? "",
+      status:         emp.status         || "ACTIVE",
+      motif_depart:   emp.motif_depart   || "",
+      matricule_paie: emp.matricule_paie || "",
+      affectation:    emp.affectation    || "",
+      hk_ou_pbi:      emp.hk_ou_pbi      || "",
+      n_rh:           emp.n_rh           || "",
+      salaire:        emp.salaire        || "",
+      classification: emp.classification || "",
+      device_user_id: emp.device_user_id ?? "",
+      auth_user_id:   emp.auth_user_id   ?? "",
       _id: emp.id,
     });
     setFormErrors({}); setPhotoFile(null);
@@ -267,8 +171,8 @@ export default function EmployeeList() {
 
   const handleFormChange = (field, value) => {
     let extra = {};
-    if (field === "factory")                    extra = { department: "", section: "" };
-    if (field === "department")                 extra = { section: "" };
+    if (field === "factory")            extra = { department: "", section: "" };
+    if (field === "department")         extra = { section: "" };
     if (field === "termination_date" && value)  extra.status = "TERMINATED";
     if (field === "termination_date" && !value) extra.status = "ACTIVE";
     setFormData(prev => ({ ...prev, [field]: value, ...extra }));
@@ -311,6 +215,7 @@ export default function EmployeeList() {
       textFields.forEach(f => {
         if (formData[f] !== "" && formData[f] != null) payload.append(f, formData[f]);
       });
+      // Integer fields
       if (formData.nbre_enfants !== "")   payload.append("nbre_enfants",   formData.nbre_enfants);
       if (formData.device_user_id !== "") payload.append("device_user_id", formData.device_user_id);
       if (formData.auth_user_id   !== "") payload.append("auth_user_id",   formData.auth_user_id);
@@ -347,7 +252,7 @@ export default function EmployeeList() {
     } finally { setDeleting(false); }
   };
 
-  const FD = ({ label }) => (
+  const SectionDivider = ({ label }) => (
     <Grid item xs={12}>
       <Divider sx={{ mt: 1 }}>
         <Typography variant="caption" color="text.secondary">{label}</Typography>
@@ -355,41 +260,23 @@ export default function EmployeeList() {
     </Grid>
   );
 
-  // ────────────────────────────────────────────────────────────────────────────
   return (
     <Box sx={{ p: 3 }}>
-      <style>{`
-        @media print {
-          .no-print { display: none !important; }
-          #emp-print th, #emp-print td { padding: 3px 6px !important; font-size: 9px !important; }
-        }
-      `}</style>
-
       {/* ── Header ── */}
-      <Box className="no-print"
-        sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2.5 }}>
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
         <Typography variant="h5" fontWeight={700}>
           Employés <Chip label={total} size="small" color="primary" sx={{ ml: 1 }} />
         </Typography>
-        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+        <Box sx={{ display: "flex", gap: 1 }}>
           <Tooltip title="Actualiser">
-            <IconButton onClick={fetchEmployees} size="small"><RefreshIcon /></IconButton>
+            <IconButton onClick={fetchEmployees}><RefreshIcon /></IconButton>
           </Tooltip>
-          <Button variant="outlined" color="success" size="small"
-            startIcon={<DownloadIcon />} onClick={exportCSV} disabled={exporting}>
-            {exporting ? "Export..." : "Export CSV"}
-          </Button>
-          <Button variant="outlined" size="small" startIcon={<PrintIcon />}
-            onClick={() => window.print()}>
-            Imprimer
-          </Button>
           {can("employees_write") && (
             <>
-              <Button variant="outlined" size="small" startIcon={<UploadFileIcon />}
-                onClick={() => navigate("/hr/import")}>
+              <Button variant="outlined" startIcon={<UploadFileIcon />} onClick={() => navigate("/hr/import")}>
                 Importer
               </Button>
-              <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={openAdd}>
+              <Button variant="contained" startIcon={<AddIcon />} onClick={openAdd}>
                 Ajouter
               </Button>
             </>
@@ -397,189 +284,122 @@ export default function EmployeeList() {
         </Box>
       </Box>
 
-      {alert && (
-        <Alert className="no-print" severity={alert.type} sx={{ mb: 2 }} onClose={() => setAlert(null)}>
-          {alert.msg}
-        </Alert>
-      )}
+      {alert && <Alert severity={alert.type} sx={{ mb: 2 }} onClose={() => setAlert(null)}>{alert.msg}</Alert>}
 
       {/* ── Filters ── */}
-      <Box className="no-print"
-        sx={{ display: "flex", gap: 1.5, mb: 2.5, flexWrap: "wrap", alignItems: "center" }}>
-        {/* Search */}
-        <TextField
-          placeholder="Rechercher nom, ID, poste, CIN..."
-          value={searchInput}
-          onChange={e => handleSearchChange(e.target.value)}
-          size="small" sx={{ minWidth: 240 }}
-          InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
-        />
-        {/* Statut */}
-        <FormControl size="small" sx={{ minWidth: 130 }}>
-          <InputLabel>Statut</InputLabel>
-          <Select value={statusFilter} label="Statut"
-            onChange={e => { setStatus(e.target.value); setPage(0); }}>
-            <MenuItem value="">Tous</MenuItem>
-            {Object.entries(STATUS_LABELS).map(([k, v]) => <MenuItem key={k} value={k}>{v}</MenuItem>)}
-          </Select>
-        </FormControl>
-        {/* Contrat */}
-        <FormControl size="small" sx={{ minWidth: 130 }}>
-          <InputLabel>Contrat</InputLabel>
-          <Select value={contractFilter} label="Contrat"
-            onChange={e => { setContract(e.target.value); setPage(0); }}>
-            <MenuItem value="">Tous</MenuItem>
-            {Object.entries(CONTRACT_LABELS).map(([k, v]) => <MenuItem key={k} value={k}>{v}</MenuItem>)}
-          </Select>
-        </FormControl>
-        {/* Sexe */}
-        <FormControl size="small" sx={{ minWidth: 110 }}>
-          <InputLabel>Sexe</InputLabel>
-          <Select value={sexeFilter} label="Sexe"
-            onChange={e => { setSexe(e.target.value); setPage(0); }}>
-            <MenuItem value="">Tous</MenuItem>
-            <MenuItem value="F">Femmes</MenuItem>
-            <MenuItem value="M">Hommes</MenuItem>
-          </Select>
-        </FormControl>
-        {/* Usine */}
-        <FormControl size="small" sx={{ minWidth: 150 }}>
+      <Box sx={{ display: "flex", gap: 2, mb: 3, flexWrap: "wrap" }}>
+        <TextField placeholder="Rechercher nom, ID, poste..." value={search}
+          onChange={e => { setSearch(e.target.value); setPage(0); }}
+          size="small" sx={{ minWidth: 260 }}
+          InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }} />
+        <FormControl size="small" sx={{ minWidth: 160 }}>
           <InputLabel>Usine</InputLabel>
-          <Select value={factory} label="Usine"
-            onChange={e => { setFactory(e.target.value); setDepartment(""); setPage(0); }}>
+          <Select value={factory} label="Usine" onChange={e => { setFactory(e.target.value); setPage(0); }}>
             <MenuItem value="">Toutes</MenuItem>
             {factories.map(f => <MenuItem key={f.id} value={f.id}>{f.name}</MenuItem>)}
           </Select>
         </FormControl>
-        {/* Département */}
-        <FormControl size="small" sx={{ minWidth: 150 }}>
+        <FormControl size="small" sx={{ minWidth: 160 }}>
           <InputLabel>Département</InputLabel>
-          <Select value={department} label="Département"
-            onChange={e => { setDepartment(e.target.value); setPage(0); }}>
+          <Select value={department} label="Département" onChange={e => { setDepartment(e.target.value); setPage(0); }}>
             <MenuItem value="">Tous</MenuItem>
-            {filteredDepts.map(d => <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>)}
+            {departments.map(d => <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>)}
           </Select>
         </FormControl>
-        {/* Reset */}
-        {hasActiveFilter && (
-          <Button size="small" color="error" variant="outlined"
-            startIcon={<FilterListOffIcon />} onClick={resetFilters}>
-            Réinitialiser
-          </Button>
-        )}
+        <FormControl size="small" sx={{ minWidth: 140 }}>
+          <InputLabel>Statut</InputLabel>
+          <Select value={statusFilter} label="Statut" onChange={e => { setStatus(e.target.value); setPage(0); }}>
+            <MenuItem value="">Tous</MenuItem>
+            {Object.entries(STATUS_LABELS).map(([k, v]) => <MenuItem key={k} value={k}>{v}</MenuItem>)}
+          </Select>
+        </FormControl>
       </Box>
 
       {/* ── Table ── */}
-      <Paper elevation={2}>
-        <TableContainer id="emp-print">
-          <Table size="small" stickyHeader>
-            <TableHead>
-              <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
-                <TableCell className="no-print"><strong>Photo</strong></TableCell>
-                <TableCell><strong>Matricule</strong></TableCell>
-                <TableCell><strong>Nom</strong></TableCell>
-                <TableCell><strong>Prénom</strong></TableCell>
-                <TableCell><strong>Sexe</strong></TableCell>
-                <TableCell><strong>Poste</strong></TableCell>
-                <TableCell><strong>Usine</strong></TableCell>
-                <TableCell><strong>Département</strong></TableCell>
-                <TableCell><strong>Contrat</strong></TableCell>
-                <TableCell><strong>Embauche</strong></TableCell>
-                <TableCell><strong>Statut</strong></TableCell>
+      <TableContainer component={Paper} elevation={2}>
+        <Table size="small">
+          <TableHead>
+            <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
+              <TableCell><strong>Photo</strong></TableCell>
+              <TableCell><strong>ID</strong></TableCell>
+              <TableCell><strong>Nom complet</strong></TableCell>
+              <TableCell><strong>Poste</strong></TableCell>
+              <TableCell><strong>Usine</strong></TableCell>
+              <TableCell><strong>Département</strong></TableCell>
+              <TableCell><strong>Contrat</strong></TableCell>
+              <TableCell><strong>Statut</strong></TableCell>
+              {(can("employees_write") || can("employees_delete")) && <TableCell><strong>Actions</strong></TableCell>}
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {loading ? (
+              <TableRow><TableCell colSpan={9} align="center" sx={{ py: 4 }}><CircularProgress size={32} /></TableCell></TableRow>
+            ) : employees.length === 0 ? (
+              <TableRow><TableCell colSpan={9} align="center" sx={{ py: 4, color: "text.secondary" }}>Aucun employé trouvé</TableCell></TableRow>
+            ) : employees.map(emp => (
+              <TableRow key={emp.id} hover sx={{ cursor: "pointer" }} onClick={() => navigate(`/hr/employees/${emp.id}`)}>
+                <TableCell>
+                  <Avatar src={emp.photo} sx={{ width: 36, height: 36 }}>
+                    {emp.first_name?.[0]}{emp.last_name?.[0]}
+                  </Avatar>
+                </TableCell>
+                <TableCell sx={{ fontFamily: "monospace", fontSize: 13 }}>{emp.employee_id}</TableCell>
+                <TableCell><strong>{emp.last_name} {emp.first_name}</strong></TableCell>
+                <TableCell>{emp.job_title}</TableCell>
+                <TableCell>{emp.factory_name}</TableCell>
+                <TableCell>{emp.department_name}</TableCell>
+                <TableCell><Chip label={CONTRACT_LABELS[emp.contract_type] || emp.contract_type} size="small" variant="outlined" /></TableCell>
+                <TableCell><Chip label={STATUS_LABELS[emp.status] || emp.status} color={STATUS_COLORS[emp.status] || "default"} size="small" /></TableCell>
                 {(can("employees_write") || can("employees_delete")) && (
-                  <TableCell className="no-print"><strong>Actions</strong></TableCell>
+                  <TableCell>
+                    <Box sx={{ display: "flex", gap: 0.5 }}>
+                      {can("employees_write") && (
+                        <Tooltip title="Modifier">
+                          <span onClick={e => e.stopPropagation()}>
+                            <IconButton size="small" color="primary" onClick={() => openEdit(emp)}>
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                      )}
+                      {can("employees_delete") && (
+                        <Tooltip title="Supprimer">
+                          <span onClick={e => e.stopPropagation()}>
+                            <IconButton size="small" color="error"
+                              onClick={() => setDeleteDialog({ id: emp.id, name: `${emp.last_name} ${emp.first_name}` })}>
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                      )}
+                    </Box>
+                  </TableCell>
                 )}
               </TableRow>
-            </TableHead>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={12} align="center" sx={{ py: 5 }}>
-                    <CircularProgress size={28} />
-                  </TableCell>
-                </TableRow>
-              ) : employees.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={12} align="center" sx={{ py: 5, color: "text.secondary" }}>
-                    Aucun employé trouvé
-                  </TableCell>
-                </TableRow>
-              ) : employees.map((emp, i) => (
-                <TableRow key={emp.id} hover
-                  sx={{ cursor: "pointer", bgcolor: i % 2 === 0 ? "#fff" : "#fafafa" }}
-                  onClick={() => navigate(`/hr/employees/${emp.id}`)}>
-                  <TableCell className="no-print">
-                    <Avatar src={emp.photo} sx={{ width: 34, height: 34 }}>
-                      {emp.first_name?.[0]}{emp.last_name?.[0]}
-                    </Avatar>
-                  </TableCell>
-                  <TableCell sx={{ fontFamily: "monospace", fontSize: 12, color: "#1565c0" }}>
-                    {emp.employee_id}
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 600, fontSize: 13 }}>{emp.last_name}</TableCell>
-                  <TableCell sx={{ fontSize: 13 }}>{emp.first_name}</TableCell>
-                  <TableCell sx={{ fontSize: 12 }}>{emp.sexe || "—"}</TableCell>
-                  <TableCell sx={{ fontSize: 12 }}>{emp.job_title}</TableCell>
-                  <TableCell sx={{ fontSize: 12 }}>{emp.factory_name}</TableCell>
-                  <TableCell sx={{ fontSize: 12 }}>{emp.department_name}</TableCell>
-                  <TableCell>
-                    <InlineBadge value={emp.contract_type} styleMap={CONTRACT_STYLE} labelMap={CONTRACT_LABELS} />
-                  </TableCell>
-                  <TableCell sx={{ fontSize: 12 }}>{emp.hire_date}</TableCell>
-                  <TableCell>
-                    <InlineBadge value={emp.status} styleMap={STATUS_STYLE} labelMap={STATUS_LABELS} />
-                  </TableCell>
-                  {(can("employees_write") || can("employees_delete")) && (
-                    <TableCell className="no-print">
-                      <Box sx={{ display: "flex", gap: 0.5 }}>
-                        {can("employees_write") && (
-                          <Tooltip title="Modifier">
-                            <span onClick={e => e.stopPropagation()}>
-                              <IconButton size="small" color="primary" onClick={() => openEdit(emp)}>
-                                <EditIcon fontSize="small" />
-                              </IconButton>
-                            </span>
-                          </Tooltip>
-                        )}
-                        {can("employees_delete") && (
-                          <Tooltip title="Supprimer">
-                            <span onClick={e => e.stopPropagation()}>
-                              <IconButton size="small" color="error"
-                                onClick={() => setDeleteDialog({ id: emp.id, name: `${emp.last_name} ${emp.first_name}` })}>
-                                <DeleteIcon fontSize="small" />
-                              </IconButton>
-                            </span>
-                          </Tooltip>
-                        )}
-                      </Box>
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
 
-        <TablePagination className="no-print"
-          component="div" count={total} page={page}
-          onPageChange={(_, p) => setPage(p)} rowsPerPage={rowsPerPage}
-          onRowsPerPageChange={e => { setRowsPerPage(parseInt(e.target.value)); setPage(0); }}
-          rowsPerPageOptions={[20, 50, 100]} labelRowsPerPage="Lignes par page"
-          labelDisplayedRows={({ from, to, count }) => `${from}–${to} sur ${count}`}
-        />
-      </Paper>
+      <TablePagination component="div" count={total} page={page}
+        onPageChange={(_, p) => setPage(p)} rowsPerPage={rowsPerPage}
+        onRowsPerPageChange={e => { setRowsPerPage(parseInt(e.target.value)); setPage(0); }}
+        rowsPerPageOptions={[10, 20, 50, 100]} labelRowsPerPage="Lignes par page"
+        labelDisplayedRows={({ from, to, count }) => `${from}–${to} sur ${count}`} />
 
       {/* ══════════════════════════════════════════════
-          Add / Edit Modal
+          Add / Edit Modal — Full model fields
       ══════════════════════════════════════════════ */}
       <Dialog open={modalOpen} onClose={closeModal} maxWidth="md" fullWidth
         PaperProps={{ sx: { maxHeight: "92vh" } }}>
         <DialogTitle fontWeight={700}>
           {modalMode === "add" ? "➕ Ajouter un employé" : "✏️ Modifier l'employé"}
         </DialogTitle>
+
         <DialogContent dividers>
           <Grid container spacing={2}>
 
+            {/* Photo */}
             <Grid item xs={12} sx={{ display: "flex", alignItems: "center", gap: 2, mb: 1 }}>
               <Avatar src={photoPreview} sx={{ width: 72, height: 72, fontSize: 28 }}>
                 {formData.first_name?.[0]}{formData.last_name?.[0]}
@@ -590,7 +410,8 @@ export default function EmployeeList() {
               </Button>
             </Grid>
 
-            <FD label="Identité" />
+            {/* ── Identité ── */}
+            <SectionDivider label="Identité" />
             <Grid item xs={12} sm={4}>
               <TextField fullWidth size="small" label="ID Employé *" value={formData.employee_id}
                 onChange={e => handleFormChange("employee_id", e.target.value)}
@@ -610,8 +431,7 @@ export default function EmployeeList() {
             <Grid item xs={12} sm={4}>
               <FormControl fullWidth size="small">
                 <InputLabel>Sexe</InputLabel>
-                <Select value={formData.sexe} label="Sexe"
-                  onChange={e => handleFormChange("sexe", e.target.value)}>
+                <Select value={formData.sexe} label="Sexe" onChange={e => handleFormChange("sexe", e.target.value)}>
                   <MenuItem value="">—</MenuItem>
                   {SEXE_OPTIONS.map(o => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
                 </Select>
@@ -627,7 +447,8 @@ export default function EmployeeList() {
                 onChange={e => handleFormChange("birth_place", e.target.value)} />
             </Grid>
 
-            <FD label="Contact" />
+            {/* ── Contact ── */}
+            <SectionDivider label="Contact" />
             <Grid item xs={12} sm={6}>
               <TextField fullWidth size="small" label="Email" value={formData.email}
                 onChange={e => handleFormChange("email", e.target.value)}
@@ -639,10 +460,12 @@ export default function EmployeeList() {
             </Grid>
             <Grid item xs={12}>
               <TextField fullWidth size="small" label="Adresse" value={formData.address}
-                onChange={e => handleFormChange("address", e.target.value)} multiline minRows={2} />
+                onChange={e => handleFormChange("address", e.target.value)}
+                multiline minRows={2} />
             </Grid>
 
-            <FD label="État civil & documents" />
+            {/* ── Civil ── */}
+            <SectionDivider label="État civil & documents" />
             <Grid item xs={12} sm={4}>
               <TextField fullWidth size="small" label="CIN" value={formData.cin}
                 onChange={e => handleFormChange("cin", e.target.value)} />
@@ -666,7 +489,8 @@ export default function EmployeeList() {
                 onChange={e => handleFormChange("nbre_enfants", e.target.value)} />
             </Grid>
 
-            <FD label="Organisation" />
+            {/* ── Organisation ── */}
+            <SectionDivider label="Organisation" />
             <Grid item xs={12} sm={4}>
               <FormControl fullWidth size="small" error={!!formErrors.factory}>
                 <InputLabel>Usine *</InputLabel>
@@ -683,7 +507,7 @@ export default function EmployeeList() {
                 <Select value={formData.department} label="Département *"
                   onChange={e => handleFormChange("department", e.target.value)}
                   disabled={!formData.factory}>
-                  {filteredModalDepts.map(d => <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>)}
+                  {filteredDepts.map(d => <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>)}
                 </Select>
                 {formErrors.department && <Typography variant="caption" color="error">{formErrors.department}</Typography>}
               </FormControl>
@@ -722,7 +546,8 @@ export default function EmployeeList() {
                 onChange={e => handleFormChange("hk_ou_pbi", e.target.value)} />
             </Grid>
 
-            <FD label="Emploi" />
+            {/* ── Emploi ── */}
+            <SectionDivider label="Emploi" />
             <Grid item xs={12} sm={4}>
               <TextField fullWidth size="small" label="Date d'embauche *" type="date"
                 value={formData.hire_date} onChange={e => handleFormChange("hire_date", e.target.value)}
@@ -749,7 +574,8 @@ export default function EmployeeList() {
                 onChange={e => handleFormChange("motif_depart", e.target.value)} />
             </Grid>
 
-            <FD label="Paie & classification" />
+            {/* ── Paie ── */}
+            <SectionDivider label="Paie & classification" />
             <Grid item xs={12} sm={4}>
               <TextField fullWidth size="small" label="Matricule paie" value={formData.matricule_paie}
                 onChange={e => handleFormChange("matricule_paie", e.target.value)} />
@@ -767,7 +593,8 @@ export default function EmployeeList() {
                 onChange={e => handleFormChange("n_rh", e.target.value)} />
             </Grid>
 
-            <FD label="Liaisons système (optionnel)" />
+            {/* ── System links ── */}
+            <SectionDivider label="Liaisons système (optionnel)" />
             <Grid item xs={12} sm={6}>
               <TextField fullWidth size="small" label="ID Appareil biométrique" type="number"
                 value={formData.device_user_id}
@@ -781,6 +608,7 @@ export default function EmployeeList() {
 
           </Grid>
         </DialogContent>
+
         <DialogActions sx={{ px: 3, py: 2 }}>
           <Button onClick={closeModal} disabled={saving}>Annuler</Button>
           <Button variant="contained" onClick={handleSave} disabled={saving}>
@@ -789,7 +617,7 @@ export default function EmployeeList() {
         </DialogActions>
       </Dialog>
 
-      {/* Delete Dialog */}
+      {/* ── Delete Dialog ── */}
       <Dialog open={!!deleteDialog} onClose={() => setDeleteDialog(null)} maxWidth="xs" fullWidth>
         <DialogTitle fontWeight={700}>🗑️ Supprimer l'employé</DialogTitle>
         <DialogContent>
