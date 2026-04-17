@@ -26,6 +26,7 @@ import RegistrePersonnel   from './components/hr/RegistrePersonnel';
 import OrganisationManager from "./components/hr/OrganisationManager";
 import WorkSchedules from "./components/hr/WorkSchedules";
 import ScheduleAssignment from "./components/hr/ScheduleAssignment";
+import LateReport from "./components/LateReport";
 
 function App() {
   return (
@@ -57,6 +58,7 @@ function App() {
           <Route path="hr/maternity"        element={<MaternityLeave />} />
 	  <Route path="hr/work-schedules" element={<WorkSchedules />} />
           <Route path="hr/schedule-assignment" element={<ScheduleAssignment />} />
+	  <Route path="attendance/late-report" element={<LateReport />} />
         </Route>
       </Routes>
     </Router>

@@ -4,7 +4,7 @@ import {
   TableHead, TableRow, Paper, Chip, Button, Dialog, DialogTitle,
   DialogContent, DialogActions, TextField, CircularProgress, Alert,
   Tabs, Tab, Tooltip, FormControl, InputLabel, Select, MenuItem,
-  Grid, IconButton,
+  Grid, Divider, IconButton,
 } from "@mui/material";
 import CheckIcon from "@mui/icons-material/Check";
 import CloseIcon from "@mui/icons-material/Close";
@@ -13,7 +13,6 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 import hrClient from "../../api/hrClient";
 import { useHRAuth } from "../../contexts/HRAuthContext";
 import MaternityLeave from "./MaternityLeave";
-import Sanctions from "./Sanctions";
 
 const STATUS_COLORS = { PENDING: "warning", APPROVED: "success", REJECTED: "error", CANCELLED: "default" };
 const STATUS_LABELS = { PENDING: "En attente", APPROVED: "Approuvé", REJECTED: "Rejeté", CANCELLED: "Annulé" };
@@ -108,22 +107,23 @@ function EmpSearchLeave({ value, onChange, error }) {
 
 export default function LeaveRequests() {
   const { can } = useHRAuth();
-  const [requests, setRequests]     = useState([]);
-  const [leaveTypes, setLeaveTypes] = useState([]);
-  const [loading, setLoading]       = useState(false);
-  const [tab, setTab]               = useState("PENDING");
-  const [dialog, setDialog]         = useState(null);
-  const [addDialog, setAddDialog]   = useState(false);
-  const [form, setForm]             = useState(EMPTY_FORM);
-  const [formErrors, setFormErrors] = useState({});
-  const [saving, setSaving]         = useState(false);
-  const [reason, setReason]         = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [alert, setAlert]           = useState(null);
-  const [searchEmp, setSearchEmp]   = useState("");
+  const [requests, setRequests]       = useState([]);
+  const [leaveTypes, setLeaveTypes]   = useState([]);
+  const [employees, setEmployees]     = useState([]);
+  const [loading, setLoading]         = useState(false);
+  const [tab, setTab]                 = useState("PENDING");
+  const [dialog, setDialog]           = useState(null);
+  const [addDialog, setAddDialog]     = useState(false);
+  const [form, setForm]               = useState(EMPTY_FORM);
+  const [formErrors, setFormErrors]   = useState({});
+  const [saving, setSaving]           = useState(false);
+  const [reason, setReason]           = useState("");
+  const [submitting, setSubmitting]   = useState(false);
+  const [alert, setAlert]             = useState(null);
+  const [searchEmp, setSearchEmp]     = useState("");
 
   const fetchRequests = useCallback(async () => {
-    if (tab === "MATERNITY" || tab === "TYPES" || tab === "SANCTIONS") return;
+    if (tab === "MATERNITY" || tab === "TYPES" || tab === "BALANCES") return;
     setLoading(true);
     try {
       const params = { page_size: 100 };
@@ -131,7 +131,7 @@ export default function LeaveRequests() {
       if (searchEmp) params.search = searchEmp;
       const res = await hrClient.get("leaves/requests/", { params });
       setRequests(res.data.results || res.data);
-    } catch { setAlert({ type: "error", msg: "Erreur chargement des événements." }); }
+    } catch { setAlert({ type: "error", msg: "Erreur chargement des demandes." }); }
     finally { setLoading(false); }
   }, [tab, searchEmp]);
 
@@ -139,8 +139,10 @@ export default function LeaveRequests() {
 
   useEffect(() => {
     hrClient.get("leaves/types/?page_size=50").then(r => setLeaveTypes(r.data.results || r.data)).catch(() => {});
+    // employees loaded on demand via EmpSearchLeave
   }, []);
 
+  // Auto-calculate days when dates change
   useEffect(() => {
     if (form.start_date && form.end_date) {
       const start = new Date(form.start_date);
@@ -158,7 +160,7 @@ export default function LeaveRequests() {
       await hrClient.post(`leaves/requests/${dialog.leave.id}/approve_reject/`, {
         action: dialog.action, rejection_reason: reason,
       });
-      setAlert({ type: "success", msg: dialog.action === "approve" ? "Événement approuvé." : "Événement rejeté." });
+      setAlert({ type: "success", msg: dialog.action === "approve" ? "Demande approuvée." : "Demande rejetée." });
       setDialog(null); setReason(""); fetchRequests();
     } catch (err) {
       setAlert({ type: "error", msg: err.response?.data?.detail || "Erreur." });
@@ -167,10 +169,10 @@ export default function LeaveRequests() {
 
   const handleAdd = async () => {
     const errors = {};
-    if (!form.employee)       errors.employee       = "Requis";
-    if (!form.leave_type)     errors.leave_type     = "Requis";
-    if (!form.start_date)     errors.start_date     = "Requis";
-    if (!form.end_date)       errors.end_date       = "Requis";
+    if (!form.employee)      errors.employee     = "Requis";
+    if (!form.leave_type)    errors.leave_type   = "Requis";
+    if (!form.start_date)    errors.start_date   = "Requis";
+    if (!form.end_date)      errors.end_date     = "Requis";
     if (!form.days_requested) errors.days_requested = "Requis";
     setFormErrors(errors);
     if (Object.keys(errors).length > 0) return;
@@ -178,7 +180,7 @@ export default function LeaveRequests() {
     setSaving(true);
     try {
       await hrClient.post("leaves/requests/", form);
-      setAlert({ type: "success", msg: "Événement créé." });
+      setAlert({ type: "success", msg: "Demande de congé créée." });
       setAddDialog(false); setForm(EMPTY_FORM); fetchRequests();
     } catch (err) {
       const data = err.response?.data;
@@ -190,14 +192,14 @@ export default function LeaveRequests() {
   return (
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
-        <Typography variant="h5" fontWeight={700}>Gestion des événements</Typography>
+        <Typography variant="h5" fontWeight={700}>Gestion des congés</Typography>
         <Box sx={{ display: "flex", gap: 1 }}>
           <Tooltip title="Actualiser">
             <IconButton onClick={fetchRequests}><RefreshIcon /></IconButton>
           </Tooltip>
           {can("leaves_write") && (
             <Button variant="contained" startIcon={<AddIcon />} onClick={() => setAddDialog(true)}>
-              Nouvel événement
+              Nouvelle demande
             </Button>
           )}
         </Box>
@@ -206,21 +208,18 @@ export default function LeaveRequests() {
       {alert && <Alert severity={alert.type} sx={{ mb: 2 }} onClose={() => setAlert(null)}>{alert.msg}</Alert>}
 
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 3 }} variant="scrollable" scrollButtons="auto">
-        <Tab label="En attente"        value="PENDING" />
-        <Tab label="Approuvés"         value="APPROVED" />
-        <Tab label="Rejetés"           value="REJECTED" />
-        <Tab label="Tous"              value="" />
-        <Tab label="Maternité"         value="MATERNITY" />
-	<Tab label="Sanctions"         value="SANCTIONS" />
-        <Tab label="Types d'événement" value="TYPES" />
+        <Tab label="En attente"   value="PENDING" />
+        <Tab label="Approuvées"   value="APPROVED" />
+        <Tab label="Rejetées"     value="REJECTED" />
+        <Tab label="Toutes"       value="" />
+        <Tab label="Maternité"    value="MATERNITY" />
+        <Tab label="Types congés" value="TYPES" />
       </Tabs>
 
       {tab === "MATERNITY" ? (
         <MaternityLeave embedded />
-      ) : tab === "SANCTIONS" ? (
-  	<Sanctions />
       ) : tab === "TYPES" ? (
-        <EventTypeManager leaveTypes={leaveTypes} setLeaveTypes={setLeaveTypes} can={can} />
+        <LeaveTypeManager leaveTypes={leaveTypes} setLeaveTypes={setLeaveTypes} can={can} />
       ) : (
         <>
           <Box sx={{ mb: 2 }}>
@@ -248,7 +247,7 @@ export default function LeaveRequests() {
                 {loading ? (
                   <TableRow><TableCell colSpan={8} align="center" sx={{ py: 4 }}><CircularProgress size={32} /></TableCell></TableRow>
                 ) : requests.length === 0 ? (
-                  <TableRow><TableCell colSpan={8} align="center" sx={{ py: 4, color: "text.secondary" }}>Aucun événement trouvé</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} align="center" sx={{ py: 4, color: "text.secondary" }}>Aucune demande trouvée</TableCell></TableRow>
                 ) : requests.map(req => (
                   <TableRow key={req.id} hover>
                     <TableCell><strong>{req.employee_name}</strong></TableCell>
@@ -299,7 +298,7 @@ export default function LeaveRequests() {
       {/* Approve/Reject Dialog */}
       <Dialog open={!!dialog} onClose={() => setDialog(null)} maxWidth="sm" fullWidth>
         <DialogTitle fontWeight={700}>
-          {dialog?.action === "approve" ? "Approuver l'événement" : "Rejeter l'événement"}
+          {dialog?.action === "approve" ? "Approuver la demande" : "Rejeter la demande"}
         </DialogTitle>
         <DialogContent>
           {dialog && (
@@ -324,9 +323,9 @@ export default function LeaveRequests() {
         </DialogActions>
       </Dialog>
 
-      {/* Add Event Dialog */}
+      {/* Add Leave Request Dialog */}
       <Dialog open={addDialog} onClose={() => { setAddDialog(false); setForm(EMPTY_FORM); setFormErrors({}); }} maxWidth="sm" fullWidth>
-        <DialogTitle fontWeight={700}>Nouvel événement</DialogTitle>
+        <DialogTitle fontWeight={700}>Nouvelle demande de congé</DialogTitle>
         <DialogContent dividers>
           <Grid container spacing={2} sx={{ pt: 1 }}>
             <Grid item xs={12}>
@@ -338,15 +337,12 @@ export default function LeaveRequests() {
             </Grid>
             <Grid item xs={12}>
               <FormControl fullWidth size="small" error={!!formErrors.leave_type}>
-                <InputLabel>Type d'événement *</InputLabel>
-                <Select value={form.leave_type} label="Type d'événement *"
+                <InputLabel>Type de congé *</InputLabel>
+                <Select value={form.leave_type} label="Type de congé *"
                   onChange={e => setForm(p => ({ ...p, leave_type: e.target.value }))}>
                   {leaveTypes.map(t => (
                     <MenuItem key={t.id} value={t.id}>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                        <Box sx={{ width: 10, height: 10, borderRadius: "50%", backgroundColor: t.color, flexShrink: 0 }} />
-                        {t.name} ({t.days_per_year > 0 ? `${t.days_per_year}j/an` : "illimité"})
-                      </Box>
+                      {t.name} ({t.days_per_year > 0 ? `${t.days_per_year}j/an` : "illimité"})
                     </MenuItem>
                   ))}
                 </Select>
@@ -379,7 +375,7 @@ export default function LeaveRequests() {
         <DialogActions>
           <Button onClick={() => { setAddDialog(false); setForm(EMPTY_FORM); setFormErrors({}); }}>Annuler</Button>
           <Button variant="contained" onClick={handleAdd} disabled={saving}>
-            {saving ? "Enregistrement..." : "Créer l'événement"}
+            {saving ? "Enregistrement..." : "Créer la demande"}
           </Button>
         </DialogActions>
       </Dialog>
@@ -387,13 +383,13 @@ export default function LeaveRequests() {
   );
 }
 
-// ── Event Type Manager ─────────────────────────────────────────────────────
-function EventTypeManager({ leaveTypes, setLeaveTypes, can }) {
-  const [dialog, setDialog]     = useState(false);
-  const [editItem, setEditItem] = useState(null);
-  const [form, setForm]         = useState({});
-  const [saving, setSaving]     = useState(false);
-  const [alert, setAlert]       = useState(null);
+// ── Leave Type Manager ─────────────────────────────────────────────────────
+function LeaveTypeManager({ leaveTypes, setLeaveTypes, can }) {
+  const [dialog, setDialog]         = useState(false);
+  const [editItem, setEditItem]     = useState(null);
+  const [form, setForm]             = useState({});
+  const [saving, setSaving]         = useState(false);
+  const [alert, setAlert]           = useState(null);
 
   const openAdd = () => {
     setEditItem(null);
@@ -417,7 +413,7 @@ function EventTypeManager({ leaveTypes, setLeaveTypes, can }) {
         const res = await hrClient.post("leaves/types/", form);
         setLeaveTypes(prev => [...prev, res.data]);
       }
-      setAlert({ type: "success", msg: editItem ? "Type mis à jour." : "Type d'événement créé." });
+      setAlert({ type: "success", msg: editItem ? "Type mis à jour." : "Type créé." });
       setDialog(false);
     } catch (err) {
       setAlert({ type: "error", msg: err.response?.data?.detail || "Erreur." });
@@ -429,12 +425,9 @@ function EventTypeManager({ leaveTypes, setLeaveTypes, can }) {
       {alert && <Alert severity={alert.type} sx={{ mb: 2 }} onClose={() => setAlert(null)}>{alert.msg}</Alert>}
       <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
         {can("leaves_write") && (
-          <Button variant="contained" startIcon={<AddIcon />} onClick={openAdd}>
-            Ajouter un type d'événement
-          </Button>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={openAdd}>Ajouter un type</Button>
         )}
       </Box>
-
       <TableContainer component={Paper} elevation={2}>
         <Table size="small">
           <TableHead>
@@ -474,9 +467,7 @@ function EventTypeManager({ leaveTypes, setLeaveTypes, can }) {
       </TableContainer>
 
       <Dialog open={dialog} onClose={() => setDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle fontWeight={700}>
-          {editItem ? "Modifier le type d'événement" : "Nouveau type d'événement"}
-        </DialogTitle>
+        <DialogTitle fontWeight={700}>{editItem ? "Modifier le type" : "Nouveau type de congé"}</DialogTitle>
         <DialogContent dividers>
           <Grid container spacing={2} sx={{ pt: 1 }}>
             <Grid item xs={6}>
@@ -492,57 +483,11 @@ function EventTypeManager({ leaveTypes, setLeaveTypes, can }) {
                 value={form.days_per_year ?? 0}
                 onChange={e => setForm(p => ({ ...p, days_per_year: e.target.value }))} />
             </Grid>
-
-            {/* ── Color picker ── */}
             <Grid item xs={6}>
-              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.75 }}>
-                Couleur
-              </Typography>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                {/*
-                  A styled <label> acts as the visible swatch.
-                  Clicking it triggers the hidden <input type="color"> underneath.
-                  The browser opens its native OS color wheel / picker on click.
-                */}
-                <Box
-                  component="label"
-                  htmlFor="event-type-color-picker"
-                  title="Cliquer pour choisir une couleur"
-                  sx={{
-                    width: 38,
-                    height: 38,
-                    borderRadius: "8px",
-                    backgroundColor: form.color || "#3B82F6",
-                    border: "2px solid #e0e0e0",
-                    cursor: "pointer",
-                    flexShrink: 0,
-                    transition: "border-color 0.15s",
-                    "&:hover": { borderColor: "#9e9e9e" },
-                  }}
-                />
-                <input
-                  id="event-type-color-picker"
-                  type="color"
-                  value={form.color || "#3B82F6"}
-                  onChange={e => setForm(p => ({ ...p, color: e.target.value }))}
-                  style={{
-                    /* hidden but still interactive so the label click reaches it */
-                    position: "absolute",
-                    width: 0,
-                    height: 0,
-                    opacity: 0,
-                    pointerEvents: "none",
-                  }}
-                />
-                <Typography
-                  variant="body2"
-                  sx={{ fontFamily: "monospace", color: "text.secondary", fontSize: 13, userSelect: "all" }}
-                >
-                  {(form.color || "#3B82F6").toUpperCase()}
-                </Typography>
-              </Box>
+              <TextField fullWidth size="small" label="Couleur (hex)" value={form.color || "#3B82F6"}
+                onChange={e => setForm(p => ({ ...p, color: e.target.value }))}
+                InputProps={{ startAdornment: <Box sx={{ width: 20, height: 20, borderRadius: 1, backgroundColor: form.color, mr: 1 }} /> }} />
             </Grid>
-
             <Grid item xs={6}>
               <FormControl fullWidth size="small">
                 <InputLabel>Payé</InputLabel>

@@ -93,6 +93,12 @@ services:
       - DJANGO_AUTH_URL=http://127.0.0.1:8000/api/clockers/
       - DJANGO_HR_URL=http://127.0.0.1:8002
       - DJANGO_SECRET_KEY=36746a5d1bddf0bd1fcc02e261af129d4cbb1ee88dc25ee90dde0e5e44dd0972
+      - HR_DB_HOST=192.168.8.211
+      - HR_DB_PORT=5432
+      - HR_DB_NAME=hr_db
+      - HR_DB_USER=user
+      - HR_DB_PASSWORD=pass
+     
     volumes:
       - ./:/app
     depends_on:

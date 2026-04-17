@@ -8,9 +8,38 @@
 .sidebar nav ul li a { display: block; padding: 9px 20px; color: rgba(255,255,255,0.75); text-decoration: none; font-size: 0.9rem; transition: background 0.15s, color 0.15s; border-left: 3px solid transparent; }
 .sidebar nav ul li a:hover { background-color: rgba(255,255,255,0.07); color: #fff; }
 .sidebar nav ul li a.active { background-color: rgba(25,118,210,0.2); color: #90caf9; border-left: 3px solid #1976d2; font-weight: 600; }
-.logout-btn { display: block; width: calc(100% - 40px); margin: 8px 20px; padding: 9px 16px; background: rgba(244,67,54,0.15); color: #ef9a9a; border: 1px solid rgba(244,67,54,0.3); border-radius: 6px; cursor: pointer; font-size: 0.9rem; text-align: left; transition: background 0.15s; }
+.logout-btn { display: block; width: calc(100% - 40px); margin: 8px 20px; padding: 9px 16px; background: rgba(244,67,54,0.15); color: #ef9a9a; border: 1px solid rgba(244,67,54,0.3); border-radius: 6px; cursor: pointer; font-size: 0.9rem; transition: background 0.15s; text-align: left; }
 .logout-btn:hover { background: rgba(244,67,54,0.28); color: #fff; }
-.main-content { flex: 1; overflow-y: auto; min-width: 0; }
+
+/* ── Main content area ── */
+.main-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;  /* stack topbar above page-content */
+  overflow: hidden;        /* prevent double scrollbar */
+}
+
+/* ── Notification / top bar — never overlaps content ── */
+.topbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 8px 20px;
+  border-bottom: 1px solid #eee;
+  background: #1565c0;
+  min-height: 48px;
+  flex-shrink: 0;          /* never compress — always 48px tall */
+  position: relative;      /* stays in flow, never floats over content */
+  z-index: 10;
+}
+
+/* ── Scrollable page area — only this scrolls, not the whole window ── */
+.page-content {
+  flex: 1;
+  overflow-y: auto;        /* scroll happens HERE, not on main-content */
+  padding: 0;
+}
 
 .role-badge {
   margin: 8px 16px 4px;
@@ -24,3 +53,62 @@
 .role-badge span { font-size: 0.85rem; color: #fff; font-weight: 600; display: flex; align-items: center; gap: 6px; }
 .role-badge small { font-size: 0.72rem; color: rgba(255,255,255,0.55); padding-left: 18px; }
 .role-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+/* ── Analyses collapsible group button ── */
+.nav-group-btn {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 9px 20px;
+  background: none;
+  border: none;
+  border-left: 3px solid transparent;
+  color: rgba(255,255,255,0.75);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  text-align: left;
+}
+.nav-group-btn:hover { background: rgba(255,255,255,0.07); color: #fff; }
+.nav-group-btn.active { color: #90caf9; font-weight: 600; }
+.nav-group-arrow { font-size: 0.7rem; opacity: 0.6; }
+
+/* ── Indented sub-links ── */
+.nav-sub-list { list-style: none; padding: 0; margin: 0; }
+.nav-sub-link {
+  display: block;
+  padding: 7px 20px 7px 32px;
+  color: rgba(255,255,255,0.6);
+  text-decoration: none;
+  font-size: 0.85rem;
+  transition: background 0.15s, color 0.15s;
+  position: relative;
+  border-left: 3px solid transparent;
+}
+.nav-sub-link::before { content: "·"; position: absolute; left: 20px; color: rgba(255,255,255,0.3); }
+.nav-sub-link:hover { background: rgba(255,255,255,0.07); color: #fff; }
+.nav-sub-link.active { background: rgba(25,118,210,0.2); color: #90caf9; border-left: 3px solid #1976d2; font-weight: 600; }
+
+
+
+/* Prevent the whole page from scrolling */
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+.dashboard-container {
+  display: flex;
+  height: 100vh;        /* change min-height to height */
+  overflow: hidden;     /* add this */
+  background-color: #f5f6fa;
+}
+
+.sidebar {
+  height: 100vh;        /* add this */
+  overflow-y: auto;     /* sidebar itself scrolls if nav is long */
+}
