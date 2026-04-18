@@ -89,18 +89,6 @@ services:
       - "traefik.http.routers.auth.entrypoints=web"
       - "traefik.http.routers.auth.priority=20"
       - "traefik.http.services.auth.loadbalancer.server.port=8000"
-      - "traefik.http.routers.clockers.rule=Host(`192.168.8.210`) && PathPrefix(`/api/clockers`)"
-      - "traefik.http.routers.clockers.entrypoints=web"
-      - "traefik.http.routers.clockers.priority=20"
-      - "traefik.http.routers.clockers.service=auth"
-      - "traefik.http.routers.auth-admin.rule=Host(`192.168.8.210`) && PathPrefix(`/admin`)"
-      - "traefik.http.routers.auth-admin.entrypoints=web"
-      - "traefik.http.routers.auth-admin.priority=20"
-      - "traefik.http.routers.auth-admin.service=auth"
-      - "traefik.http.routers.auth-static.rule=Host(`192.168.8.210`) && (PathPrefix(`/static/admin`) || PathPrefix(`/static/rest_framework`))"
-      - "traefik.http.routers.auth-static.entrypoints=web"
-      - "traefik.http.routers.auth-static.priority=25"
-      - "traefik.http.routers.auth-static.service=auth"
 
   # ── Django HR (Port 8002) ────────────────────────────────────────────────────
   # Route: /api/hr/* → django_hr:8002
@@ -214,9 +202,7 @@ services:
       - REACT_APP_FASTAPI_URL=http://192.168.8.210:8080
       - CHOKIDAR_USEPOLLING=true
       - FAST_REFRESH=false
-      - WDS_SOCKET_PORT=80              # ← was 3000: HMR now connects via Traefik on port 80
-      - WDS_SOCKET_HOST=192.168.8.210
-      - WDS_SOCKET_PATH=/ws
+      - WDS_SOCKET_PORT=3000
     volumes:
       - ./frontend:/app
     networks:
@@ -230,11 +216,6 @@ services:
       - "traefik.http.routers.react.entrypoints=web"
       - "traefik.http.routers.react.priority=1"
       - "traefik.http.services.react.loadbalancer.server.port=3000"
-      # ── WebSocket route for CRA Hot Module Replacement ──
-      - "traefik.http.routers.react-ws.rule=Host(`192.168.8.210`) && PathPrefix(`/ws`)"
-      - "traefik.http.routers.react-ws.entrypoints=web"
-      - "traefik.http.routers.react-ws.priority=10"
-      - "traefik.http.routers.react-ws.service=react"
 
   # ── Cron ─────────────────────────────────────────────────────────────────────
   cron:
