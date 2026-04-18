@@ -60,7 +60,7 @@ const HRAttendanceDashboard = () => {
   const abortRef = useRef(null);
 
   const API_BASE = process.env.REACT_APP_API_URL + '/attendance/';
-  const DJANGO_API = process.env.REACT_APP_AUTH_URL || 'http://192.168.8.210:8000';
+  const DJANGO_API = 'http://192.168.8.210';
   const debouncedUserId = useDebounce(filters.user_id, 400);
 
   // ✅ Load all employees once on mount — build device_user_id → name map

@@ -1,3 +1,4 @@
+import os
 import socket
 import requests
 import logging
@@ -5,8 +6,12 @@ from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from .models import User
 
+
 logger = logging.getLogger(__name__)
-SERVICE_TOKEN = "service-internal-token-changeme"
+#SERVICE_TOKEN = "service-internal-token-changeme"
+SERVICE_TOKEN = os.environ.get("SERVICE_INTERNAL_KEY", "")
+if not SERVICE_TOKEN:
+    logger.warning("SERVICE_INTERNAL_KEY not set — HRProfile sync will fail")
 
 
 def get_django_hr_url():
