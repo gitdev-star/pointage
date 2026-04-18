@@ -2,46 +2,24 @@
 __pycache__/
 *.pyc
 *.pyo
-.venv/
-migrations/
-*.db
-*.sqlite3
-.env
-
-# Node / React
-node_modules/
-build/
-
-# IDEs
-.idea/
-.vscode/
-
-# Docker
-docker-compose.override.yml
-*.log
-
-
-
-# Python
-__pycache__/
-*.pyc
-*.pyo
 *.pyd
-
-# Virtual env
+.venv/
 venv/
 env/
 
 # Django
 *.sqlite3
+*.db
 media/
 staticfiles/
 
-# Node
+# Node / React
 node_modules/
+build/
 
 # Env files
 .env
+django_hr/.env
 
 # Logs
 *.log
@@ -49,11 +27,9 @@ node_modules/
 # OS
 .DS_Store
 
-# IDE
+# IDEs
 .vscode/
 .idea/
 
-# Alembic
-alembic/versions/*.pyc
-.env
-django_hr/.env
+# Docker
+docker-compose.override.yml
