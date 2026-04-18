@@ -7,7 +7,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import engine
 from app.models.attendance import Base
-from app.routers import attendance_routes
 from app.routers import attendance_routes, hr_routes
 from app.routers.late_report import router as late_report_router
 

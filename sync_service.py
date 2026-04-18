@@ -1,3 +1,4 @@
+import os
 # sync_service.py
 # Runs separately from FastAPI
 # Polls ZKTeco devices → writes to PostgreSQL
@@ -17,7 +18,7 @@ from app.devices.zk_reader import ZKReader
 # --------------------------------------------------
 # CONFIG
 # --------------------------------------------------
-CLOCKERS_API_URL     = "http://127.0.0.1:8000/api/clockers/"  # Django on host network
+CLOCKERS_API_URL = os.getenv("DJANGO_AUTH_URL", "http://django-auth:8000/api/clockers/")
 SYNC_INTERVAL        = 60    # seconds between syncs when active
 IDLE_INTERVAL        = 120   # seconds between syncs when no new logs
 DEVICE_STAGGER       = 10    # seconds between starting each device task
@@ -184,31 +185,27 @@ async def daily_reset_loop():
 # START ALL SYNC TASKS
 # --------------------------------------------------
 async def start_all_syncs():
-    """Launch one sync loop per device, staggered to avoid DB spikes."""
-    devices = await fetch_active_devices()
-
-    if not devices:
-        logger.warning("⚠️  No devices found. Retrying in 60s...")
-        await asyncio.sleep(60)
-        return await start_all_syncs()
-
-    for idx, (ip, port) in enumerate(devices):
-        task_name = f"sync_{ip}"
-        if task_name in sync_tasks and not sync_tasks[task_name].done():
-            logger.info(f"[{ip}] Already running, skipping")
+    """Periodically re-fetch device list and start loops for new/restored devices."""
+    while True:
+        devices = await fetch_active_devices()
+        if not devices:
+            await asyncio.sleep(60)
             continue
-        if idx > 0:
-            await asyncio.sleep(DEVICE_STAGGER)
-        task = asyncio.create_task(sync_device_loop(ip, port), name=task_name)
-        sync_tasks[task_name] = task
-        logger.info(f"▶️  [{ip}] Sync task started")
+        new_count = 0
+        for idx, (ip, port) in enumerate(devices):
+            task_name = f"sync_{ip}"
+            if task_name in sync_tasks and not sync_tasks[task_name].done():
+                continue
+            if new_count > 0:
+                await asyncio.sleep(DEVICE_STAGGER)
+            task = asyncio.create_task(sync_device_loop(ip, port), name=task_name)
+            sync_tasks[task_name] = task
+            logger.info(f"▶️  [{ip}] Sync task started")
+            new_count += 1
+        if new_count:
+            logger.info(f"✅ {len(sync_tasks)} sync task(s) running ({new_count} new)")
+        await asyncio.sleep(300)  # re-check for new devices every 5 minutes
 
-    logger.info(f"✅ {len(devices)} sync task(s) running")
-
-
-# --------------------------------------------------
-# MAIN
-# --------------------------------------------------
 async def main():
     logger.info("=" * 50)
     logger.info("  ZKTeco Sync Service")
