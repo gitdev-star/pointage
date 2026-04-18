@@ -138,12 +138,14 @@ services:
       context: .
       dockerfile: Dockerfiles/fastapi.Dockerfile
     container_name: fastapi
-    network_mode: "host"
+#    network_mode: "host"
     env_file: .env
     environment:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
-      - DJANGO_AUTH_URL=http://127.0.0.1:8000/api/clockers/
-      - DJANGO_HR_URL=http://127.0.0.1:8002
+     # - DJANGO_AUTH_URL=http://127.0.0.1:8000/api/clockers/
+     # - DJANGO_HR_URL=http://127.0.0.1:8002
+      - DJANGO_AUTH_URL=http://django-auth:8000/api/clockers/   # ← fix
+      - DJANGO_HR_URL=http://django-hr:8002   
       - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
       - HR_DB_HOST=${POSTGRES_HOST}
       - HR_DB_PORT=${POSTGRES_PORT}
@@ -155,6 +157,8 @@ services:
     depends_on:
       django-auth:
         condition: service_started
+    networks:
+      - pointage_net 
     restart: unless-stopped
 
   # ── Attendance Sync ──────────────────────────────────────────────────────────
@@ -163,18 +167,22 @@ services:
       context: .
       dockerfile: Dockerfiles/fastapi.Dockerfile
     container_name: attendance_sync
-    network_mode: "host"
+#    network_mode: "host"
     command: python sync_service.py
     env_file: .env
     environment:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
-      - DJANGO_AUTH_URL=http://127.0.0.1:8000/api/clockers/
-      - DJANGO_HR_URL=http://127.0.0.1:8002
+     # - DJANGO_AUTH_URL=http://127.0.0.1:8000/api/clockers/
+     # - DJANGO_HR_URL=http://127.0.0.1:8002
+      - DJANGO_AUTH_URL=http://django-auth:8000/api/clockers/   # ← fix
+      - DJANGO_HR_URL=http://django-hr:8002   
     volumes:
       - ./:/app
     depends_on:
       django-auth:
         condition: service_started
+    networks:
+      - pointage_net    
     restart: unless-stopped
 
   # ── React Frontend ───────────────────────────────────────────────────────────
@@ -188,8 +196,8 @@ services:
     environment:
       - REACT_APP_AUTH_URL=http://192.168.8.210/api/auth
       - REACT_APP_HR_URL=http://192.168.8.210/api/hr
-      - REACT_APP_FASTAPI_URL=http://192.168.8.210:8080
-      - REACT_APP_API_URL=http://192.168.8.210:8080
+      - REACT_APP_FASTAPI_URL=http://192.168.8.210/api/fastapi
+      - REACT_APP_API_URL=http://192.168.8.210/api/fastapi
       - CHOKIDAR_USEPOLLING=true
       - FAST_REFRESH=false
       - WDS_SOCKET_PORT=80
