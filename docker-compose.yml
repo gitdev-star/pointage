@@ -1,7 +1,7 @@
 # =====================================================
 # PATH: pointage/docker-compose.yml
-# Traefik API Gateway
-# Only ports 80 (HTTP) and 8081 (Traefik dashboard) are public
+# Nginx reverse proxy — replaces Traefik
+# Only port 80 (HTTP) and 8080 (FastAPI) are public
 # Everything else is internal on pointage_net
 # =====================================================
 
@@ -11,18 +11,22 @@ networks:
 
 services:
 
-  # ── Traefik Gateway ──────────────────────────────────────────────────────────
-  traefik:
-    image: traefik:v2.11
-    container_name: traefik
+  # ── Nginx Gateway ────────────────────────────────────────────────────────────
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: nginx
     ports:
       - "80:80"
-      - "8081:8081"
     volumes:
-      - ./traefik.yml:/etc/traefik/traefik.yml:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - django_auth_static:/vol/static:ro          # Django collectstatic output
+      - django_hr_media:/vol/media:ro              # Django HR media uploads
     networks:
       - pointage_net
+    depends_on:
+      - django-auth
+      - django-hr
+      - react
     restart: unless-stopped
 
   # ── PostgreSQL ───────────────────────────────────────────────────────────────
@@ -76,6 +80,7 @@ services:
       - SERVICE_INTERNAL_KEY=${SERVICE_INTERNAL_KEY}
     volumes:
       - ./django_auth:/app
+      - django_auth_static:/app/staticfiles   # collectstatic writes here, Nginx reads it
     networks:
       - pointage_net
     depends_on:
@@ -83,30 +88,11 @@ services:
         condition: service_started
     restart: unless-stopped
     command: sh -c "python manage.py migrate && python manage.py collectstatic --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --config /dev/null --workers 8 --threads 2 --worker-class gthread --timeout 120 --max-requests 1000 --max-requests-jitter 50"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.auth.rule=Host(`192.168.8.210`) && PathPrefix(`/api/auth`)"
-      - "traefik.http.routers.auth.entrypoints=web"
-      - "traefik.http.routers.auth.priority=20"
-      - "traefik.http.services.auth.loadbalancer.server.port=8000"
-      - "traefik.http.routers.clockers.rule=Host(`192.168.8.210`) && PathPrefix(`/api/clockers`)"
-      - "traefik.http.routers.clockers.entrypoints=web"
-      - "traefik.http.routers.clockers.priority=20"
-      - "traefik.http.routers.clockers.service=auth"
-      - "traefik.http.routers.auth-admin.rule=Host(`192.168.8.210`) && PathPrefix(`/admin`)"
-      - "traefik.http.routers.auth-admin.entrypoints=web"
-      - "traefik.http.routers.auth-admin.priority=20"
-      - "traefik.http.routers.auth-admin.service=auth"
-      - "traefik.http.routers.auth-static.rule=Host(`192.168.8.210`) && (PathPrefix(`/static/admin`) || PathPrefix(`/static/rest_framework`))"
-      - "traefik.http.routers.auth-static.entrypoints=web"
-      - "traefik.http.routers.auth-static.priority=25"
-      - "traefik.http.routers.auth-static.service=auth"
 
   # ── Django HR (Port 8002) ────────────────────────────────────────────────────
-  # Route: /api/hr/* → django_hr:8002
-  # Strip /api/hr so:
-  #   /api/hr/accounts/me/  → strip /api/hr → /api/accounts/me/  ✓
-  #   /api/hr/employees/    → strip /api/hr → /api/employees/     ✓
+  # Nginx strips /api/hr prefix before forwarding:
+  #   /api/hr/accounts/me/  → /api/accounts/me/  ✓
+  #   /api/hr/employees/    → /api/employees/     ✓
   django-hr:
     build:
       context: .
@@ -145,15 +131,6 @@ services:
         condition: service_started
     command: sh -c "/app/entrypoint.sh"
     restart: unless-stopped
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.hr.rule=Host(`192.168.8.210`) && PathPrefix(`/api/hr`)"
-      - "traefik.http.routers.hr.entrypoints=web"
-      - "traefik.http.routers.hr.priority=20"
-      - "traefik.http.services.hr.loadbalancer.server.port=8002"
-      - "traefik.http.middlewares.hr-strip.replacepathregex.regex=^/api/hr/(.*)"
-      - "traefik.http.middlewares.hr-strip.replacepathregex.replacement=/api/$$1"
-      - "traefik.http.routers.hr.middlewares=hr-strip"
 
   # ── FastAPI (Port 8080) ──────────────────────────────────────────────────────
   fastapi:
@@ -212,9 +189,10 @@ services:
       - REACT_APP_AUTH_URL=http://192.168.8.210/api/auth
       - REACT_APP_HR_URL=http://192.168.8.210/api/hr
       - REACT_APP_FASTAPI_URL=http://192.168.8.210:8080
+      - REACT_APP_API_URL=http://192.168.8.210:8080
       - CHOKIDAR_USEPOLLING=true
       - FAST_REFRESH=false
-      - WDS_SOCKET_PORT=80              # ← was 3000: HMR now connects via Traefik on port 80
+      - WDS_SOCKET_PORT=80
       - WDS_SOCKET_HOST=192.168.8.210
       - WDS_SOCKET_PATH=/ws
     volumes:
@@ -224,17 +202,6 @@ services:
     depends_on:
       - fastapi
       - django-hr
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.react.rule=Host(`192.168.8.210`)"
-      - "traefik.http.routers.react.entrypoints=web"
-      - "traefik.http.routers.react.priority=1"
-      - "traefik.http.services.react.loadbalancer.server.port=3000"
-      # ── WebSocket route for CRA Hot Module Replacement ──
-      - "traefik.http.routers.react-ws.rule=Host(`192.168.8.210`) && PathPrefix(`/ws`)"
-      - "traefik.http.routers.react-ws.entrypoints=web"
-      - "traefik.http.routers.react-ws.priority=10"
-      - "traefik.http.routers.react-ws.service=react"
 
   # ── Cron ─────────────────────────────────────────────────────────────────────
   cron:
@@ -271,3 +238,4 @@ services:
 volumes:
   postgres_data:
   django_hr_media:
+  django_auth_static:    # shared between django-auth (write) and nginx (read)
