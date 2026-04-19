@@ -7,11 +7,13 @@ import requests
 DJANGO_SECRET = os.environ.get("JWT_SECRET_KEY", "supersecretkey")  # Must match Django SIMPLE_JWT SIGNING_KEY
 ALGORITHM = "HS256"
 
-def get_current_user(authorization: str = Header(...)):
+def get_current_user(authorization: str = Header(None)):
     """
     Validate JWT from Django and return user info.
     Expected header: Authorization: Bearer <token>
     """
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authorization header missing")
     if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Invalid authorization header")
     

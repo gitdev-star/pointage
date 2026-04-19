@@ -1,3 +1,57 @@
+Nice, the Makefile has everything. The key ones you need:
+bashmake test-all        # run all three services at once
+make test-fastapi    # FastAPI only
+make test-auth       # django_auth only
+make test-hr         # django_hr only
+And with coverage reports:
+bashmake test-fastapi-cov
+make test-auth-cov
+make test-hr-cov
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+testing for CI/CD
+
+FastAPI (runs on the host directly):
+bashmake test-fast
+# or directly:
+pytest tests/ -q
+django_auth (runs inside its container):
+bashdocker exec django_auth bash -c "cd /app && python -m pytest tests/ -v"
+django_hr (runs inside its container):
+bashdocker exec django_hr bash -c "cd /app && python -m pytest tests/ -v"
+Run all three at once:
+bashpytest tests/ -q && \
+docker exec django_auth bash -c "cd /app && python -m pytest tests/ -v" && \
+docker exec django_hr bash -c "cd /app && python -m pytest tests/ -v"
+Or if your Makefile has targets for all three, check with:
+bashcat Makefile | grep "^test"
+
+
+
+
+
+
+
+
+
+in case of error n dasboard.js, it because of he ngnix:
+docker exec nginx nginx -s reload
+
+
 SELECT COUNT(*) FROM attendance;
 Fetch data from the database only — no insert or delete required for your current task.
 
@@ -13,20 +67,12 @@ Possibly by device + date or all devices on a given date
 
 Display this data in a React dashboard, so responses should be clean and REST-friendly.
 
-Need robust, maintainable, well-structured FastAPI backend with optional filters and good defaults
-"http://localhost:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001",
-        "http://127.0.0.1:8001",
-        "*"  # Allow all origins for development
-
 
 
 SELECT COUNT(*) FROM attendance;
 Fetch data from the database only — no insert or delete required for your current task.
 
-Need to filter attendance:
+Need to filter attendance
 
 By device ID (or IP, e.g. device_ip)
 
@@ -38,13 +84,6 @@ Possibly by device + date or all devices on a given date
 
 Display this data in a React dashboard, so responses should be clean and REST-friendly.
 
-Need robust, maintainable, well-structured FastAPI backend with optional filters and good defaults
-"http://localhost:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001",
-        "http://127.0.0.1:8001",
-        "*"  # Allow all origins for development
 
 
  docker exec -it postgres psql -U user -d attendance
@@ -56,3 +95,51 @@ docker compose exec django-auth python manage.py makemigrations
 docker compose exec django-auth python manage.py migrate
 docker compose exec django-auth python manage.py createsuperuser
 
+
+
+
+
+Makefile Commands - Quick Reference
+Run any of these from your project root:
+
+
+make test              # Run all tests with coverage
+make test-fast        # Quick test run (no coverage)
+make test-cov         # HTML coverage report
+make test-all         # Verbose output
+make test-unit        # Unit tests only
+make test-integration # Integration tests only
+make test-fastapi     # FastAPI app tests
+make test-auth        # Django Auth tests
+make test-hr          # Django HR tests
+make test-debug       # Verbose + full traceback
+make test-pdb         # Drop into debugger on failure
+make coverage-html    # Generate & open coverage report
+make lint             # Check code with flake8
+make format           # Auto-format with black
+
+
+What pytest.ini Does
+Sets up async test mode for FastAPI
+Marks tests as @pytest.mark.unit or @pytest.mark.integration
+Requires 70% code coverage
+Auto-generates HTML coverage reports in htmlcov/
+Common Workflows
+Quick test during development:
+
+
+make test-fast
+
+Full check before committing:
+
+
+make test-cov
+
+Debug a failing test:
+
+make test-pdb
+
+
+Check one service:
+
+make test-fastapi    # or test-auth, test-hr

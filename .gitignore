@@ -33,3 +33,17 @@ django_hr/.env
 
 # Docker
 docker-compose.override.yml
+
+# Environment files (all locations)
+.env
+**/.env
+*.env
+.env.*
+
+# Coverage files
+.coverage
+**/.coverage
+htmlcov/
+**/htmlcov/
+.coverage
+**/.coverage

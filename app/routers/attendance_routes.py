@@ -86,17 +86,16 @@ class StatsResponse(BaseModel):
         orm_mode = True
 
 
-# Analysis schemas (mirrors analysis_service dataclasses for HTTP response)
 class DayRecordResponse(BaseModel):
     date: date
     day_name: str
     is_weekend: bool
-    first_punch: Optional[datetime]      # Keep for frontend compatibility
-    last_punch: Optional[datetime]       # Keep for frontend compatibility
+    first_punch: Optional[datetime]
+    last_punch: Optional[datetime]
     arrival: Optional[datetime]
     departure: Optional[datetime]
     hours_worked: Optional[float]
-    overtime_hours: float                # ← ADDED: Individual day overtime
+    overtime_hours: float
     is_late: bool
     is_early_leave: bool
     is_overtime: bool
@@ -113,7 +112,7 @@ class UserAnalysisResponse(BaseModel):
     total_days_overtime: int
     total_weekend_days: int
     total_hours_worked: float
-    total_overtime_hours: float          # ← ADDED
+    total_overtime_hours: float
     average_hours_per_day: float
     days: List[DayRecordResponse]
 
@@ -147,14 +146,12 @@ def build_filters(
             end = start + timedelta(days=6)
             filters.extend([Attendance.date >= start, Attendance.date <= end])
 
-    # Only apply date_from/date_to if no period is active
     if not period:
         if date_from:
             filters.append(Attendance.date >= date_from)
         if date_to:
             filters.append(Attendance.date <= date_to)
 
-    # target_date alone always filters the date column
     if target_date and not period:
         filters.append(Attendance.date == target_date)
 
@@ -184,7 +181,6 @@ def build_filters(
     if user_id:
         filters.append(Attendance.user_id == user_id)
     if device_ip:
-        # Support multiple IPs (comma-separated for group filtering)
         if ',' in device_ip:
             ip_list = [ip.strip() for ip in device_ip.split(',')]
             filters.append(Attendance.device_ip.in_(ip_list))
@@ -203,13 +199,17 @@ async def secure_endpoint(user=Depends(get_current_user)):
     return {"message": f"Hello {user['username']}, this is protected by Django JWT!"}
 
 
+@router.get("/list", response_model=List[AttendanceResponse])
 @router.get("/", response_model=List[AttendanceResponse])
 async def get_all_attendance(
     response: Response,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
+    user: dict = Depends(get_current_user),
     user_id: Optional[int] = Query(None),
     device_ip: Optional[str] = Query(None),
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
     time_from: Optional[time] = Query(None),
@@ -221,19 +221,26 @@ async def get_all_attendance(
     try:
         filters = build_filters(
             period=period, user_id=user_id, device_ip=device_ip,
-            date_from=date_from, date_to=date_to,
+            date_from=date_from or start_date, date_to=date_to or end_date,
             time_from=time_from, time_to=time_to, target_date=target_date
         )
-        query = select(Attendance, func.count().over().label("total_count"))
-        if filters:
-            query = query.where(and_(*filters))
-        query = query.order_by(desc(Attendance.timestamp)).offset(skip).limit(limit)
+        filter_clause = and_(*filters) if filters else text("1=1")
 
+        count_result = await db.execute(
+            select(func.count(Attendance.id)).where(filter_clause)
+        )
+        total = count_result.scalar() or 0
+        response.headers["X-Total-Count"] = str(total)
+
+        query = (
+            select(Attendance)
+            .where(filter_clause)
+            .order_by(desc(Attendance.timestamp))
+            .offset(skip)
+            .limit(limit)
+        )
         result = await db.execute(query)
-        rows = result.all()
-
-        response.headers["X-Total-Count"] = str(rows[0].total_count if rows else 0)
-        return [row[0] for row in rows]
+        return result.scalars().all()
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -244,6 +251,7 @@ async def get_minimal_attendance(
     response: Response,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
+    user: dict = Depends(get_current_user),
     user_id: Optional[int] = Query(None),
     device_ip: Optional[str] = Query(None),
     date_from: Optional[date] = Query(None),
@@ -260,26 +268,34 @@ async def get_minimal_attendance(
             date_from=date_from, date_to=date_to,
             time_from=time_from, time_to=time_to, target_date=target_date
         )
-        query = select(
-            Attendance.user_id,
-            Attendance.timestamp,
-            Attendance.date,
-            Attendance.device_ip,
-            func.count().over().label("total_count")
-        )
-        if filters:
-            query = query.where(and_(*filters))
-        query = query.order_by(desc(Attendance.timestamp)).offset(skip).limit(limit)
+        filter_clause = and_(*filters) if filters else text("1=1")
 
+        count_result = await db.execute(
+            select(func.count(Attendance.id)).where(filter_clause)
+        )
+        total = count_result.scalar() or 0
+        response.headers["X-Total-Count"] = str(total)
+
+        query = (
+            select(
+                Attendance.user_id,
+                Attendance.timestamp,
+                Attendance.date,
+                Attendance.device_ip,
+            )
+            .where(filter_clause)
+            .order_by(desc(Attendance.timestamp))
+            .offset(skip)
+            .limit(limit)
+        )
         result = await db.execute(query)
         rows = result.all()
 
-        response.headers["X-Total-Count"] = str(rows[0].total_count if rows else 0)
         return [
             MinimalAttendanceResponse(
                 user_id=row.user_id,
                 timestamp=row.timestamp,
-                attendance_date=row.date,
+                date=row.date,
                 device_ip=row.device_ip,
             )
             for row in rows
@@ -291,6 +307,7 @@ async def get_minimal_attendance(
 
 @router.get("/stats", response_model=StatsResponse)
 async def get_attendance_stats(
+    user: dict = Depends(get_current_user),
     user_id: Optional[int] = Query(None),
     device_ip: Optional[str] = Query(None),
     date_from: Optional[date] = Query(None),
@@ -349,10 +366,7 @@ async def get_user_analysis(
     date_to: date = Query(..., description="End date e.g. 2026-02-17"),
     db: AsyncSession = Depends(get_async_db),
 ):
-    """
-    Full attendance analysis for one user over a date range.
-    Computed by analysis_service.py.
-    """
+    """Full attendance analysis for one user over a date range."""
     result = await compute_user_analysis(db, user_id, date_from, date_to)
 
     if result is None:
@@ -371,10 +385,7 @@ async def export_user_analysis_csv(
     date_to: date = Query(..., description="End date e.g. 2026-02-17"),
     db: AsyncSession = Depends(get_async_db),
 ):
-    """
-    Export user analysis as CSV file.
-    Returns CSV with proper arrival/departure columns.
-    """
+    """Export user analysis as CSV file."""
     result = await compute_user_analysis(db, user_id, date_from, date_to)
 
     if result is None:
@@ -383,10 +394,9 @@ async def export_user_analysis_csv(
             detail=f"No records found for user {user_id} between {date_from} and {date_to}"
         )
 
-    # Helper to format time
     def fmt_time(dt):
         return dt.strftime("%H:%M") if dt else "—"
-    
+
     def fmt_hours(h):
         if h is None or h == 0:
             return "0h00"
@@ -394,10 +404,9 @@ async def export_user_analysis_csv(
         mm = int(round((h - hh) * 60))
         return f"{hh}h{mm:02d}"
 
-    # Build CSV
     headers = ["Date", "Jour", "Arrivée", "Départ", "Heures", "Pointages", "Retard", "Départ tôt", "Heures sup.", "Week-end"]
     rows = [headers]
-    
+
     for d in result.days:
         rows.append([
             str(d.date),
@@ -411,10 +420,9 @@ async def export_user_analysis_csv(
             "Oui" if d.is_overtime else "Non",
             "Oui" if d.is_weekend else "Non",
         ])
-    
+
     csv_content = "\n".join([";".join(row) for row in rows])
-    
-    # Return as downloadable file
+
     return Response(
         content=csv_content,
         media_type="text/csv; charset=utf-8",
@@ -464,22 +472,26 @@ async def get_daily_attendance(
             date_from=target_date, date_to=target_date,
             time_from=time_from, time_to=time_to, target_date=target_date
         )
-        query = select(Attendance, func.count().over().label("total_count"))
-        if filters:
-            query = query.where(and_(*filters))
-        query = query.order_by(Attendance.timestamp).offset(skip).limit(limit)
+        filter_clause = and_(*filters) if filters else text("1=1")
 
+        count_result = await db.execute(
+            select(func.count(Attendance.id)).where(filter_clause)
+        )
+        total = count_result.scalar() or 0
+        response.headers["X-Total-Count"] = str(total)
+
+        query = (
+            select(Attendance)
+            .where(filter_clause)
+            .order_by(Attendance.timestamp)
+            .offset(skip)
+            .limit(limit)
+        )
         result = await db.execute(query)
-        rows = result.all()
-
-        response.headers["X-Total-Count"] = str(rows[0].total_count if rows else 0)
-        return [row[0] for row in rows]
+        return result.scalars().all()
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-
 
 
 # --------------------------------------------------
@@ -502,14 +514,12 @@ async def get_daily_kpi(
     kpi_date = target_date or date.today()
     late_cutoff = dt_module.datetime.combine(kpi_date, dt_module.time(7, 40, 0))
 
-    # 1. Présents = unique users who punched today
     r1 = await db.execute(
         select(func.count(distinct(Attendance.user_id)))
         .where(Attendance.date == kpi_date)
     )
     presents = r1.scalar() or 0
 
-    # 2. Late = users whose first punch > 07:40
     subq = (
         select(
             Attendance.user_id,
@@ -568,6 +578,19 @@ async def get_grouped_attendance(
         time_from=time_from, time_to=time_to,
         target_date=target_date,
     )
+    filter_clause = and_(*filters) if filters else text("1=1")
+
+    # Subquery-based count — works on both SQLite and PostgreSQL (no concat needed)
+    count_subq = (
+        select(Attendance.user_id, Attendance.date)
+        .where(filter_clause)
+        .group_by(Attendance.user_id, Attendance.date)
+        .subquery()
+    )
+    count_result = await db.execute(select(func.count()).select_from(count_subq))
+    total = count_result.scalar() or 0
+    response.headers["X-Total-Count"] = str(total)
+
     query = (
         select(
             Attendance.user_id,
@@ -576,9 +599,8 @@ async def get_grouped_attendance(
             func.max(Attendance.timestamp).label("departure"),
             func.count(Attendance.id).label("punch_count"),
             func.max(Attendance.device_ip).label("device_ip"),
-            func.count().over().label("total_count"),
         )
-        .where(and_(*filters) if filters else text("1=1"))
+        .where(filter_clause)
         .group_by(Attendance.user_id, Attendance.date)
         .order_by(desc(Attendance.date), Attendance.user_id)
         .offset(skip)
@@ -586,7 +608,6 @@ async def get_grouped_attendance(
     )
     result = await db.execute(query)
     rows = result.all()
-    response.headers["X-Total-Count"] = str(rows[0].total_count if rows else 0)
 
     return [
         GroupedAttendanceResponse(

@@ -1,0 +1,23 @@
+[run]
+omit =
+    tests/*
+    manage.py
+    */migrations/*
+    config/wsgi.py
+    config/asgi.py
+    config/settings.py
+    config/pagination.py
+    alerts/management/*
+    alerts/email_utils.py
+
+[report]
+omit =
+    tests/*
+    manage.py
+    */migrations/*
+    config/wsgi.py
+    config/asgi.py
+    config/settings.py
+    config/pagination.py
+    alerts/management/*
+    alerts/email_utils.py

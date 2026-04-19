@@ -47,7 +47,7 @@ def _get_hr_connection():
     """
     import psycopg2
     return psycopg2.connect(
-        host=os.environ.get("HR_DB_HOST", "192.168.8.211"),
+        host=os.environ.get("HR_DB_HOST", "localhost"),
         port=int(os.environ.get("HR_DB_PORT", "5432")),
         dbname=os.environ.get("HR_DB_NAME", "hr_db"),
         user=os.environ.get("HR_DB_USER", "user"),
