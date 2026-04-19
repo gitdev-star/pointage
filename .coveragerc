@@ -1,0 +1,48 @@
+[run]
+branch = True
+source = .
+omit =
+    */tests/*
+    */migrations/*
+    */venv/*
+    */virtualenv/*
+    setup.py
+    manage.py
+    conftest.py
+    run_tests.sh
+
+[report]
+precision = 2
+show_missing = True
+skip_covered = False
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise AssertionError
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    @abstractmethod
+    @abstract
+    except ImportError:
+    if sys.version_info
+    pass
+
+[html]
+directory = htmlcov
+
+[paths]
+source =
+    app
+    django_auth/accounts
+    django_auth/devices
+    django_hr/accounts
+    django_hr/employees
+    django_hr/payroll
+    django_hr/leaves
+    django_hr/alerts
+    django_hr/sanctions
+    django_hr/events
+    django_hr/hr_events
+    django_hr/reports
+    django_hr/documents

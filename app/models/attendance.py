@@ -29,6 +29,7 @@ class Attendance(Base):
                                 date: datetime, device_ip: str, uid: int):
         """Insert attendance record and skip if duplicate exists based on unique constraint."""
         try:
+            # For SQLite compatibility, use a simple insert and catch unique constraint violations
             stmt = insert(Attendance).values(
                 uid=uid,
                 user_id=user_id,
@@ -37,15 +38,17 @@ class Attendance(Base):
                 device_ip=device_ip
             )
 
-            # If a conflict occurs (duplicate user_id, timestamp, and date), do nothing
-            stmt = stmt.on_conflict_do_nothing(index_elements=['user_id', 'timestamp', 'date'])
-
             await session.execute(stmt)
             await session.commit()
             print(
-                f"Attendance for user_id {user_id} (uid: {uid}) on {timestamp} inserted or skipped from device {device_ip}.")
+                f"Attendance for user_id {user_id} (uid: {uid}) on {timestamp} inserted from device {device_ip}.")
 
         except Exception as e:
-            print(f"Error inserting attendance for user_id {user_id}: {e}")
-            await session.rollback()
+            # Check if it's a unique constraint violation
+            if "UNIQUE constraint failed" in str(e) or "duplicate key value" in str(e):
+                print(f"Duplicate attendance record for user_id {user_id} on {timestamp}, skipping.")
+                await session.rollback()
+            else:
+                print(f"Error inserting attendance for user_id {user_id}: {e}")
+                await session.rollback()
             raise
