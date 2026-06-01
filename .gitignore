@@ -47,3 +47,4 @@ htmlcov/
 **/htmlcov/
 .coverage
 **/.coverage
+.env.local
