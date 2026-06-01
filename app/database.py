@@ -18,7 +18,15 @@ engine = create_async_engine(
     pool_timeout=30,     # wait max 30s for a free connection before error
     pool_recycle=1800,   # recycle connections every 30min to avoid stale ones
     pool_pre_ping=True,  # test connection before using it (avoids dead conn errors)
+    connect_args={
+        "server_settings": {
+            "statement_timeout": "300000",      # 5 min max per statement
+        },
+        "command_timeout": 300,                 # 5 min asyncpg command timeout
+       	"ssl": False,
+	},
 )
+
 
 AsyncSessionLocal = sessionmaker(
     bind=engine,

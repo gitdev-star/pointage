@@ -19,10 +19,11 @@ STANDARD_START          = time(7, 30)
 STANDARD_END            = time(16, 30)
 LUNCH_START             = time(12, 0)
 LUNCH_END               = time(13, 0)
-STANDARD_WORK_HOURS     = 8.0
+STANDARD_WORK_HOURS     = 9.0          # 07:30-16:30 = 9h
 OVERTIME_THRESHOLD      = time(17, 0)
-OVERTIME_MIN_MINUTES    = 30
-OVERTIME_THRESHOLD_HOURS = 8.5
+OVERTIME_MIN_MINUTES    = 29           # minimum minutes past standard_end to count as overtime
+OVERTIME_THRESHOLD_HOURS = 9.0        # kept for schedule compat but not used in core calc
+LATE_THRESHOLD          = time(7, 35)  # UI late flag: arrival strictly after this time
 
 
 # --------------------------------------------------
@@ -73,7 +74,7 @@ def _rules_from_schedule(ws) -> ScheduleRules:
 
 def get_schedule_for_employee(employee_id: int, on_date: date) -> ScheduleRules:
     """
-    Priority (highest → lowest):
+    Priority (highest -> lowest):
       1. Schedule assigned directly to this employee
       2. Schedule assigned to the employee's section
       3. Schedule assigned to the employee's department
@@ -83,8 +84,6 @@ def get_schedule_for_employee(employee_id: int, on_date: date) -> ScheduleRules:
     Imported here inside the function to avoid circular imports with Django.
     """
     try:
-        # Django ORM — safe to import here (runs in sync context via
-        # asyncio.to_thread or inside a sync FastAPI dependency)
         from django_hr.employees.models import WorkSchedule, Employee
 
         today = on_date
@@ -97,14 +96,12 @@ def get_schedule_for_employee(employee_id: int, on_date: date) -> ScheduleRules:
                     **schedule_filter,
                 )
                 .filter(
-                    # valid_from is null OR <= today
                     models_Q(valid_from__isnull=True) | models_Q(valid_from__lte=today)
                 )
                 .filter(
-                    # valid_until is null OR >= today
                     models_Q(valid_until__isnull=True) | models_Q(valid_until__gte=today)
                 )
-                .order_by("-created_at")   # most recently created wins ties
+                .order_by("-created_at")
                 .first()
             )
 
@@ -115,7 +112,6 @@ def get_schedule_for_employee(employee_id: int, on_date: date) -> ScheduleRules:
         if ws:
             return _rules_from_schedule(ws)
 
-        # Need the employee's section & department for steps 2 & 3
         try:
             emp = Employee.objects.only("section_id", "department_id").get(pk=employee_id)
         except Employee.DoesNotExist:
@@ -135,7 +131,6 @@ def get_schedule_for_employee(employee_id: int, on_date: date) -> ScheduleRules:
                 return _rules_from_schedule(ws)
 
     except Exception:
-        # If Django is unavailable (e.g. standalone FastAPI mode) fall back silently
         pass
 
     return _default_rules()
@@ -159,7 +154,7 @@ class DayRecord:
     is_early_leave: bool
     is_overtime: bool
     punch_count: int
-    schedule_name: str          # ← which schedule was used for this day
+    schedule_name: str          # which schedule was used for this day
 
 
 @dataclass
@@ -183,6 +178,7 @@ class UserAnalysis:
 # --------------------------------------------------
 def _overlap_seconds(a_start: datetime, a_end: datetime,
                      b_start: datetime, b_end: datetime) -> int:
+    """kept for potential future use but no longer used in core calc"""
     latest_start  = max(a_start, b_start)
     earliest_end  = min(a_end,   b_end)
     diff = (earliest_end - latest_start).total_seconds()
@@ -190,13 +186,13 @@ def _overlap_seconds(a_start: datetime, a_end: datetime,
 
 
 # --------------------------------------------------
-# CORE ANALYSIS  (now schedule-aware)
+# CORE ANALYSIS
 # --------------------------------------------------
 def _analyze_day(row, rules: ScheduleRules) -> DayRecord:
-    day:        date           = row.date
-    first:      Optional[datetime] = getattr(row, "first_punch", None)
-    last:       Optional[datetime] = getattr(row, "last_punch",  None)
-    punch_count: int           = int(getattr(row, "punch_count", 0) or 0)
+    day:        date                = row.date
+    first:      Optional[datetime]  = getattr(row, "first_punch", None)
+    last:       Optional[datetime]  = getattr(row, "last_punch",  None)
+    punch_count: int                = int(getattr(row, "punch_count", 0) or 0)
 
     day_name   = day.strftime("%A")
     is_weekend = day.weekday() >= 5
@@ -218,49 +214,123 @@ def _analyze_day(row, rules: ScheduleRules) -> DayRecord:
         arrival   = first
         departure = last
 
-    # ── Hours worked ────────────────────────────────────────────────────────
-    total_worked_seconds = 0
-    if arrival and departure and arrival < departure:
-        total_worked_seconds = int((departure - arrival).total_seconds())
+    # ── Key reference datetimes ───────────────────────────────────────────
+    standard_start_dt = datetime.combine(day, rules.standard_start)   # e.g. 07:30
+    standard_end_dt   = datetime.combine(day, rules.standard_end)     # e.g. 16:30
 
-        lunch_start_dt = datetime.combine(day, rules.lunch_start)
-        lunch_end_dt   = datetime.combine(day, rules.lunch_end)
-        lunch_overlap  = _overlap_seconds(arrival, departure, lunch_start_dt, lunch_end_dt)
-        total_worked_seconds = max(0, total_worked_seconds - lunch_overlap)
+    # ── Is the employee late? (UI flag only) ─────────────────────────────
+    # Displayed as late on the interface when arrival is strictly after 07:35.
+    # The overtime / hours_worked calc still uses standard_start (07:30).
+    late_threshold_dt = datetime.combine(day, LATE_THRESHOLD)   # 07:35
+    is_late = bool(arrival and arrival > late_threshold_dt)
 
-    total_hours_worked = round(total_worked_seconds / 3600.0, 2) if total_worked_seconds > 0 else 0.0
-    hours_worked = (
-        min(total_hours_worked, rules.standard_work_hours)
-        if total_hours_worked > 0 else None
+    # ── Effective work start (for hours_worked calculation) ───────────────
+    #
+    #   • Early / on-time (arrival ≤ 07:30):
+    #       Clock starts at 07:30 regardless of how early they arrived.
+    #       hours_worked = departure − 07:30
+    #
+    #   • Late (arrival > 07:30):
+    #       Clock starts at actual arrival.
+    #       hours_worked = departure − arrival
+    #
+    if arrival:
+        effective_work_start = max(arrival, standard_start_dt)
+    else:
+        effective_work_start = standard_start_dt
+
+    # ── Effective standard end (for early-leave & overtime reference) ─────
+    #
+    #   • Early / on-time (arrival ≤ 07:30): standard_end fixed at 16:30.
+    #   • Late (arrival > 07:30):            standard_end = arrival + 9h
+    #     (arrival is always ≥ 07:35 when late, so arrival+9h always > 16:30)
+    #
+    if arrival and arrival > standard_start_dt:
+        standard_end_dt = arrival + timedelta(hours=rules.standard_work_hours)
+
+    # ── hours_worked ──────────────────────────────────────────────────────
+    # = departure − effective_work_start, capped at standard_work_hours (9h)
+    # No lunch deduction — employee is physically inside the premises.
+    hours_worked: Optional[float] = None
+    if arrival and departure and departure > effective_work_start:
+        raw_seconds  = (departure - effective_work_start).total_seconds()
+        raw_hours    = round(raw_seconds / 3600.0, 2)
+        hours_worked = min(raw_hours, rules.standard_work_hours)
+
+    # ── Overtime ──────────────────────────────────────────────────────────
+    #
+    # Overtime threshold = standard_end_dt + 29 min
+    #   (standard_end_dt is already shifted forward for late employees)
+    #
+    # Overtime = departure − standard_end_dt  (when departure ≥ threshold)
+    #
+    # Examples (default schedule 07:30 / 16:30 / 9h):
+    #
+    #   Arrives 07:06 (early), leaves 17:31
+    #     effective_work_start = 07:30  (clamped)
+    #     standard_end         = 16:30  (fixed, not late)
+    #     threshold            = 16:59
+    #     hours_worked         = 17:31 − 07:30 = 10h01 → capped at 9h
+    #     overtime             = 17:31 − 16:30 = 1h01  ✓
+    #
+    #   Arrives 07:30 (on-time), leaves 17:31
+    #     effective_work_start = 07:30
+    #     standard_end         = 16:30
+    #     threshold            = 16:59
+    #     hours_worked         = 17:31 − 07:30 = 10h01 → capped at 9h
+    #     overtime             = 17:31 − 16:30 = 1h01  ✓
+    #
+    #   Arrives 07:45 (late), leaves 17:31
+    #     effective_work_start = 07:45
+    #     standard_end         = 07:45 + 9h = 16:45
+    #     threshold            = 17:14
+    #     hours_worked         = 17:31 − 07:45 = 9h46 → capped at 9h
+    #     overtime             = 17:31 − 16:45 = 0h46  ✓
+    #
+    #   Arrives 08:00 (late), leaves 17:31
+    #     effective_work_start = 08:00
+    #     standard_end         = 08:00 + 9h = 17:00
+    #     threshold            = 17:29
+    #     hours_worked         = 17:31 − 08:00 = 9h31 → capped at 9h
+    #     overtime             = 17:31 − 17:00 = 0h31  ✓
+    #
+    #   Arrives 07:30, leaves 16:50
+    #     standard_end         = 16:30
+    #     threshold            = 16:59
+    #     16:50 < 16:59 → no overtime  ✓
+    #
+    overtime_hours = 0.0
+    if arrival and departure:
+        overtime_threshold_dt = standard_end_dt + timedelta(minutes=OVERTIME_MIN_MINUTES)
+        if departure >= overtime_threshold_dt:
+            overtime_seconds = (departure - standard_end_dt).total_seconds()
+            overtime_hours   = round(max(0.0, overtime_seconds / 3600.0), 2)
+
+    # ── Early-leave flag ──────────────────────────────────────────────────
+    # Flagged when departure is before the employee's effective standard_end.
+    # Weekend days are excluded (no expected departure time).
+    is_early_leave = bool(
+        departure and not is_weekend
+        and departure < standard_end_dt
     )
 
-    # ── Overtime ─────────────────────────────────────────────────────────────
-    overtime_hours = 0.0
-    if total_hours_worked > rules.overtime_threshold_hours:
-        overtime_hours = round(total_hours_worked - rules.overtime_threshold_hours, 2)
-        if overtime_hours < 0.5:
-            overtime_hours = 0.0
-
-    # ── Flags (use schedule-specific thresholds) ─────────────────────────────
-    is_late        = bool(arrival   and arrival.time()   > rules.work_start)
-    is_early_leave = bool(departure and departure.time() < rules.early_leave_limit and not is_weekend)
-    is_overtime    = bool(overtime_hours > 0)
+    is_overtime = bool(overtime_hours > 0)
 
     return DayRecord(
-        date          = day,
-        day_name      = day_name,
-        is_weekend    = is_weekend,
-        first_punch   = first,
-        last_punch    = last,
-        arrival       = arrival,
-        departure     = departure,
-        hours_worked  = hours_worked,
-        overtime_hours= overtime_hours,
-        is_late       = is_late,
-        is_early_leave= is_early_leave,
-        is_overtime   = is_overtime,
-        punch_count   = punch_count,
-        schedule_name = rules.schedule_name,
+        date           = day,
+        day_name       = day_name,
+        is_weekend     = is_weekend,
+        first_punch    = first,
+        last_punch     = last,
+        arrival        = arrival,
+        departure      = departure,
+        hours_worked   = hours_worked,
+        overtime_hours = overtime_hours,
+        is_late        = is_late,
+        is_early_leave = is_early_leave,
+        is_overtime    = is_overtime,
+        punch_count    = punch_count,
+        schedule_name  = rules.schedule_name,
     )
 
 
@@ -299,26 +369,26 @@ async def compute_user_analysis(
         for row in rows
     ]
 
-    total_hours       = sum(d.hours_worked  for d in days if d.hours_worked)
-    total_overtime    = sum(d.overtime_hours for d in days)
-    total_present     = len(days)
-    total_late        = sum(1 for d in days if d.is_late)
-    total_early_leave = sum(1 for d in days if d.is_early_leave)
+    total_hours         = sum(d.hours_worked   for d in days if d.hours_worked)
+    total_overtime      = sum(d.overtime_hours  for d in days)
+    total_present       = len(days)
+    total_late          = sum(1 for d in days if d.is_late)
+    total_early_leave   = sum(1 for d in days if d.is_early_leave)
     total_overtime_days = sum(1 for d in days if d.is_overtime)
-    total_weekend     = sum(1 for d in days if d.is_weekend)
-    avg_hours         = round(total_hours / total_present, 2) if total_present else 0.0
+    total_weekend       = sum(1 for d in days if d.is_weekend)
+    avg_hours           = round(total_hours / total_present, 2) if total_present else 0.0
 
     return UserAnalysis(
-        user_id              = user_id,
-        date_from            = date_from,
-        date_to              = date_to,
-        total_days_present   = total_present,
-        total_days_late      = total_late,
+        user_id                = user_id,
+        date_from              = date_from,
+        date_to                = date_to,
+        total_days_present     = total_present,
+        total_days_late        = total_late,
         total_days_early_leave = total_early_leave,
-        total_days_overtime  = total_overtime_days,
-        total_weekend_days   = total_weekend,
-        total_hours_worked   = round(total_hours,    2),
-        total_overtime_hours = round(total_overtime, 2),
-        average_hours_per_day= avg_hours,
-        days                 = days,
+        total_days_overtime    = total_overtime_days,
+        total_weekend_days     = total_weekend,
+        total_hours_worked     = round(total_hours,    2),
+        total_overtime_hours   = round(total_overtime, 2),
+        average_hours_per_day  = avg_hours,
+        days                   = days,
     )
