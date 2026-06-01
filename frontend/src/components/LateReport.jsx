@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import './LateReport.css';
 
-const API_BASE = (process.env.REACT_APP_API_URL || 'http://192.168.8.210:8080') + '/attendance';
+const API_BASE = (process.env.REACT_APP_API_URL || '') + '/attendance';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
