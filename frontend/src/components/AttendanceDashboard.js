@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 // ✅ Import hrClient for authenticated HR API calls
 import hrClient from '../api/hrClient';
+import apiClient from '../api/apiClient';
 
 // ── Performance: debounce hook ──────────────────────────────────────
 function useDebounce(value, delay) {
@@ -60,7 +61,7 @@ const HRAttendanceDashboard = () => {
   const abortRef = useRef(null);
 
   const API_BASE = process.env.REACT_APP_API_URL + '/attendance/';
-  const DJANGO_API = process.env.REACT_APP_AUTH_URL;
+  const DJANGO_API = "http://192.168.8.210/api/clockers";
   const debouncedUserId = useDebounce(filters.user_id, 400);
 
   // ✅ Load all employees once on mount — build device_user_id → name map
@@ -123,7 +124,7 @@ const HRAttendanceDashboard = () => {
 
   const fetchClockers = useCallback(async () => {
     try {
-      const response = await fetch(`${DJANGO_API}/clockers/`);
+      const response = await fetch(`${DJANGO_API}/`);
       if (response.ok) {
         const data = await response.json();
         setClockers(Array.isArray(data) ? data : []);
@@ -142,9 +143,9 @@ const HRAttendanceDashboard = () => {
   const fetchAvailableIPs = useCallback(async () => {
     setLoadingIPs(true);
     try {
-      const response = await fetch(`${API_BASE}available-ips`);
-      if (response.ok) {
-        const ips = await response.json();
+      const response = await apiClient.get('attendance/available-ips');
+      if (response.data) {
+        const ips = response.data;
         setAvailableIPs(ips);
       } else {
         await extractIPsFromData();
@@ -159,9 +160,9 @@ const HRAttendanceDashboard = () => {
 
   const extractIPsFromData = async () => {
     try {
-      const response = await fetch(`${API_BASE}?limit=1000&skip=0`);
-      if (response.ok) {
-        const data = await response.json();
+      const response = await apiClient.get('attendance/?limit=1000&skip=0');
+      if (response.data) {
+        const data = response.data;
         const uniqueIPs = [...new Set(data.map(record => record.device_ip).filter(ip => ip))];
         setAvailableIPs(uniqueIPs.sort());
       }
@@ -207,17 +208,16 @@ const HRAttendanceDashboard = () => {
       params.append('skip', filters.skip || 0);
       params.append('limit', filters.limit || 1000);
 
-      const response = await fetch(`${API_BASE}grouped?${params.toString()}`, { signal });
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const data = await response.json();
+      const response = await apiClient.get(`attendance/grouped?${params.toString()}`, { signal });
+      const data = response.data;
       const cleanData = Array.isArray(data) ? data : [];
-      const totalCount = response.headers.get('X-Total-Count');
+      const totalCount = response.headers['x-total-count'];
       setTotalRecords(totalCount ? parseInt(totalCount) : cleanData.length);
       setAttendanceData(cleanData);
       // ── Perf: run stats/kpi/analysis in parallel ──
       await Promise.all([fetchStats(), fetchKpi(), fetchAnalysis()]);
     } catch (err) {
-      if (err.name === 'AbortError') return;
+      if (err.name === 'AbortError' || err.code === 'ERR_CANCELED' || err.message === 'canceled') return;
       setError(`Erreur de récupération : ${err.message}`);
       setAttendanceData([]);
       setTotalRecords(0);
@@ -249,8 +249,8 @@ const HRAttendanceDashboard = () => {
       if (filters.device_ip) deviceIPs = [filters.device_ip];
       else if (selectedGroup) deviceIPs = clockers.filter(c => c.group_name === selectedGroup).map(c => c.ip_address);
       if (deviceIPs.length > 0) params.append('device_ip', deviceIPs.join(','));
-      const response = await fetch(`${API_BASE}stats?${params.toString()}`);
-      if (response.ok) setStats(await response.json());
+      const response = await apiClient.get(`attendance/stats?${params.toString()}`);
+      if (response.data) setStats(response.data);
     } catch (err) {
       console.error('Error fetching stats:', err);
     }
@@ -270,10 +270,10 @@ const HRAttendanceDashboard = () => {
         kpiDate = filters.date_to;
       }
       const [kpiRes, empRes] = await Promise.all([
-        fetch(`${API_BASE}kpi?target_date=${kpiDate}`),
+        apiClient.get(`attendance/kpi?target_date=${kpiDate}`),
         hrClient.get('employees/', { params: { status: 'ACTIVE', page_size: 1 } }),
       ]);
-      if (kpiRes.ok) setKpi(await kpiRes.json());
+      if (kpiRes.data) setKpi(kpiRes.data);
       if (empRes.data) setTotalActive(empRes.data.count ?? null);
     } catch (err) {
       console.error('KPI error:', err);
@@ -290,8 +290,8 @@ const HRAttendanceDashboard = () => {
     try {
       const dateFrom = filters.date_from || sevenDaysAgoStr;
       const dateTo   = filters.date_to   || todayStr;
-      const res = await fetch(`${API_BASE}analysis/${uid}?date_from=${dateFrom}&date_to=${dateTo}`);
-      if (res.ok) setAnalysisData(await res.json());
+      const res = await apiClient.get(`attendance/analysis/${uid}?date_from=${dateFrom}&date_to=${dateTo}`);
+      if (res.data) setAnalysisData(res.data);
       else setAnalysisData(null);
     } catch { setAnalysisData(null); }
     finally { setAnalysisLoading(false); }

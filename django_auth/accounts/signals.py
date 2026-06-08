@@ -1,5 +1,4 @@
 import os
-import socket
 import requests
 import logging
 from django.db.models.signals import post_save, post_delete
@@ -15,11 +14,7 @@ if not SERVICE_TOKEN:
 
 
 def get_django_hr_url():
-    try:
-        ip = socket.gethostbyname('django_hr')
-        return f"http://{ip}:8002"
-    except Exception:
-        return "http://172.19.0.4:8002"
+    return "http://django-hr:8002"
 
 
 @receiver(post_save, sender=User)

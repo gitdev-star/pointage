@@ -30,7 +30,7 @@ hrClient.interceptors.response.use(
         const refresh = localStorage.getItem("refresh_token");
         if (!refresh) throw new Error("No refresh token");
         const res = await axios.post(
-          `${process.env.REACT_APP_AUTH_URL || process.env.REACT_APP_AUTH_URL}/api/auth/token/refresh/`,
+          `${process.env.REACT_APP_AUTH_URL}/token/refresh/`,
           { refresh }
         );
         localStorage.setItem("access_token", res.data.access);
