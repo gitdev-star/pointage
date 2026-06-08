@@ -204,7 +204,7 @@ async def secure_endpoint(user=Depends(get_current_user)):
 async def get_all_attendance(
     response: Response,
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
+    limit: int = Query(100, ge=1, le=50000),
     user: dict = Depends(get_current_user),
     user_id: Optional[int] = Query(None),
     device_ip: Optional[str] = Query(None),
@@ -250,7 +250,7 @@ async def get_all_attendance(
 async def get_minimal_attendance(
     response: Response,
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
+    limit: int = Query(100, ge=1, le=50000),
     user: dict = Depends(get_current_user),
     user_id: Optional[int] = Query(None),
     device_ip: Optional[str] = Query(None),
@@ -459,7 +459,7 @@ async def get_daily_attendance(
     target_date: date,
     response: Response,
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
+    limit: int = Query(100, ge=1, le=50000),
     user_id: Optional[int] = Query(None),
     device_ip: Optional[str] = Query(None),
     time_from: Optional[time] = Query(None),
@@ -560,7 +560,7 @@ class GroupedAttendanceResponse(BaseModel):
 async def get_grouped_attendance(
     response: Response,
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
+    limit: int = Query(100, ge=1, le=50000),
     user_id: Optional[int] = Query(None),
     device_ip: Optional[str] = Query(None),
     date_from: Optional[date] = Query(None),
