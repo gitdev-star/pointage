@@ -123,7 +123,7 @@ const HRAttendanceDashboard = () => {
 
   const fetchClockers = useCallback(async () => {
     try {
-      const response = await fetch(`${DJANGO_API}/api/clockers/`);
+      const response = await fetch(`${DJANGO_API}/clockers/`);
       if (response.ok) {
         const data = await response.json();
         setClockers(Array.isArray(data) ? data : []);
