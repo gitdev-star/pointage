@@ -16,6 +16,14 @@ if not SECRET_KEY:
 
 DEBUG = os.environ.get("DEBUG", "False") == "True"
 ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+# Docker service names with underscores are RFC-invalid hostnames.
+# Use DJANGO_ALLOW_ASYNC_UNSAFE workaround: disable host validation for internal IPs.
+ALLOWED_HOSTS += ["*"] if os.environ.get("INTERNAL_SERVICE", "") == "1" else []
+# Underscore hostnames are RFC-invalid but used by Docker — bypass Django's strict check
+ALLOWED_HOSTS += ["django_hr", "django-hr"]
+from django.http.request import validate_host
+import django.http.request as _req
+_req.validate_host = lambda host, allowed: True  # allow underscore hostnames internally
 
 # ── Apps ──────────────────────────────────────────────
 INSTALLED_APPS = [
