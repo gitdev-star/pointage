@@ -86,7 +86,12 @@ class Employee(models.Model):
     n_rh = models.CharField(max_length=50, blank=True, null=True)
     motif_depart = models.CharField(max_length=200, blank=True, null=True)
     salaire = models.CharField(max_length=50, blank=True, null=True)
-    classification = models.CharField(max_length=50, blank=True, null=True)
+    classification = models.ForeignKey(
+        'Classification',
+            on_delete=models.SET_NULL,
+            null=True, blank=True,
+            related_name='employees',
+         )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -120,6 +125,18 @@ class Section(models.Model):
 
     def __str__(self):
         return f"{self.department.code} / {self.name}"
+
+
+class Classification(models.Model):
+    name = models.CharField(max_length=50, unique=True)
+
+    class Meta:
+        db_table = 'classification'
+
+    def __str__(self):
+        return self.name
+
+
 
 
 # =====================================================

@@ -15,7 +15,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 from django.core.cache import cache
 from .models import (
-    Factory, Department, Employee, Section, WorkSchedule,
+    Factory, Department, Employee, Section, WorkSchedule, Classification,
 )
 from .serializers import (
     SectionSerializer,
@@ -522,12 +522,6 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 else:
                     section = department_cache[sect_key]
 
-            classification_obj = None
-            if payload["classification_name"]:
-                classification_obj = Classification.objects.filter(
-                        name=payload["classification_name"]
-                            ).first()
-
             to_create.append(Employee(
                 employee_id=payload["employee_id"],
                 first_name=payload["first_name"],
@@ -559,7 +553,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 motif_depart=payload["motif_depart"],
                 section=section,
                 salaire=payload["salaire"],
-                classification=classification_obj,
+                classification=payload["classification"],
             ))
             existing_ids.add(payload["employee_id"])
             if payload["device_user_id"]:
