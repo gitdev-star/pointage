@@ -61,7 +61,7 @@ const HRAttendanceDashboard = () => {
   const abortRef = useRef(null);
 
   const API_BASE = process.env.REACT_APP_API_URL + '/attendance/';
-  const DJANGO_API = "http://192.168.8.210/api/clockers";
+  const DJANGO_API = process.env.REACT_APP_CLOCKERS_URL || `${window.location.origin}/api/clockers`;
   const debouncedUserId = useDebounce(filters.user_id, 400);
 
   // ✅ Load all employees once on mount — build device_user_id → name map
