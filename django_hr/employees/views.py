@@ -79,6 +79,7 @@ EXCEL_COLUMN_MAP = {
     "user_id":                      "device_user_id",
     "Période":                      "matricule_paie",
     "Etablissement":                "factory_name",
+    "Département":               "department_name",
 }
 
 VALID_CONTRACT_TYPES = {"CDI", "CDD", "INTERN", "PART", "SEASONAL"}
@@ -127,40 +128,27 @@ def _safe_date(value):
     return v
 
 
-def _get_or_create_factory(code, name, location):
+def _get_factory(code, name):
     factory = Factory.objects.filter(code=code).first()
     if factory:
-        return factory, False
-    factory = Factory.objects.filter(name=name).first()
-    if factory:
-        return factory, False
-    factory = Factory.objects.create(
-        code=code, name=name, location=location or "", is_active=True
-    )
-    return factory, True
+        return factory
+    return Factory.objects.filter(name=name).first()
 
 
-def _get_or_create_section(code, name, department):
+def _get_section(code, name, department):
     if not code or not name:
         return None
     sect = Section.objects.filter(code=code).first()
     if sect:
         return sect
-    sect = Section.objects.filter(name=name, department=department).first()
-    if sect:
-        return sect
-    return Section.objects.create(code=code, name=name, department=department, is_active=True)
+    return Section.objects.filter(name=name, department=department).first()
 
 
-def _get_or_create_department(code, name, factory):
+def _get_department(code, name, factory):
     dept = Department.objects.filter(code=code).first()
     if dept:
-        return dept, False
-    dept = Department.objects.filter(name=name, factory=factory).first()
-    if dept:
-        return dept, False
-    dept = Department.objects.create(code=code, name=name, factory=factory, is_active=True)
-    return dept, True
+        return dept
+    return Department.objects.filter(name=name, factory=factory).first()
 
 
 def _parse_row(row, row_num):
@@ -179,8 +167,10 @@ def _parse_row(row, row_num):
     if not factory_code and factory_name:
         factory_code = _slugify_code(factory_name)
 
-    dept_name     = row.get("department_name", "").strip() or factory_name
-    dept_code     = row.get("department_code", "").strip() or factory_code
+    dept_name     = row.get("department_name", "").strip() or None
+    dept_code     = row.get("department_code", "").strip() or None
+    if not dept_code and dept_name:
+        dept_code = _slugify_code(dept_name)
 
     section_name  = row.get("section_name", "").strip()
     section_code  = _slugify_code(section_name) if section_name else None
@@ -192,10 +182,10 @@ def _parse_row(row, row_num):
     if not employee_id:   errors.append("employee_id is required")
     if not first_name:    first_name = last_name
     if not last_name:     last_name = first_name
-    if not factory_name:  factory_name = "UNKNOWN"
-    if not factory_code:  factory_code = "UNKNOWN"
-    if not dept_name:     dept_name = "UNKNOWN"
-    if not dept_code:     dept_code = "UNKNOWN"
+    if not factory_name:  factory_name = None
+    if not factory_code:  factory_code = None
+    if not dept_name:
+        errors.append("'Département' column is missing or empty (should be placed after 'Etablissement' in your Excel file)")
     if not job_title:     job_title = ""
     if contract_type not in VALID_CONTRACT_TYPES:
         contract_type = "CDI"
@@ -489,35 +479,33 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
             fac_code = payload["factory_code"]
             if fac_code not in factory_cache:
-                try:
-                    factory, fac_created = _get_or_create_factory(fac_code, payload["factory_name"], payload["factory_location"])
-                    factory_cache[fac_code] = factory
-                    if fac_created:
-                        new_factories.append(fac_code)
-                except Exception as e:
-                    results.append({"row": row_num, "employee_id": employee_id, "status": "error", "detail": f"Factory error: {e}"})
+                factory = _get_factory(fac_code, payload["factory_name"])
+                if not factory:
+                    results.append({"row": row_num, "employee_id": employee_id, "status": "error", "detail": f"Factory '{payload['factory_name']}' not found. Please create it in the DB first."})
                     errors += 1
                     continue
+                factory_cache[fac_code] = factory
             factory = factory_cache[fac_code]
 
             dept_key = f"{payload['department_code']}_{fac_code}"
             if dept_key not in department_cache:
-                try:
-                    dept, dept_created = _get_or_create_department(payload["department_code"], payload["department_name"], factory)
-                    department_cache[dept_key] = dept
-                    if dept_created:
-                        new_departments.append(payload["department_code"])
-                except Exception as e:
-                    results.append({"row": row_num, "employee_id": employee_id, "status": "error", "detail": f"Department error: {e}"})
+                department = _get_department(payload["department_code"], payload["department_name"], factory)
+                if not department:
+                    results.append({"row": row_num, "employee_id": employee_id, "status": "error", "detail": f"Department '{payload['department_name']}' not found in factory '{payload['factory_name']}'. Please create it in the DB first."})
                     errors += 1
                     continue
+                department_cache[dept_key] = department
             department = department_cache[dept_key]
 
             section = None
             if payload["section_name"]:
                 sect_key = f"{payload['section_code']}_{dept_key}"
                 if sect_key not in department_cache:
-                    section = _get_or_create_section(payload["section_code"], payload["section_name"], department)
+                    section = _get_section(payload["section_code"], payload["section_name"], department)
+                    if not section:
+                        results.append({"row": row_num, "employee_id": employee_id, "status": "error", "detail": f"Section '{payload['section_name']}' not found in department '{payload['department_name']}'. Please create it in the DB first."})
+                        errors += 1
+                        continue
                     department_cache[sect_key] = section
                 else:
                     section = department_cache[sect_key]
@@ -603,8 +591,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 "created":                 created,
                 "skipped":                 skipped,
                 "errors":                  errors,
-                "new_factories_created":   new_factories,
-                "new_departments_created": new_departments,
+
             },
             "rows": results,
         }, status=status.HTTP_200_OK)

@@ -61,8 +61,8 @@ class Employee(models.Model):
     photo = models.ImageField(upload_to="employees/photos/", null=True, blank=True)
     email = models.EmailField(unique=True, blank=True, null=True)
     phone = models.CharField(max_length=30, blank=True)
-    factory = models.ForeignKey(Factory, on_delete=models.PROTECT, related_name="employees")
-    department = models.ForeignKey(Department, on_delete=models.PROTECT, related_name="employees")
+    factory = models.ForeignKey(Factory, on_delete=models.PROTECT, related_name="employees", null=True, blank=True)
+    department = models.ForeignKey(Department, on_delete=models.PROTECT, related_name="employees", null=True, blank=True)
     job_title = models.CharField(max_length=150)
     contract_type = models.CharField(max_length=20, choices=ContractType.choices, default=ContractType.PERMANENT)
     hire_date = models.DateField()
@@ -132,6 +132,7 @@ class Classification(models.Model):
 
     class Meta:
         db_table = 'classification'
+        managed = False 
 
     def __str__(self):
         return self.name
