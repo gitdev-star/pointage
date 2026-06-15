@@ -38,8 +38,6 @@ const CSV_TEMPLATE_EXCEL = [
   "Date CIN",
   "Lieu CIN",
   "NBRE ENFANTS",
-  "factory_code",
-  "department_code",
   "contract_type",
   "status",
   "auth_user_id",
@@ -50,7 +48,7 @@ const CSV_TEMPLATE_EXAMPLE =
 
 const CSV_TEMPLATE = `${CSV_TEMPLATE_EXCEL}\n${CSV_TEMPLATE_EXAMPLE}`;
 
-const CSV_TEMPLATE_INTERNAL = `employee_id,first_name,last_name,email,phone,factory_code,factory_name,factory_location,department_code,department_name,job_title,contract_type,hire_date,status,device_user_id,auth_user_id\nEMP001,Jean,Rakoto,jean.rakoto@company.mg,+261320000001,FAC01,Usine Nord,Antananarivo,DEP01,Production,Opérateur,CDI,2022-01-15,ACTIVE,101,`;
+const CSV_TEMPLATE_INTERNAL = `employee_id,first_name,last_name,email,phone,factory_name,factory_location,department_name,job_title,contract_type,hire_date,status,device_user_id,auth_user_id\nEMP001,Jean,Rakoto,jean.rakoto@company.mg,+261320000001,FAC01,Usine Nord,Antananarivo,DEP01,Production,Opérateur,CDI,2022-01-15,ACTIVE,101,`;
 
 function downloadTemplate(type = "excel") {
   const content = type === "excel" ? CSV_TEMPLATE : CSV_TEMPLATE_INTERNAL;

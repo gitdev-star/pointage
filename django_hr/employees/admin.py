@@ -40,9 +40,9 @@ class WorkScheduleAdmin(admin.ModelAdmin):
 
 @admin.register(Factory)
 class FactoryAdmin(admin.ModelAdmin):
-    list_display = ["code", "name", "location", "department_count", "employee_count", "is_active"]
+    list_display = ["name", "location", "department_count", "employee_count", "is_active"]
     list_filter = ["is_active"]
-    search_fields = ["name", "code"]
+    search_fields = ["name"]
 
     def department_count(self, obj):
         return obj.departments.count()
@@ -55,9 +55,9 @@ class FactoryAdmin(admin.ModelAdmin):
 
 @admin.register(Department)
 class DepartmentAdmin(admin.ModelAdmin):
-    list_display = ["code", "name", "factory", "manager", "employee_count", "is_active"]
+    list_display = ["name", "factory", "manager", "employee_count", "is_active"]
     list_filter = ["factory", "is_active"]
-    search_fields = ["name", "code"]
+    search_fields = ["name"]
 
     def employee_count(self, obj):
         return obj.employees.filter(status="ACTIVE").count()
@@ -110,6 +110,6 @@ class EmployeeAdmin(admin.ModelAdmin):
 
 @admin.register(Section)
 class SectionAdmin(admin.ModelAdmin):
-    list_display  = ["code", "name", "department", "is_active"]
+    list_display  = ["name", "department", "is_active"]
     list_filter   = ["department", "is_active"]
-    search_fields = ["name", "code"]
+    search_fields = ["name"]

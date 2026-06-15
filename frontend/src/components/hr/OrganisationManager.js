@@ -11,9 +11,9 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import hrClient from "../../api/hrClient";
 import { useHRAuth } from "../../contexts/HRAuthContext";
 
-const EMPTY_FACTORY    = { name: "", code: "", location: "", is_active: true };
-const EMPTY_DEPARTMENT = { name: "", code: "", factory: "", is_active: true };
-const EMPTY_SECTION    = { name: "", code: "", department: "", is_active: true };
+const EMPTY_FACTORY    = { name: "", location: "", is_active: true };
+const EMPTY_DEPARTMENT = { name: "", factory: "", is_active: true };
+const EMPTY_SECTION    = { name: "", department: "", is_active: true };
 
 function CRUDTable({ columns, rows, loading, onAdd, onEdit, onDelete, canWrite, canDelete }) {
   return (
@@ -135,7 +135,6 @@ export default function OrganisationManager() {
   const validate = () => {
     const errors = {};
     if (!form.name?.trim()) errors.name = "Requis";
-    if (!form.code?.trim()) errors.code = "Requis";
     if (dialog.type === "department" && !form.factory) errors.factory = "Requis";
     if (dialog.type === "section"    && !form.department) errors.department = "Requis";
     setFormErrors(errors);
@@ -189,19 +188,16 @@ export default function OrganisationManager() {
   };
 
   const factoryColumns = [
-    { key: "code",      label: "Code" },
     { key: "name",      label: "Nom" },
     { key: "location",  label: "Localisation" },
     { key: "is_active", label: "Statut", chip: true },
   ];
   const deptColumns = [
-    { key: "code",         label: "Code" },
     { key: "name",         label: "Nom" },
     { key: "factory_name", label: "Usine" },
     { key: "is_active",    label: "Statut", chip: true },
   ];
   const sectionColumns = [
-    { key: "code",            label: "Code" },
     { key: "name",            label: "Nom" },
     { key: "department_name", label: "Département" },
     { key: "factory_name",    label: "Usine" },
@@ -258,9 +254,6 @@ export default function OrganisationManager() {
         </DialogTitle>
         <DialogContent dividers>
           <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
-            <TextField size="small" label="Code *" value={form.code || ""}
-              onChange={e => setForm(p => ({ ...p, code: e.target.value }))}
-              error={!!formErrors.code} helperText={formErrors.code} />
             <TextField size="small" label="Nom *" value={form.name || ""}
               onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
               error={!!formErrors.name} helperText={formErrors.name} />
