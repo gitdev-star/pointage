@@ -34,8 +34,8 @@ from accounts.permissions import get_hr_profile
 
 REQUIRED_COLUMNS = [
     "employee_id", "first_name", "last_name",
-    "factory_code", "factory_name",
-    "department_code", "department_name",
+    "factory_name",
+    "department_name",
     "job_title", "contract_type", "hire_date",
 ]
 
@@ -128,26 +128,17 @@ def _safe_date(value):
     return v
 
 
-def _get_factory(code, name):
-    factory = Factory.objects.filter(code=code).first()
-    if factory:
-        return factory
+def _get_factory(name):
     return Factory.objects.filter(name=name).first()
 
 
-def _get_section(code, name, department):
-    if not code or not name:
+def _get_section(name, department):
+    if not name:
         return None
-    sect = Section.objects.filter(code=code).first()
-    if sect:
-        return sect
     return Section.objects.filter(name=name, department=department).first()
 
 
-def _get_department(code, name, factory):
-    dept = Department.objects.filter(code=code).first()
-    if dept:
-        return dept
+def _get_department(name, factory):
     return Department.objects.filter(name=name, factory=factory).first()
 
 
@@ -163,17 +154,8 @@ def _parse_row(row, row_num):
     status_val    = row.get("status", "ACTIVE").strip().upper() or "ACTIVE"
 
     factory_name  = row.get("factory_name", "").strip()
-    factory_code  = row.get("factory_code", "").strip()
-    if not factory_code and factory_name:
-        factory_code = _slugify_code(factory_name)
-
     dept_name     = row.get("department_name", "").strip() or None
-    dept_code     = row.get("department_code", "").strip() or None
-    if not dept_code and dept_name:
-        dept_code = _slugify_code(dept_name)
-
     section_name  = row.get("section_name", "").strip()
-    section_code  = _slugify_code(section_name) if section_name else None
 
     contract_type = row.get("contract_type", "").strip().upper()
     if not contract_type:
@@ -183,7 +165,6 @@ def _parse_row(row, row_num):
     if not first_name:    first_name = last_name
     if not last_name:     last_name = first_name
     if not factory_name:  factory_name = None
-    if not factory_code:  factory_code = None
     if not dept_name:
         errors.append("'Département' column is missing or empty (should be placed after 'Etablissement' in your Excel file)")
     if not job_title:     job_title = ""
@@ -213,10 +194,8 @@ def _parse_row(row, row_num):
         "employee_id":      employee_id,
         "first_name":       first_name,
         "last_name":        last_name,
-        "factory_code":     factory_code,
         "factory_name":     factory_name,
         "factory_location": row.get("factory_location", "").strip(),
-        "department_code":  dept_code,
         "department_name":  dept_name,
         "job_title":        job_title,
         "contract_type":    contract_type,
@@ -242,7 +221,6 @@ def _parse_row(row, row_num):
         "motif_depart":     row.get("motif_depart", "").strip() or None,
         "termination_date": _safe_date(row.get("termination_date")),
         "section_name":     section_name,
-        "section_code":     section_code,
         "salaire":          salaire_val,
         "classification_name":   classification_val,
     }, None
@@ -252,16 +230,16 @@ def _parse_row(row, row_num):
 
 class FactoryViewSet(viewsets.ModelViewSet):
     queryset = Factory.objects.only(
-        "id", "code", "name", "location", "is_active", "created_at"
+        "id", "name", "location", "is_active", "created_at"
     )
     serializer_class = FactorySerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ["name", "code", "location"]
+    search_fields = ["name", "location"]
 
     @action(detail=True, methods=["get"])
     def departments(self, request, pk=None):
         factory = self.get_object()
-        depts = factory.departments.filter(is_active=True).only("id", "code", "name", "is_active")
+        depts = factory.departments.filter(is_active=True).only("id", "name", "is_active")
         return Response(DepartmentSerializer(depts, many=True).data)
 
     @action(detail=True, methods=["get"])
@@ -281,14 +259,14 @@ class FactoryViewSet(viewsets.ModelViewSet):
 
 class DepartmentViewSet(viewsets.ModelViewSet):
     queryset = Department.objects.select_related("factory", "manager").only(
-        "id", "code", "name", "is_active", "created_at",
-        "factory__id", "factory__name", "factory__code",
+        "id", "name", "is_active", "created_at",
+        "factory__id", "factory__name",
         "manager__id", "manager__first_name", "manager__last_name",
     )
     serializer_class = DepartmentSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ["factory", "is_active"]
-    search_fields = ["name", "code"]
+    search_fields = ["name"]
 
     @action(detail=True, methods=["get"])
     def employees(self, request, pk=None):
@@ -315,8 +293,8 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             "hire_date", "termination_date", "status",
             "device_user_id", "auth_user_id",
             "created_at", "updated_at",
-            "factory__id", "factory__name", "factory__code",
-            "department__id", "department__name", "department__code",
+            "factory__id", "factory__name",
+            "department__id", "department__name",
         )
     )
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -477,19 +455,19 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 skipped += 1
                 continue
 
-            fac_code = payload["factory_code"]
-            if fac_code not in factory_cache:
-                factory = _get_factory(fac_code, payload["factory_name"])
+            fac_name = payload["factory_name"] or ""
+            if fac_name not in factory_cache:
+                factory = _get_factory(payload["factory_name"])
                 if not factory:
                     results.append({"row": row_num, "employee_id": employee_id, "status": "error", "detail": f"Factory '{payload['factory_name']}' not found. Please create it in the DB first."})
                     errors += 1
                     continue
-                factory_cache[fac_code] = factory
-            factory = factory_cache[fac_code]
+                factory_cache[fac_name] = factory
+            factory = factory_cache[fac_name]
 
-            dept_key = f"{payload['department_code']}_{fac_code}"
+            dept_key = f"{payload['department_name']}_{fac_name}"
             if dept_key not in department_cache:
-                department = _get_department(payload["department_code"], payload["department_name"], factory)
+                department = _get_department(payload["department_name"], factory)
                 if not department:
                     results.append({"row": row_num, "employee_id": employee_id, "status": "error", "detail": f"Department '{payload['department_name']}' not found in factory '{payload['factory_name']}'. Please create it in the DB first."})
                     errors += 1
@@ -499,9 +477,9 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
             section = None
             if payload["section_name"]:
-                sect_key = f"{payload['section_code']}_{dept_key}"
+                sect_key = f"{payload['section_name']}_{dept_key}"
                 if sect_key not in department_cache:
-                    section = _get_section(payload["section_code"], payload["section_name"], department)
+                    section = _get_section(payload["section_name"], department)
                     if not section:
                         results.append({"row": row_num, "employee_id": employee_id, "status": "error", "detail": f"Section '{payload['section_name']}' not found in department '{payload['department_name']}'. Please create it in the DB first."})
                         errors += 1
@@ -599,14 +577,14 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
 class SectionViewSet(viewsets.ModelViewSet):
     queryset = Section.objects.select_related("department", "department__factory").only(
-        "id", "code", "name", "is_active", "created_at",
-        "department__id", "department__name", "department__code",
+        "id", "name", "is_active", "created_at",
+        "department__id", "department__name",
         "department__factory__id", "department__factory__name",
     )
     serializer_class = SectionSerializer
     filter_backends  = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ["department", "is_active"]
-    search_fields    = ["name", "code"]
+    search_fields    = ["name"]
 
 
 class WorkScheduleViewSet(viewsets.ModelViewSet):
@@ -630,7 +608,7 @@ class WorkScheduleViewSet(viewsets.ModelViewSet):
 def cached_factories(request):
     data = cache.get("factories_list")
     if not data:
-        qs   = Factory.objects.filter(is_active=True).only("id", "code", "name", "location")
+        qs   = Factory.objects.filter(is_active=True).only("id", "name", "location")
         data = FactorySerializer(qs, many=True).data
         cache.set("factories_list", data, 60 * 30)
     return Response(data)
@@ -641,7 +619,7 @@ def cached_departments(request):
     data = cache.get("departments_list")
     if not data:
         qs   = Department.objects.filter(is_active=True).select_related("factory").only(
-            "id", "code", "name", "factory__id", "factory__name"
+            "id", "name", "factory__id", "factory__name"
         )
         data = DepartmentSerializer(qs, many=True).data
         cache.set("departments_list", data, 60 * 30)

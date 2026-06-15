@@ -4,7 +4,6 @@ from django.db import models
 class Factory(models.Model):
     name = models.CharField(max_length=100, unique=True)
     location = models.CharField(max_length=200, blank=True)
-    code = models.CharField(max_length=20, unique=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -13,12 +12,11 @@ class Factory(models.Model):
         ordering = ["name"]
 
     def __str__(self):
-        return f"{self.code} - {self.name}"
+        return self.name
 
 
 class Department(models.Model):
     name = models.CharField(max_length=100)
-    code = models.CharField(max_length=20, unique=True)
     factory = models.ForeignKey(
         Factory, on_delete=models.PROTECT, related_name="departments"
     )
@@ -37,7 +35,7 @@ class Department(models.Model):
         unique_together = [("name", "factory")]
 
     def __str__(self):
-        return f"{self.factory.code} / {self.name}"
+        return f"{self.factory.name} / {self.name}"
 
 
 class Employee(models.Model):
@@ -114,7 +112,6 @@ class Employee(models.Model):
 
 class Section(models.Model):
     name       = models.CharField(max_length=100)
-    code       = models.CharField(max_length=20, unique=True)
     department = models.ForeignKey(Department, on_delete=models.PROTECT, related_name="sections")
     is_active  = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -124,7 +121,7 @@ class Section(models.Model):
         unique_together = [("name", "department")]
 
     def __str__(self):
-        return f"{self.department.code} / {self.name}"
+        return f"{self.department.name} / {self.name}"
 
 
 class Classification(models.Model):
@@ -144,8 +141,6 @@ class Classification(models.Model):
 # ADD THIS TO: pointage/django_hr/employees/models.py
 # (append at the bottom, after Section)
 # =====================================================
-
-from django.db import models
 
 
 class WorkSchedule(models.Model):
