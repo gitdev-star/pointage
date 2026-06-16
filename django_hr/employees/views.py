@@ -15,7 +15,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 from django.core.cache import cache
 from .models import (
-    Factory, Department, Employee, Section, WorkSchedule,
+    Classification, Poste, Factory, Department, Employee, Section, WorkSchedule,
 )
 from .serializers import (
     SectionSerializer,
@@ -24,6 +24,8 @@ from .serializers import (
     EmployeeListSerializer,
     EmployeeDetailSerializer,
     WorkScheduleSerializer,
+    ClassificationSerializer,
+    PosteSerializer,
 )
 from alerts.email_utils import (
     notify_resiliation,
@@ -128,6 +130,19 @@ def _safe_date(value):
     return v
 
 
+
+
+def _safe_int(value):
+    if not value:
+        return None
+    v = str(value).strip()
+    if not v or v.lower() in ("none", "nan", "null", ""):
+        return None
+    try:
+        return int(float(v))
+    except (ValueError, TypeError):
+        return None
+
 def _get_factory(name):
     return Factory.objects.filter(name=name).first()
 
@@ -203,8 +218,8 @@ def _parse_row(row, row_num):
         "status":           status_val,
         "email":            row.get("email", "").strip() or None,
         "phone":            row.get("phone", "").strip(),
-        "device_user_id":   int(row["device_user_id"]) if str(row.get("device_user_id", "")).strip() else None,
-        "auth_user_id":     int(row["auth_user_id"])   if str(row.get("auth_user_id", "")).strip()   else None,
+        "device_user_id":   _safe_int(row.get("device_user_id")),
+        "auth_user_id":     _safe_int(row.get("auth_user_id")),
         "cin":              row.get("cin", "").strip() or None,
         "cin_date":         _safe_date(row.get("cin_date")),
         "cin_place":        row.get("cin_place", "").strip() or None,
@@ -250,7 +265,7 @@ class FactoryViewSet(viewsets.ModelViewSet):
             .select_related("department")
             .only(
                 "id", "employee_id", "first_name", "last_name",
-                "photo", "job_title", "status", "device_user_id",
+                "photo", "job_title__id", "job_title__name", "status", "device_user_id",
                 "factory_id", "department__id", "department__name",
             )
         )
@@ -276,7 +291,7 @@ class DepartmentViewSet(viewsets.ModelViewSet):
             .select_related("factory")
             .only(
                 "id", "employee_id", "first_name", "last_name",
-                "photo", "job_title", "status", "device_user_id",
+                "photo", "job_title__id", "job_title__name", "status", "device_user_id",
                 "factory_id", "factory__name", "department_id",
             )
         )
@@ -286,10 +301,10 @@ class DepartmentViewSet(viewsets.ModelViewSet):
 class EmployeeViewSet(viewsets.ModelViewSet):
     queryset = (
         Employee.objects
-        .select_related("factory", "department")
+        .select_related("factory", "department", "job_title")
         .only(
             "id", "employee_id", "first_name", "last_name", "photo",
-            "email", "phone", "job_title", "contract_type",
+            "email", "phone", "job_title__id", "job_title__name", "contract_type",
             "hire_date", "termination_date", "status",
             "device_user_id", "auth_user_id",
             "created_at", "updated_at",
@@ -299,7 +314,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     )
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ["factory", "department", "status", "contract_type"]
-    search_fields = ["first_name", "last_name", "employee_id", "email", "job_title"]
+    search_fields = ["first_name", "last_name", "employee_id", "email", "job_title__name"]
     ordering_fields = ["last_name", "hire_date", "employee_id"]
 
     def get_queryset(self):
@@ -357,7 +372,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             .select_related("factory", "department")
             .only(
                 "id", "employee_id", "first_name", "last_name",
-                "photo", "job_title", "status", "device_user_id",
+                "photo", "job_title__id", "job_title__name", "status", "device_user_id",
                 "factory__id", "factory__name",
                 "department__id", "department__name",
             )
@@ -369,6 +384,16 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["post"], url_path="import", parser_classes=[MultiPartParser])
     def import_csv(self, request):
+        import traceback as _tb
+        try:
+            return self._import_csv_inner(request)
+        except Exception as _e:
+            _tb.print_exc()
+            from rest_framework.response import Response as _R
+            from rest_framework import status as _s
+            return _R({"detail": f"Unhandled exception: {_e}", "trace": _tb.format_exc()}, status=_s.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def _import_csv_inner(self, request):
         csv_file = request.FILES.get("file")
         if not csv_file:
             return Response(
@@ -491,8 +516,15 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             classification_obj = None
             if payload["classification_name"]:
                 classification_obj = Classification.objects.filter(
-                        name=payload["classification_name"]
-                            ).first()
+                    classe=payload["classification_name"]
+                ).first()
+
+            poste_obj = None
+            if payload["job_title"]:
+                poste_obj = Poste.objects.filter(name=payload["job_title"]).first()
+                if not poste_obj:
+                    # Créer le poste s'il n'existe pas
+                    poste_obj = Poste.objects.create(name=payload["job_title"])
 
             to_create.append(Employee(
                 employee_id=payload["employee_id"],
@@ -502,7 +534,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 phone=payload["phone"],
                 factory=factory,
                 department=department,
-                job_title=payload["job_title"],
+                job_title=poste_obj,
                 contract_type=payload["contract_type"],
                 hire_date=payload["hire_date"],
                 status=payload["status"],
@@ -536,7 +568,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         created = 0
         if to_create:
             try:
-                Employee.objects.bulk_create(to_create, batch_size=500)
+                Employee.objects.bulk_create(to_create, batch_size=500, ignore_conflicts=True)
                 created = len(to_create)
                 for r in results:
                     if r["status"] == "queued":
@@ -602,6 +634,14 @@ class WorkScheduleViewSet(viewsets.ModelViewSet):
     ordering_fields  = ["name", "created_at"]
 
 
+
+class PosteViewSet(viewsets.ModelViewSet):
+    queryset = Poste.objects.all()
+    serializer_class = PosteSerializer
+    filter_backends = [filters.SearchFilter, DjangoFilterBackend]
+    filterset_fields = ["is_active"]
+    search_fields = ["name"]
+
 # ── Function-based views ───────────────────────────────────────────────────
 
 @api_view(["GET"])
@@ -651,3 +691,20 @@ def employee_export(request):
 
     data = EmployeeDetailSerializer(qs, many=True).data
     return Response({"count": len(data), "results": data})
+
+
+class ClassificationViewSet(viewsets.ModelViewSet):
+    queryset = Classification.objects.all()
+    serializer_class = ClassificationSerializer
+    filter_backends = [filters.SearchFilter]
+    search_fields = ["name"]
+
+
+@api_view(["GET"])
+def cached_classifications(request):
+    data = cache.get("classifications_list")
+    if not data:
+        qs   = Classification.objects.all().only("id", "name")
+        data = ClassificationSerializer(qs, many=True).data
+        cache.set("classifications_list", data, 60 * 30)
+    return Response(data)

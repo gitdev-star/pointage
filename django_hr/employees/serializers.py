@@ -1,16 +1,24 @@
-# =====================================================
-# PATH: pointage/django_hr/employees/serializers.py
-# =====================================================
-
 from rest_framework import serializers
-from .models import Factory, Department, Employee, Section, WorkSchedule
+from .models import Classification, Poste, Factory, Department, Employee, Section, WorkSchedule
+
+
+class ClassificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = Classification
+        fields = ["id_classification", "classe", "salaire"]
+
+
+class PosteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = Poste
+        fields = ["id", "name", "description", "is_active", "created_at"]
 
 
 class FactorySerializer(serializers.ModelSerializer):
     employee_count = serializers.SerializerMethodField()
 
     class Meta:
-        model = Factory
+        model  = Factory
         fields = "__all__"
 
     def get_employee_count(self, obj):
@@ -18,59 +26,77 @@ class FactorySerializer(serializers.ModelSerializer):
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
-    factory_name = serializers.CharField(source="factory.name", read_only=True)
+    factory_name   = serializers.CharField(source="factory.name", read_only=True)
     employee_count = serializers.SerializerMethodField()
 
     class Meta:
-        model = Department
+        model  = Department
         fields = "__all__"
 
     def get_employee_count(self, obj):
         return obj.employees.filter(status="ACTIVE").count()
 
 
-class EmployeeListSerializer(serializers.ModelSerializer):
-    """Lightweight — used for list views."""
-    full_name = serializers.CharField(read_only=True)
-    factory_name = serializers.CharField(source="factory.name", read_only=True)
-    department_name = serializers.CharField(source="department.name", read_only=True)
+class SectionSerializer(serializers.ModelSerializer):
+    department_name = serializers.CharField(source="department.name",         read_only=True)
+    factory_name    = serializers.CharField(source="department.factory.name", read_only=True)
 
     class Meta:
-        model = Employee
+        model  = Section
+        fields = "__all__"
+
+
+class EmployeeListSerializer(serializers.ModelSerializer):
+    full_name       = serializers.CharField(read_only=True)
+    factory_name    = serializers.CharField(source="factory.name",    read_only=True)
+    department_name = serializers.CharField(source="department.name", read_only=True)
+    job_title_name  = serializers.CharField(source="job_title.name",  read_only=True, default=None)
+
+    class Meta:
+        model  = Employee
         fields = [
             "id", "employee_id", "first_name", "last_name", "full_name",
-            "photo", "job_title", "factory", "factory_name",
-            "department", "department_name", "status", "device_user_id",
+            "photo", "job_title", "job_title_name",
+            "factory", "factory_name",
+            "department", "department_name",
+            "status", "device_user_id", "sexe", "contract_type",
         ]
 
 
 class EmployeeDetailSerializer(serializers.ModelSerializer):
-    """Full — used for create / update / detail."""
-    full_name = serializers.CharField(read_only=True)
-    factory_name = serializers.CharField(source="factory.name", read_only=True)
-    department_name = serializers.CharField(source="department.name", read_only=True)
+    full_name           = serializers.CharField(read_only=True)
+    factory_name        = serializers.CharField(source="factory.name",         read_only=True)
+    department_name     = serializers.CharField(source="department.name",      read_only=True)
+    job_title_name      = serializers.CharField(source="job_title.name",       read_only=True, default=None)
+    classification_name = serializers.CharField(source="classification.classe", read_only=True, default=None)
 
     class Meta:
-        model = Employee
-        fields = "__all__"
+        model  = Employee
+        fields = [
+            "id", "employee_id", "first_name", "last_name", "full_name",
+            "photo", "email", "phone",
+            "factory", "factory_name",
+            "department", "department_name",
+            "section",
+            "job_title", "job_title_name",
+            "contract_type", "hire_date", "termination_date",
+            "status", "device_user_id", "auth_user_id",
+            "cin", "cin_date", "cin_place", "cnaps",
+            "sexe", "address", "birth_date", "birth_place", "nbre_enfants",
+            "matricule_paie", "affectation", "hk_ou_pbi", "n_rh",
+            "motif_depart", "salaire",
+            "classification", "classification_name",
+            "created_at", "updated_at",
+        ]
 
     def validate(self, data):
-        factory = data.get("factory") or (self.instance and self.instance.factory)
+        factory    = data.get("factory")    or (self.instance and self.instance.factory)
         department = data.get("department") or (self.instance and self.instance.department)
         if factory and department and department.factory != factory:
             raise serializers.ValidationError(
                 {"department": "This department does not belong to the selected factory."}
             )
         return data
-
-
-class SectionSerializer(serializers.ModelSerializer):
-    department_name = serializers.CharField(source="department.name", read_only=True)
-    factory_name    = serializers.CharField(source="department.factory.name", read_only=True)
-
-    class Meta:
-        model  = Section
-        fields = "__all__"
 
 
 class WorkScheduleSerializer(serializers.ModelSerializer):
@@ -96,9 +122,7 @@ class WorkScheduleSerializer(serializers.ModelSerializer):
                             "employee_name", "department_name", "section_name"]
 
     def get_employee_name(self, obj):
-        if obj.employee:
-            return f"{obj.employee.last_name} {obj.employee.first_name}"
-        return None
+        return f"{obj.employee.last_name} {obj.employee.first_name}" if obj.employee else None
 
     def get_department_name(self, obj):
         return obj.department.name if obj.department else None
