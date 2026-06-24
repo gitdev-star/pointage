@@ -50,7 +50,7 @@ const DashboardLayout = () => {
   return (
     <div className="dashboard-container">
       <aside className="sidebar">
-        <h2>HR System</h2>
+        <h2>HR Nexus</h2>
 
         {hrProfile && (
           <div className="role-badge" style={{

@@ -15,6 +15,13 @@ if not SECRET_KEY:
 DEBUG = os.environ.get("DEBUG", "False") == "True"
 ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
+
+# ── Security / Proxy ───────────────────────────────────
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+CSRF_TRUSTED_ORIGINS = os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",")
+CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_SECURE = True
+
 # ── Apps ──────────────────────────────────────────────
 INSTALLED_APPS = [
     'django.contrib.admin',

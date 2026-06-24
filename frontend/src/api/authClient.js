@@ -2,7 +2,7 @@ import axios from "axios";
 
 const AUTH_BASE_URL = process.env.REACT_APP_AUTH_URL
   ? `${process.env.REACT_APP_AUTH_URL}/`
-  : "http://192.168.8.210/api/auth/";
+    : `${window.location.origin}/api/auth/`;
 
 const authClient = axios.create({
   baseURL: AUTH_BASE_URL,

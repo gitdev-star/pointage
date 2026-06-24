@@ -1,0 +1,64 @@
+import React from "react";
+
+import useAttendanceData from "../hook/usePresence";
+import DashboardHeader from "../components/PresenceHeader";
+import StatsGrid from "../components/StatGrid";
+import PresenceCharts from "../components/PresenceChart";
+import useExportPresence from "../hook/useExportRapport";
+
+export default function PresenceDashboard() {
+  const { state, actions } = useAttendanceData();
+  const { exportToExcel } = useExportPresence();
+
+  // const today = new Date().toISOString().split("T")[0];
+
+  // const presentTodayIds = new Set(
+  //   state.attendanceData
+  //     .filter(r => r.attendance_date === today && r.punch_count > 0)
+  //     .map(r => r.user_id)
+  // );
+
+  // const absentEmployees = Object.entries(state.employeeMap)
+  //   .filter(([id]) => !presentTodayIds.has(Number(id)));
+
+const absentCount = state.totalActive != null && state.kpi?.presents != null
+  ? Math.max(0, state.totalActive - state.kpi.presents)
+  : 0;
+
+  const handleExport = () => {
+    exportToExcel({
+      attendanceData: state.attendanceData,
+      kpi:            state.kpi,
+      totalActive:    state.totalActive,
+      stats:          state.stats,
+      getEmployeeName: actions.getEmployeeName,
+      filters:        state.filters,
+    });
+  };
+  
+// console.log("state:", state)
+
+  return (
+    <div className="min-h-screen bg-gray-100 p-6">
+      <DashboardHeader
+        loading={state.loading}
+        onRefresh={actions.fetchAttendance}
+        onExport={handleExport}  
+      />
+           <StatsGrid
+        stats={state.stats}
+        totalRecords={state.attendanceData.length}
+        kpi={state.kpi}
+        totalActive={state.totalActive}
+        absentCount={absentCount} 
+      />
+
+      <PresenceCharts
+        kpi={state.kpi}
+        totalActive={state.totalActive}
+        attendanceData={state.attendanceData}
+        absentCount={absentCount} 
+      />
+    </div>
+  );
+}

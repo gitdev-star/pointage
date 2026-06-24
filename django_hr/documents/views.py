@@ -2,7 +2,7 @@
 # PATH: pointage/django_hr/documents/views.py
 # Fills real .docx templates with employee data
 # =====================================================
-import os, re, io, random
+import os, re, io, random, zipfile
 from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
 from django.http import HttpResponse
@@ -55,8 +55,24 @@ def replace_in_paragraph(para, reps):
         para.runs[0].text = new
         for r in para.runs[1:]: r.text = ""
 
-def fill_template(tpl_path, reps):
+def remove_underline(doc):
+    """Remove underline formatting from all runs in the document."""
+    from docx.oxml.ns import qn
+    for p in doc.paragraphs:
+        for r in p.runs:
+            if r.underline:
+                r.underline = False
+    for tbl in doc.tables:
+        for row in tbl.rows:
+            for cell in row.cells:
+                for p in cell.paragraphs:
+                    for r in p.runs:
+                        if r.underline:
+                            r.underline = False
+
+def fill_template(tpl_path, reps, strip_underline=False):
     from docx import Document
+    from docx.oxml.ns import qn
     doc = Document(tpl_path)
     for p in doc.paragraphs: replace_in_paragraph(p, reps)
     for tbl in doc.tables:
@@ -66,6 +82,22 @@ def fill_template(tpl_path, reps):
     for sec in doc.sections:
         for p in sec.header.paragraphs: replace_in_paragraph(p, reps)
         for p in sec.footer.paragraphs: replace_in_paragraph(p, reps)
+    if strip_underline:
+        remove_underline(doc)
+    # Remove trailing blank paragraphs that cause extra blank pages
+    body = doc.element.body
+    children = list(body)
+    for child in reversed(children):
+        tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+        if tag == 'sectPr':
+            continue
+        if tag == 'p':
+            text = ''.join(n.text or '' for n in child.iter() if hasattr(n, 'text') and n.tag.split('}')[-1] == 't')
+            has_break = child.find('.//' + qn('w:br')) is not None
+            if not text.strip() and not has_break:
+                body.remove(child)
+                continue
+        break
     buf = io.BytesIO(); doc.save(buf); buf.seek(0)
     return buf.read()
 
@@ -115,47 +147,82 @@ def build_certificat(emp, extra):
         "Date du d\u00e9bauche"    : date_fin,
     })
 
+
 def build_contrat_cdd(emp, extra):
-    salaire  = extra.get("salaire") or "\u2014"
-    raw      = extra.get("date_embauche") or str(emp.hire_date or date.today())
-    emb_fr   = fmt_date(raw)
-    fin6     = add_months(raw, 6)
-    essai3   = add_months(raw, 3)
-    civ      = civilite(emp)
-    name     = f"{emp.last_name} {emp.first_name}"
-    classif  = get_classif(emp)
-    b_date   = fmt_date(getattr(emp,"birth_date",None))
-    b_place  = getattr(emp,"birth_place",None) or "\u2014"
-    addr     = getattr(emp,"address",None)     or "\u2014"
-    cin      = getattr(emp,"cin",None)         or "\u2014"
-    cin_date = fmt_date(getattr(emp,"cin_date",None))
-    cin_plc  = getattr(emp,"cin_place",None)   or "\u2014"
-    # order matters: longer keys first to avoid partial replacement
-    return fill_template(os.path.join(TEMPLATES_DIR,"CONTRAT DE TRAVAIL OUVRIERS CDD 06 MOIS 2025.docx"), {
-        "Madame/Monsieur"                   : civ,
-        "Nom et Pr\u00e9nom"               : name,
-        "Date de naissance"                 : b_date,
-        "Date de naissace"                  : b_date,   # typo in Malagasy section
-        "Lieu de naissance"                 : b_place,
-        "Adresse"                           : addr,
-        "Num\u00e9ro CIN"                  : cin,
-        "Date CIN"                          : cin_date,
-        "Lieu CIN"                          : cin_plc,
-        "Emploie occup\u00e9"              : emp.job_title or "\u2014",
-        "Num\u00e9ro Matricule"            : emp.employee_id or "\u2014",
-        "Montant"                           : salaire,
-        "Classification"                    : classif,
-        # Article 3 typo variants (longer first)
-        "Date d\u2019embacuhe  + mois"     : fin6,
-        "Date d\u2019embauche + 6 mois"    : fin6,
-        "Date d\u2019embauche + 3 mois"    : essai3,
-        "Date d\u2019embauhce + 3 mois"    : essai3,
-        "Date d\u2019embauhce"             : emb_fr,
-        "Date d\u2019embauche"             : emb_fr,
-        # Malagasy section
-        "Fonction"                          : emp.job_title or "\u2014",
-        "Matricule"                         : emp.employee_id or "\u2014",
-    })
+    # Auto-fill salary from classification if not provided
+    classif_salaire = None
+    if emp.classification and emp.classification.salaire:
+        try:
+            val = float(emp.classification.salaire)
+            if val > 0:
+                classif_salaire = f"{val:,.2f}".replace(",", " ")
+        except (ValueError, TypeError):
+            pass
+    salaire = extra.get("salaire") or emp.salaire or classif_salaire or "—"
+    raw = extra.get("date_embauche") or str(emp.hire_date or date.today())
+
+    emb_fr = fmt_date(raw)
+    fin6 = add_months(raw, 6)
+    essai3 = add_months(raw, 3)
+
+    civ = civilite(emp)
+    name = f"{emp.last_name} {emp.first_name}"
+
+    fonction = emp.job_title.name if emp.job_title else "—"
+    classif = emp.classification.classe if emp.classification else "—"
+
+    b_date = fmt_date(getattr(emp, "birth_date", None))
+    b_place = getattr(emp, "birth_place", None) or "—"
+    addr = getattr(emp, "address", None) or "—"
+    cin = getattr(emp, "cin", None) or "—"
+    cin_date = fmt_date(getattr(emp, "cin_date", None))
+    cin_plc = getattr(emp, "cin_place", None) or "—"
+
+    return fill_template(
+        os.path.join(TEMPLATES_DIR, "CONTRAT DE TRAVAIL OUVRIERS CDD 06 MOIS 2025.docx"),
+        {
+            # Ancien template avec placeholders
+            "Madame/Monsieur": civ,
+            "Nom et Prénom": name,
+            "Date de naissance": b_date,
+            "Date de naissace": b_date,
+            "Lieu de naissance": b_place,
+            "Adresse": addr,
+            "Numéro CIN": cin,
+            "Date CIN": cin_date,
+            "Lieu CIN": cin_plc,
+            "Emploie occupé": fonction,
+            "Fonction": fonction,
+            "Numéro Matricule": emp.employee_id or "—",
+            "Matricule": emp.employee_id or "—",
+            "Montant": salaire,
+            "Classification": classif,
+            "Date d’embacuhe  + mois": fin6,
+            "Date d’embauche + 6 mois": fin6,
+            "Date d’embauche + 3 mois": essai3,
+            "Date d’embauhce + 3 mois": essai3,
+            "Date d’embauhce": emb_fr,
+            "Date d’embauche": emb_fr,
+
+            # Nouveau template déjà rempli avec RAZANAMALALA Sandra
+            "RAZANAMALALA Sandra": name,
+            "006278": emp.employee_id or "—",
+            "Machiniste": fonction,
+            "309500,00": salaire,
+            "309500": salaire,
+            "OS1": classif,
+            "04 juin 2026": emb_fr,
+            "04 décembre 2026": fin6,
+            "04 septembre 2026": essai3,
+            "117032017870": cin,
+            "19 mars 1994": b_date,
+            "Sakambahiny Bemasoandro": b_place,
+            "Lot IT U 41 bis - Andranonahoatra": addr,
+            "29 juillet 2013": cin_date,
+            "Lot IT U 41 bis - Andranonahoatra": f"Lot IT U 41 bis - {cin_plc}",
+        },
+        strip_underline=True,
+    )
 
 def build_evaluation_cdd(emp, extra):
     dept     = emp.department.name if emp.department else "\u2014"
@@ -177,7 +244,6 @@ def build_evaluation_cdd(emp, extra):
         "Date de d\u00e9but :\t\t\tDate fin : "      : f"Date de d\u00e9but : {d_debut}      Date fin : {d_fin}",
         # Signature block 1
         "Antananarivo le xxxxxxxxx"                      : f"Antananarivo le {today}",
-        "Antananarivo le "                               : f"Antananarivo le {today}",
         "Mr / Mme\xa0:  "                               : f"Mr / Mme\xa0: {civ} {name}",
         "Fonction\xa0: "                                : f"Fonction\xa0: {emp.job_title or chr(8212)}",
         "Matricule\xa0: "                               : f"Matricule\xa0: {emp.employee_id or chr(8212)}",
@@ -190,6 +256,39 @@ def build_evaluation_cdd(emp, extra):
         "manomboka ny xxxxxxxxx  hatramin\u2019ny xxxxxxxxxxxxxxx" : f"manomboka ny {d_debut} hatramin\u2019ny {d_fin}",
     })
 
+def build_confirmation_cdi(emp, extra):
+    dept     = emp.department.name if emp.department else "—"
+    section  = extra.get("section") or (emp.section.name if emp.section else dept)
+    factory  = emp.factory.name if emp.factory else "—"
+    hire     = fmt_date(emp.hire_date)
+    d_debut  = fmt_date(extra.get("date_debut") or str(emp.hire_date or date.today()))
+    d_fin    = fmt_date(extra.get("date_fin") or date.today())
+    name     = f"{emp.last_name} {emp.first_name}"
+    fonction = emp.job_title.name if emp.job_title else "—"
+    matricule = emp.employee_id or "—"
+
+    return fill_template(
+        os.path.join(TEMPLATES_DIR, "Evaluation et Confirmation CDI.docx"),
+        {
+            # Header block
+            "ONJANIAINA Virginie"                          : name,
+            "004994"                                       : matricule,
+            "Machiniste"                                   : fonction,
+            "GILLET ARABIE 2					Site : PBI3"    : f"{section}					Site : {factory}",
+            "31 janvier 2025			Date fin :  31 juillet 2026 " : f"{d_debut}			Date fin :  {d_fin} ",
+            "Date d’embauche : 31 janvier 2025"   : f"Date d’embauche : {hire}",
+            # Signature + letter body (appears twice, both replaced)
+            "Antananarivo le  31 juillet 2026"             : f"Antananarivo le  {d_fin}",
+            "M. / Mme : ONJANIAINA Virginie"            : f"M. / Mme : {name}",
+            "Matricule n° :  004994"               : f"Matricule n° :  {matricule}",
+            "Fonction :  Machiniste"                    : f"Fonction :  {fonction}",
+            "Section :   GILLET ARABIE 2						Site :  PBI3" : f"Section :   {section}						Site :  {factory}",
+            # CDI date in letter body (appears twice)
+            "à compter du 31 juillet 2026  . "          : f"à compter du {d_fin}  . ",
+            "manomboka ny 31 juillet 2026  ."              : f"manomboka ny {d_fin}  .",
+        }
+    )
+
 # ── API ───────────────────────────────────────────────────────────────────────
 
 BUILDERS = {
@@ -197,6 +296,7 @@ BUILDERS = {
     "certificat"    : (build_certificat,     "Certificat_travail"),
     "contrat_cdd"   : (build_contrat_cdd,    "Contrat_CDD"),
     "evaluation_cdd": (build_evaluation_cdd, "Evaluation_CDD"),
+    "confirmation_cdi" : (build_confirmation_cdi,  "Confirmation_CDI"),
 }
 
 @api_view(["POST"])
@@ -205,7 +305,13 @@ def generate_document(request, employee_id, doc_type):
     if doc_type not in BUILDERS:
         return Response({"detail": f"Type inconnu: {doc_type}"}, status=400)
     try:
-        emp = Employee.objects.select_related("factory","department").get(pk=employee_id)
+        emp = Employee.objects.select_related(
+            "factory",
+            "department",
+            "section",
+            "classification",
+            "job_title",
+        ).get(pk=employee_id)
     except Employee.DoesNotExist:
         return Response({"detail": "Employ\u00e9 introuvable."}, status=404)
     fn, prefix = BUILDERS[doc_type]
@@ -222,6 +328,70 @@ def generate_document(request, employee_id, doc_type):
     resp["Content-Disposition"] = f'attachment; filename="{safe}"'
     return resp
 
+@api_view(["POST"])
+@permission_classes([IsHRUser])
+def bulk_documents_zip(request):
+    doc_type = request.data.get("document_type")
+    employee_ids = request.data.get("employee_ids", [])
+    extra = request.data.get("extra", {}) or {}
+
+    if doc_type not in BUILDERS:
+        return Response({"detail": f"Type inconnu: {doc_type}"}, status=400)
+
+    if not employee_ids:
+        return Response({"detail": "Aucun employé sélectionné."}, status=400)
+
+    employees = Employee.objects.select_related(
+        "factory",
+        "department",
+        "classification",
+        "job_title",
+    ).filter(employee_id__in=employee_ids)
+
+    if not employees.exists():
+        return Response({"detail": "Aucun employé trouvé."}, status=404)
+
+    fn, prefix = BUILDERS[doc_type]
+
+    zip_buffer = io.BytesIO()
+
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for emp in employees:
+            try:
+                doc_bytes = fn(emp, extra)
+
+                filename = re.sub(
+                    r"[^\w\-.]",
+                    "_",
+                    f"{prefix}_{emp.employee_id}_{emp.last_name}_{emp.first_name}.docx"
+                )
+
+                zip_file.writestr(filename, doc_bytes)
+
+            except Exception as e:
+                error_filename = re.sub(
+                    r"[^\w\-.]",
+                    "_",
+                    f"ERREUR_{emp.employee_id}_{emp.last_name}_{emp.first_name}.txt"
+                )
+                zip_file.writestr(error_filename, str(e))
+
+    zip_buffer.seek(0)
+
+    zip_name = re.sub(
+        r"[^\w\-.]",
+        "_",
+        f"documents_rh_{doc_type}.zip"
+    )
+
+    resp = HttpResponse(
+        zip_buffer.getvalue(),
+        content_type="application/zip"
+    )
+    resp["Content-Disposition"] = f'attachment; filename="{zip_name}"'
+    return resp
+
+
 @api_view(["GET"])
 @permission_classes([IsHRUser])
 def list_templates(request):
@@ -230,4 +400,125 @@ def list_templates(request):
         {"id":"certificat",     "title":"Certificat de travail"},
         {"id":"contrat_cdd",    "title":"Contrat CDD 6 mois"},
         {"id":"evaluation_cdd", "title":"\u00c9valuation & Renouvellement CDD"},
+        {"id":"confirmation_cdi", "title":"Évaluation & Confirmation CDI"},
     ]})
+
+
+@api_view(["POST"])
+@permission_classes([IsHRUser])
+def generate_document_pdf(request, employee_id, doc_type):
+    if doc_type not in BUILDERS:
+        return Response({"detail": f"Type inconnu: {doc_type}"}, status=400)
+    try:
+        emp = Employee.objects.select_related(
+            "factory", "department", "section", "classification", "job_title",
+        ).get(pk=employee_id)
+    except Employee.DoesNotExist:
+        return Response({"detail": "Employé introuvable."}, status=404)
+
+    fn, prefix = BUILDERS[doc_type]
+    try:
+        doc_bytes = fn(emp, request.data or {})
+    except FileNotFoundError as e:
+        return Response({"detail": f"Template manquant: {e}"}, status=500)
+    except Exception as e:
+        import traceback
+        return Response({"detail": str(e), "trace": traceback.format_exc()}, status=500)
+
+    # Write docx to temp file and convert to PDF via LibreOffice
+    import tempfile, subprocess
+    with tempfile.TemporaryDirectory() as tmpdir:
+        docx_path = os.path.join(tmpdir, "document.docx")
+        with open(docx_path, "wb") as f:
+            f.write(doc_bytes)
+        try:
+            subprocess.run(
+                ["libreoffice", "--headless", "--convert-to", "pdf",
+                 "--outdir", tmpdir, docx_path],
+                timeout=30, check=True,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+        except subprocess.TimeoutExpired:
+            return Response({"detail": "Conversion PDF timeout."}, status=500)
+        except subprocess.CalledProcessError as e:
+            return Response({"detail": f"Erreur conversion PDF: {e}"}, status=500)
+
+        pdf_path = os.path.join(tmpdir, "document.pdf")
+        if not os.path.exists(pdf_path):
+            return Response({"detail": "PDF non généré."}, status=500)
+
+        with open(pdf_path, "rb") as f:
+            pdf_bytes = f.read()
+
+    safe = re.sub(r"[^\w\-.]", "_", f"{prefix}_{emp.last_name}_{emp.first_name}.pdf")
+    resp = HttpResponse(pdf_bytes, content_type="application/pdf")
+    resp["Content-Disposition"] = f'inline; filename="{safe}"'
+    return resp
+
+
+
+@api_view(["POST"])
+@permission_classes([IsHRUser])
+def bulk_documents_pdf(request):
+    import tempfile
+    import subprocess
+    doc_type     = request.data.get("document_type")
+    employee_ids = request.data.get("employee_ids", [])
+    extra        = request.data.get("extra", {}) or {}
+
+    if doc_type not in BUILDERS:
+        return Response({"detail": f"Type inconnu: {doc_type}"}, status=400)
+    if not employee_ids:
+        return Response({"detail": "Aucun employe selectionne."}, status=400)
+
+    emps = Employee.objects.select_related(
+        "factory", "department", "section", "classification", "job_title",
+    ).filter(employee_id__in=employee_ids)
+
+    if not emps.exists():
+        return Response({"detail": "Aucun employe trouve."}, status=404)
+
+    fn, prefix = BUILDERS[doc_type]
+    pdf_bytes_list = []
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        for emp in emps:
+            try:
+                doc_bytes = fn(emp, extra)
+                docx_path = os.path.join(tmpdir, f"{emp.employee_id}.docx")
+                with open(docx_path, "wb") as f:
+                    f.write(doc_bytes)
+                subprocess.run(
+                    ["libreoffice", "--headless", "--convert-to", "pdf",
+                     "--outdir", tmpdir, docx_path],
+                    timeout=30, check=True,
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                )
+                pdf_path = os.path.join(tmpdir, f"{emp.employee_id}.pdf")
+                if os.path.exists(pdf_path):
+                    with open(pdf_path, "rb") as f:
+                        pdf_bytes_list.append(f.read())
+            except Exception:
+                continue
+
+        if not pdf_bytes_list:
+            return Response({"detail": "Aucun PDF genere."}, status=500)
+
+        # Merge PDFs using pypdf
+        merged_path = os.path.join(tmpdir, "merged.pdf")
+        try:
+            from pypdf import PdfWriter
+            writer = PdfWriter()
+            for pdf_bytes in pdf_bytes_list:
+                import io as _io
+                writer.append(_io.BytesIO(pdf_bytes))
+            with open(merged_path, "wb") as f:
+                writer.write(f)
+            with open(merged_path, "rb") as f:
+                final_bytes = f.read()
+        except Exception:
+            final_bytes = pdf_bytes_list[0]
+
+    resp = HttpResponse(final_bytes, content_type="application/pdf")
+    resp["Content-Disposition"] = f'inline; filename="documents_rh_{doc_type}.pdf"'
+    return resp

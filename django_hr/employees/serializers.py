@@ -69,6 +69,11 @@ class EmployeeDetailSerializer(serializers.ModelSerializer):
     department_name     = serializers.CharField(source="department.name",      read_only=True)
     job_title_name      = serializers.CharField(source="job_title.name",       read_only=True, default=None)
     classification_name = serializers.CharField(source="classification.classe", read_only=True, default=None)
+    classification = serializers.PrimaryKeyRelatedField(
+        queryset=Classification.objects.all(),
+        pk_field=serializers.IntegerField(),
+        allow_null=True, required=False
+    )
 
     class Meta:
         model  = Employee
@@ -96,6 +101,17 @@ class EmployeeDetailSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"department": "This department does not belong to the selected factory."}
             )
+        # CIN unique check
+        cin = data.get("cin")
+        if cin:
+            qs = Employee.objects.filter(cin=cin)
+            if self.instance:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                existing = qs.first()
+                raise serializers.ValidationError(
+                    {"cin": f"Ce CIN est déjà utilisé par l'employé {existing.employee_id} - {existing.last_name} {existing.first_name}."}
+                )
         return data
 
 

@@ -98,7 +98,7 @@ export default function Sanctions() {
       if (searchEmp)     params.search = searchEmp;
       const [s, t] = await Promise.all([
         hrClient.get("sanctions/",       { params }),
-        hrClient.get("sanctions/types/", { params: mainTab === 1 ? {} : { is_active: true } }),
+        hrClient.get("sanctions/types/", { params: {} }),
       ]);
       setSanctions(s.data.results ?? s.data);
       const rawTypes = t.data.results ?? t.data;
@@ -114,7 +114,7 @@ export default function Sanctions() {
     } finally {
       setLoading(false);
     }
-  }, [tab, searchEmp]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tab, searchEmp, mainTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 

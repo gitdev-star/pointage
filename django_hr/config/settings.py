@@ -123,6 +123,7 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PAGINATION_CLASS": "config.pagination.FlexiblePagination",
     "PAGE_SIZE": 20,
+    "MAX_PAGE_SIZE": 5000,
 }
 
 # ── CORS ───────────────────────────────────────────────
