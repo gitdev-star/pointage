@@ -571,19 +571,32 @@ async def get_grouped_attendance(
     period: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_async_db),
 ):
-    """Returns one row per user per day with first punch (arrival) and last punch (departure)."""
-    filters = build_filters(
+    """Returns one row per user per day with first punch (arrival) and last punch (departure).
+    When device_ip is specified, only users who punched on that device are shown,
+    but arrival/departure use ALL punches for that user/day across all devices.
+    """
+    # Filters WITHOUT device_ip — used for full-day arrival/departure grouping
+    filters_no_device = build_filters(
+        period=period, user_id=user_id, device_ip=None,
+        date_from=date_from, date_to=date_to,
+        time_from=time_from, time_to=time_to,
+        target_date=target_date,
+    )
+    # Filters WITH device_ip — used to find which users punched on selected device
+    filters_with_device = build_filters(
         period=period, user_id=user_id, device_ip=device_ip,
         date_from=date_from, date_to=date_to,
         time_from=time_from, time_to=time_to,
         target_date=target_date,
     )
-    filter_clause = and_(*filters) if filters else text("1=1")
 
-    # Subquery-based count — works on both SQLite and PostgreSQL (no concat needed)
+    filter_clause_no_device   = and_(*filters_no_device)   if filters_no_device   else text("1=1")
+    filter_clause_with_device = and_(*filters_with_device) if filters_with_device else text("1=1")
+
+    # Count: users who punched on the selected device (or all if no device filter)
     count_subq = (
         select(Attendance.user_id, Attendance.date)
-        .where(filter_clause)
+        .where(filter_clause_with_device)
         .group_by(Attendance.user_id, Attendance.date)
         .subquery()
     )
@@ -591,6 +604,18 @@ async def get_grouped_attendance(
     total = count_result.scalar() or 0
     response.headers["X-Total-Count"] = str(total)
 
+    # Get user+date pairs that match the device filter (paginated)
+    device_subq = (
+        select(Attendance.user_id, Attendance.date)
+        .where(filter_clause_with_device)
+        .group_by(Attendance.user_id, Attendance.date)
+        .order_by(desc(Attendance.date), Attendance.user_id)
+        .offset(skip)
+        .limit(limit)
+        .subquery()
+    )
+
+    # Get full arrival/departure across ALL devices for those user+date pairs
     query = (
         select(
             Attendance.user_id,
@@ -600,11 +625,15 @@ async def get_grouped_attendance(
             func.count(Attendance.id).label("punch_count"),
             func.max(Attendance.device_ip).label("device_ip"),
         )
-        .where(filter_clause)
+        .where(
+            and_(
+                filter_clause_no_device,
+                Attendance.user_id == device_subq.c.user_id,
+                Attendance.date == device_subq.c.date,
+            )
+        )
         .group_by(Attendance.user_id, Attendance.date)
         .order_by(desc(Attendance.date), Attendance.user_id)
-        .offset(skip)
-        .limit(limit)
     )
     result = await db.execute(query)
     rows = result.all()

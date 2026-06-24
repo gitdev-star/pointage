@@ -20,3 +20,9 @@ logs:
 
 ps:
 	docker compose ps
+
+test-fast:
+	python3 -m pytest -x -q
+
+test-cov:
+	python3 -m pytest -x -q --cov=app
