@@ -91,3 +91,14 @@ async def cleanup_engine():
     yield
     from app.database import engine
     await engine.dispose()
+
+def pytest_sessionfinish(session, exitstatus):
+    """Force-kill any remaining threads after session ends."""
+    import asyncio
+    from app.database import engine
+    try:
+        loop = asyncio.new_event_loop()
+        loop.run_until_complete(engine.dispose())
+        loop.close()
+    except Exception:
+        pass

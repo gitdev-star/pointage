@@ -23,7 +23,7 @@ test:
 
 test-fast:
 	@echo "Running FastAPI tests..."
-	pytest tests/ -q
+	venv/bin/python3.11 -m pytest tests/ -q
 	@echo "Running Django Auth tests..."
 	docker exec django_auth bash -c "cd /app && python -m pytest tests/ -q"
 	@echo "Running Django HR tests..."
@@ -31,7 +31,7 @@ test-fast:
 
 test-cov:
 	@echo "Running FastAPI tests with coverage..."
-	pytest tests/ --cov=app --cov-report=html --cov-report=term-missing
+	venv/bin/python3.11 -m pytest tests/ --cov=app --cov-report=html --cov-report=term-missing
 	@echo "Running Django Auth tests with coverage..."
 	docker exec django_auth bash -c "cd /app && python -m pytest tests/ --cov=accounts,devices --cov-report=term-missing"
 	@echo "Running Django HR tests with coverage..."
@@ -40,7 +40,7 @@ test-cov:
 
 test-all:
 	@echo "=== FastAPI ==="
-	pytest tests/ -vv --tb=short
+	venv/bin/python3.11 -m pytest tests/ -vv --tb=short
 	@echo "=== Django Auth ==="
 	docker exec django_auth bash -c "cd /app && python -m pytest tests/ -vv --tb=short"
 	@echo "=== Django HR ==="
@@ -48,7 +48,7 @@ test-all:
 
 test-unit:
 	@echo "=== FastAPI unit ==="
-	pytest tests/unit/ -v
+	venv/bin/python3.11 -m pytest tests/unit/ -v
 	@echo "=== Django Auth unit ==="
 	docker exec django_auth bash -c "cd /app && python -m pytest tests/unit/ -v"
 	@echo "=== Django HR unit ==="
@@ -56,14 +56,14 @@ test-unit:
 
 test-integration:
 	@echo "=== FastAPI integration ==="
-	pytest tests/integration/ -v
+	venv/bin/python3.11 -m pytest tests/integration/ -v
 	@echo "=== Django Auth integration ==="
 	docker exec django_auth bash -c "cd /app && python -m pytest tests/integration/ -v"
 	@echo "=== Django HR integration ==="
 	docker exec django_hr bash -c "cd /app && python -m pytest tests/integration/ -v"
 
 test-fastapi:
-	pytest tests/ -v
+	venv/bin/python3.11 -m pytest tests/ -v
 
 test-auth:
 	docker exec django_auth bash -c "cd /app && python -m pytest tests/ -v"
@@ -73,7 +73,7 @@ test-hr:
 
 test-debug:
 	@echo "=== FastAPI ==="
-	pytest tests/ -vv -s --tb=long
+	venv/bin/python3.11 -m pytest tests/ -vv -s --tb=long
 	@echo "=== Django Auth ==="
 	docker exec django_auth bash -c "cd /app && python -m pytest tests/ -vv -s --tb=long"
 	@echo "=== Django HR ==="
@@ -97,7 +97,7 @@ format:
 	@echo "Formatting complete"
 
 test-fastapi-cov:
-	pytest tests/ --cov=app --cov-report=html --cov-report=term-missing
+	venv/bin/python3.11 -m pytest tests/ --cov=app --cov-report=html --cov-report=term-missing
 
 test-auth-cov:
 	docker exec django_auth bash -c "cd /app && python -m pytest tests/ --cov=accounts,devices --cov-report=term-missing"
