@@ -1,0 +1,86 @@
+name: Pointage CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ─── JOB 1: Tests — runs on GitHub cloud ──────────────────────
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: pointage_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run pytest
+        run: pytest --tb=short -q
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost/pointage_test
+          SECRET_KEY: ci-test-secret-key-minimum-32-chars-long
+          ENVIRONMENT: test
+          DJANGO_AUTH_URL: http://mock-auth
+
+  # ─── JOB 2: Deploy to 217 — runs ON your server ───────────────
+  deploy-dev:
+    needs: test
+    runs-on: self-hosted          # ← runs directly on 217
+    if: github.ref == 'refs/heads/develop'
+
+    steps:
+      - name: Pull latest code
+        run: |
+          cd /home/github-runner/pointage
+          git pull origin develop
+
+      - name: Restart containers
+        run: |
+          cd /home/github-runner/pointage
+          docker compose up -d --build
+
+      - name: Run migrations
+        run: |
+          cd /home/github-runner/pointage
+          docker compose exec -T django_hr python manage.py migrate
+
+  # ─── JOB 3: Deploy to 210 — also runs on 217, then SSH to 210 ─
+  deploy-prod:
+    needs: test
+    runs-on: self-hosted          # ← runs on 217, then SSHes to 210
+    if: github.ref == 'refs/heads/main'
+    environment: production       # ← manual approval on GitHub
+
+    steps:
+      - name: Deploy to 210
+        run: |
+          ssh root@192.168.8.210 '
+            cd /home/github-runner/pointage &&
+            git pull origin main &&
+            docker compose up -d --no-build &&
+            docker compose exec -T django_hr python manage.py migrate
+          '
