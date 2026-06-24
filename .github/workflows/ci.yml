@@ -36,15 +36,16 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install asyncpg
+          pip install asyncpg aiosqlite pytest-timeout
 
       - name: Run pytest
-        run: pytest --tb=short -q
+        run: pytest --tb=short -q --timeout=30
         env:
-          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost/pointage_test
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/pointage_test
           SECRET_KEY: ci-test-secret-key-minimum-32-chars-long
           ENVIRONMENT: test
           DJANGO_AUTH_URL: http://mock-auth
+          DJANGO_SECRET_KEY: ci-test-secret-key-minimum-32-chars-long
 
   deploy-dev:
     needs: test
