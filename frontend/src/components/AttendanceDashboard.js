@@ -328,7 +328,7 @@ const HRAttendanceDashboard = () => {
     window.URL.revokeObjectURL(url);
   };
 
-  const handleFilterChange = (key, value) => setFilters(prev => ({ ...prev, [key]: value, skip: 0 }));
+  const handleFilterChange = (key, value) => setFilters(prev => ({ ...prev, [key]: value, ...(key !== "skip" && key !== "limit" ? { skip: 0 } : {}) }));
 
   const clearFilters = () => {
     setFilters({
@@ -405,11 +405,11 @@ const HRAttendanceDashboard = () => {
             </div>
             <div className="modal-info-item">
               <p className="modal-label">Heure</p>
-              <p className="modal-value">{formatTime(record.timestamp)}</p>
+              <p className="modal-value">{record.arrival ? formatTime(record.arrival) : "—"}{record.departure ? " → " + formatTime(record.departure) : ""}</p>
             </div>
             <div className="modal-info-item">
               <p className="modal-label">Horodatage complet</p>
-              <p className="modal-value-small">{formatDateTime(record.timestamp)}</p>
+              <p className="modal-value-small">Arrivée: {record.arrival ? formatTime(record.arrival) : "—"} | Départ: {record.departure ? formatTime(record.departure) : "—"} | {record.punch_count || 1} pointage(s)</p>
             </div>
           </div>
           <div className="modal-actions">
@@ -756,7 +756,7 @@ const HRAttendanceDashboard = () => {
                 {attendanceData.map((record, index) => {
                   const empName = getEmployeeName(record.user_id);
                   return (
-                    <tr key={`${record.user_id}-${record.timestamp}-${index}`}>
+                    <tr key={`${record.user_id}-${record.attendance_date || record.date}-${index}`}>
                       <td>
                         <div className="user-cell">
                           <div className="user-avatar"><Users className="icon" /></div>

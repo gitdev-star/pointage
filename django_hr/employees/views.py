@@ -301,7 +301,7 @@ class DepartmentViewSet(viewsets.ModelViewSet):
 class EmployeeViewSet(viewsets.ModelViewSet):
     queryset = (
         Employee.objects
-        .select_related("factory", "department", "job_title")
+        .select_related("factory", "department", "job_title", "classification")
         .only(
             "id", "employee_id", "first_name", "last_name", "photo",
             "email", "phone", "job_title__id", "job_title__name", "contract_type",
@@ -310,18 +310,22 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             "created_at", "updated_at",
             "factory__id", "factory__name",
             "department__id", "department__name",
+            "classification__id_classification", "classification__classe",
         )
     )
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ["factory", "department", "status", "contract_type"]
-    search_fields = ["first_name", "last_name", "employee_id", "email", "job_title__name"]
+    search_fields = ["first_name", "last_name", "employee_id", "email", "job_title__name", "cin", "cnaps", "matricule_paie"]
     ordering_fields = ["last_name", "hire_date", "employee_id"]
 
     def get_queryset(self):
         qs = super().get_queryset()
         sexe = self.request.query_params.get("sexe")
         if sexe:
-            qs = qs.filter(sexe__iregex=r"^f[eé]minin$")
+            if sexe.upper() == "F":
+                qs = qs.filter(sexe__iregex=r"^f[eé]minin$")
+            else:
+                qs = qs.filter(sexe__icontains="masc")
         return qs
 
     def get_serializer_class(self):
@@ -441,6 +445,10 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 return Response({"detail": f"CSV is missing required columns: {missing_cols}"}, status=status.HTTP_400_BAD_REQUEST)
 
         existing_ids = set(Employee.objects.values_list("employee_id", flat=True))
+        existing_cins = {
+            cin: eid for cin, eid in
+            Employee.objects.exclude(cin=None).exclude(cin="").values_list("cin", "employee_id")
+        }
         existing_device_ids = set(
             Employee.objects.exclude(device_user_id=None).values_list("device_user_id", flat=True)
         )
@@ -472,6 +480,12 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
             if payload["device_user_id"] and payload["device_user_id"] in existing_device_ids:
                 results.append({"row": row_num, "employee_id": employee_id, "status": "skipped", "detail": f"device_user_id {payload['device_user_id']} already assigned."})
+                skipped += 1
+                continue
+
+            cin_val = payload.get("cin")
+            if cin_val and cin_val in existing_cins:
+                results.append({"row": row_num, "employee_id": employee_id, "status": "skipped", "detail": f"CIN '{cin_val}' déjà utilisé par l'employé {existing_cins[cin_val]}."})
                 skipped += 1
                 continue
 
@@ -516,15 +530,12 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             classification_obj = None
             if payload["classification_name"]:
                 classification_obj = Classification.objects.filter(
-                    classe=payload["classification_name"]
+                    classe__iexact=payload["classification_name"]
                 ).first()
 
             poste_obj = None
             if payload["job_title"]:
-                poste_obj = Poste.objects.filter(name=payload["job_title"]).first()
-                if not poste_obj:
-                    # Créer le poste s'il n'existe pas
-                    poste_obj = Poste.objects.create(name=payload["job_title"])
+                poste_obj = Poste.objects.filter(name__iexact=payload["job_title"]).first()
 
             to_create.append(Employee(
                 employee_id=payload["employee_id"],
@@ -636,7 +647,7 @@ class WorkScheduleViewSet(viewsets.ModelViewSet):
 
 
 class PosteViewSet(viewsets.ModelViewSet):
-    queryset = Poste.objects.all()
+    queryset = Poste.objects.all().order_by("name")
     serializer_class = PosteSerializer
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     filterset_fields = ["is_active"]
@@ -694,17 +705,17 @@ def employee_export(request):
 
 
 class ClassificationViewSet(viewsets.ModelViewSet):
-    queryset = Classification.objects.all()
+    queryset = Classification.objects.all().order_by("classe")
     serializer_class = ClassificationSerializer
     filter_backends = [filters.SearchFilter]
-    search_fields = ["name"]
+    search_fields = ["classe"]
 
 
 @api_view(["GET"])
 def cached_classifications(request):
     data = cache.get("classifications_list")
     if not data:
-        qs   = Classification.objects.all().only("id", "name")
+        qs   = Classification.objects.all().order_by("classe")
         data = ClassificationSerializer(qs, many=True).data
         cache.set("classifications_list", data, 60 * 30)
     return Response(data)

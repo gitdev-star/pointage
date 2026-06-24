@@ -44,8 +44,8 @@ const DOCS = [
     subtitle: "Contrat bilingue FR/MG pour ouvriers",
     icon: <WorkIcon sx={{ fontSize: 36, color: "warning.main" }} />, color: "#fff8e1",
     extraFields: [
-      { key: "salaire",       label: "Salaire de base (Ariary)", default: "" },
-      { key: "date_embauche", label: "Date d'embauche",          default: todayISO(), type: "date" },
+      { key: "salaire",       label: "Salaire de base (Ariary)", default: "FROM_EMPLOYEE:salaire" },
+      { key: "date_embauche", label: "Date d'embauche",          default: "FROM_EMPLOYEE:hire_date", type: "date" },
     ],
   },
   {
@@ -58,6 +58,16 @@ const DOCS = [
       { key: "date_fin_eval", label: "Date de fin",       default: "",         type: "date" },
       { key: "phase", label: "Phase", default: "1er CDD 6 mois",
         options: ["Renouvellement essai","1er CDD 6 mois","2e CDD 6 mois","Confirmation CDI"] },
+    ],
+  },
+  {
+    id: "confirmation_cdi", title: "Évaluation & Confirmation CDI",
+    subtitle: "Lettre de confirmation en contrat à durée indéterminée",
+    icon: <VerifiedIcon sx={{ fontSize: 36, color: "success.main" }} />, color: "#e8f5e9",
+    extraFields: [
+      { key: "section",    label: "Section / Chaîne",     default: "" },
+      { key: "date_debut", label: "Date de début CDD",    default: "FROM_EMPLOYEE:hire_date", type: "date" },
+      { key: "date_fin",   label: "Date de confirmation", default: todayISO(), type: "date" },
     ],
   },
 ];
@@ -85,12 +95,21 @@ export default function DocumentsRH({ employee }) {
   const [previewTitle, setPreviewTitle] = useState("");
   const [previewing, setPreviewing]     = useState(false);
   const [printing, setPrinting]         = useState(false);
+  const [previewDocId, setPreviewDocId] = useState(null);
 
   const docDef = DOCS.find(d => d.id === open);
 
   const handleOpen = (doc) => {
     const defaults = {};
-    doc.extraFields.forEach(f => { defaults[f.key] = f.default || ""; });
+    doc.extraFields.forEach(f => {
+      if (f.default && f.default.startsWith("FROM_EMPLOYEE:")) {
+        const field = f.default.replace("FROM_EMPLOYEE:", "");
+        const val = employee[field];
+        defaults[f.key] = val ? String(val).slice(0, 10) : "";
+      } else {
+        defaults[f.key] = f.default || "";
+      }
+    });
     setExtra(defaults); setError(null); setOpen(doc.id);
   };
 
@@ -109,6 +128,7 @@ export default function DocumentsRH({ employee }) {
       setPreviewHtml(container.innerHTML);
       setPreviewBlob(blob);
       setPreviewTitle(docDef.title);
+      setPreviewDocId(open);
       setOpen(null);
       setPreviewOpen(true);
     } catch (e) {
@@ -134,15 +154,13 @@ export default function DocumentsRH({ employee }) {
   const handlePrint = async () => {
     setPrinting(true); setError(null);
     try {
-      const blob = previewBlob || await fetchBlob();
-      const container = await renderDocxToHtml(blob);
-      const win = window.open("","_blank");
-      win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${previewTitle}</title>
-<style>*{box-sizing:border-box;margin:0;padding:0}body{background:#fff;font-family:Arial,sans-serif}
-.docx-preview section{padding:2cm}@media print{@page{size:A4;margin:0}}</style>
-</head><body>${container.innerHTML}</body></html>`);
-      win.document.close();
-      win.onload = () => { win.focus(); win.print(); };
+      const docId = previewDocId || open;
+      const res = await hrClient.post(
+        `documents/${employee.id}/${docId}/pdf/`, extra, { responseType: "blob" }
+      );
+      const url = URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
+      const win = window.open(url, "_blank");
+      if (win) win.onload = () => { win.focus(); win.print(); };
     } catch (e) { await readError(e); }
     finally { setPrinting(false); }
   };

@@ -1,0 +1,62 @@
+import React, { useState } from "react";
+
+import useAttendanceData from "../hook/usePresence";
+import FiltersPanel from "../components/FiltrePresence";
+import AttendanceTable from "../components/TablePresence";
+import { Dialog } from "@mui/material";
+import { formatDateTime } from "../utils/FormatDate";
+
+export default function PresencePage() {
+  const { state, actions } = useAttendanceData();
+
+  const [openModal, setOpenModal] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState(null);
+
+  const handleDetail = (record) => {
+    setSelectedRecord(record);
+    setOpenModal(true);
+  };
+
+  const handleClose = () => {
+    setOpenModal(false);
+    setSelectedRecord(null);
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-100 p-6">
+
+      <FiltersPanel
+        filters={state.filters}
+        setFilters={actions.setFilters}
+        onSearch={actions.fetchAttendance}
+      />
+
+      <AttendanceTable
+        data={state.attendanceData}
+        getEmployeeName={actions.getEmployeeName}
+        handleDetail={handleDetail}
+      />
+
+      <Dialog open={openModal} onClose={handleClose} fullWidth maxWidth="sm">
+        <div className="p-6">
+          {selectedRecord ? (
+            <>
+              <h2 className="text-lg font-bold mb-4">
+                Détail pointage
+              </h2>
+
+              <p><strong>Employé :</strong> {selectedRecord.user_id}</p>
+              <p><strong>Date :</strong> {selectedRecord.attendance_date}</p>
+              <p><strong>Arrivée :</strong> {formatDateTime(selectedRecord.arrival) || "—"}</p>
+              <p><strong>Départ :</strong> {formatDateTime(selectedRecord.departure) || "—"}</p>
+              <p><strong>Nombre de pointages :</strong> {selectedRecord.punch_count}</p>
+            </>
+          ) : (
+            <p>Aucun détail</p>
+          )}
+        </div>
+      </Dialog>
+
+    </div>
+  );
+}

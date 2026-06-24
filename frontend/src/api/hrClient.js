@@ -2,7 +2,7 @@ import axios from "axios";
 
 const HR_BASE_URL = process.env.REACT_APP_HR_URL
   ? `${process.env.REACT_APP_HR_URL}/`
-  : process.env.REACT_APP_HR_URL + "/";
+  : `${window.location.origin}/api/hr/`;
 
 const hrClient = axios.create({
   baseURL: HR_BASE_URL,
@@ -24,7 +24,7 @@ hrClient.interceptors.response.use(
     const original = error.config;
     const status = error.response?.status;
 
-    if (status === 401 && !original._retry) {  // 403 = forbidden (role issue), not a token problem
+    if ((status === 401 || status === 403) && !original._retry) {
       original._retry = true;
       try {
         const refresh = localStorage.getItem("refresh_token");

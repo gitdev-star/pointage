@@ -13,7 +13,7 @@ const LoginPage = () => {
     e.preventDefault();
     const success = await login(username, password);
     if (success) {
-      navigate("/dashboard");  // Redirect after login
+      navigate("/");  // Redirect after login
     } else {
       setError("Login failed. Check your credentials.");
     }

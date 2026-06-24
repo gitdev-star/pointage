@@ -1,7 +1,7 @@
 # =====================================================
 # PATH: pointage/docker-compose.yml
 # Nginx reverse proxy — replaces Traefik
-# Only port 80 (HTTP) and 8080 (FastAPI) are public
+# Only port 80 (HTTP→HTTPS redirect) and 443 (HTTPS) are public
 # Everything else is internal on pointage_net
 # =====================================================
 
@@ -17,10 +17,12 @@ services:
     container_name: nginx
     ports:
       - "80:80"
+      - "443:443"
     environment:
       - SERVER_IP=${SERVER_IP}
     volumes:
       - ./nginx.conf:/etc/nginx/templates/default.conf.template:ro
+      - ./ssl:/etc/nginx/ssl:ro                    # SSL certificates
       - django_auth_static:/vol/static:ro          # Django collectstatic output
       - django_hr_media:/vol/media:ro              # Django HR media uploads
     networks:
@@ -69,9 +71,9 @@ services:
     container_name: django_auth
     expose:
       - "8000"
-
     env_file: .env
     environment:
+      - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS}
       - POSTGRES_DB=${POSTGRES_DB}
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -79,11 +81,11 @@ services:
       - POSTGRES_PORT=${POSTGRES_PORT}
       - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
-      - LDAP_SERVER_URI=ldap://192.168.8.1:389
+      - LDAP_SERVER_URI=${LDAP_SERVER_URI} 
       - SERVICE_INTERNAL_KEY=${SERVICE_INTERNAL_KEY}
     volumes:
       - ./django_auth:/app
-      - django_auth_static:/app/staticfiles   # collectstatic writes here, Nginx reads it
+      - django_auth_static:/app/staticfiles
     networks:
       - pointage_net
     depends_on:
@@ -100,9 +102,6 @@ services:
     command: sh -c "python manage.py migrate && python manage.py collectstatic --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --config /dev/null --workers 8 --threads 2 --worker-class gthread --timeout 120 --max-requests 1000 --max-requests-jitter 50"
 
   # ── Django HR (Port 8002) ────────────────────────────────────────────────────
-  # Nginx strips /api/hr prefix before forwarding:
-  #   /api/hr/accounts/me/  → /api/accounts/me/  ✓
-  #   /api/hr/employees/    → /api/employees/     ✓
   django-hr:
     build:
       context: .
@@ -112,6 +111,7 @@ services:
       - "8002"
     env_file: .env
     environment:
+      - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS}
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${HR_DB_NAME}
       - ATTENDANCE_DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
       - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
@@ -155,14 +155,11 @@ services:
       context: .
       dockerfile: Dockerfiles/fastapi.Dockerfile
     container_name: fastapi
-#    network_mode: "host"
     env_file: .env
     environment:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
-     # - DJANGO_AUTH_URL=http://127.0.0.1:8000/api/clockers/
-     # - DJANGO_HR_URL=http://127.0.0.1:8002
-      - DJANGO_AUTH_URL=http://django-auth:8000/api/clockers/   # ← fix
-      - DJANGO_HR_URL=http://django-hr:8002   
+      - DJANGO_AUTH_URL=http://django-auth:8000/api/clockers/
+      - DJANGO_HR_URL=http://django-hr:8002
       - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
       - HR_DB_HOST=${POSTGRES_HOST}
       - HR_DB_PORT=${POSTGRES_PORT}
@@ -180,7 +177,7 @@ services:
         max-size: "10m"
         max-file: "3"
     networks:
-      - pointage_net 
+      - pointage_net
     restart: unless-stopped
 
   # ── Attendance Sync ──────────────────────────────────────────────────────────
@@ -189,15 +186,12 @@ services:
       context: .
       dockerfile: Dockerfiles/fastapi.Dockerfile
     container_name: attendance_sync
-#    network_mode: "host"
     command: python sync_service.py
     env_file: .env
     environment:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
-     # - DJANGO_AUTH_URL=http://127.0.0.1:8000/api/clockers/
-     # - DJANGO_HR_URL=http://127.0.0.1:8002
-      - DJANGO_AUTH_URL=http://django-auth:8000/api/clockers/   # ← fix
-      - DJANGO_HR_URL=http://django-hr:8002   
+      - DJANGO_AUTH_URL=http://django-auth:8000/api/clockers/
+      - DJANGO_HR_URL=http://django-hr:8002
     volumes:
       - ./:/app
     depends_on:
@@ -209,7 +203,7 @@ services:
         max-size: "10m"
         max-file: "3"
     networks:
-      - pointage_net    
+      - pointage_net
     restart: unless-stopped
 
   # ── React Frontend ───────────────────────────────────────────────────────────
@@ -221,16 +215,15 @@ services:
     expose:
       - "3000"
     environment:
-      - REACT_APP_AUTH_URL=http://${SERVER_IP}/api/auth
-      - REACT_APP_HR_URL=http://${SERVER_IP}/api/hr
-      - REACT_APP_FASTAPI_URL=http://${SERVER_IP}/api/fastapi
-      - REACT_APP_API_URL=http://${SERVER_IP}/api/fastapi
-      - CHOKIDAR_USEPOLLING=true
+      - REACT_APP_AUTH_URL=https://${SERVER_IP}/api/auth
+      - REACT_APP_HR_URL=https://${SERVER_IP}/api/hr
+      - REACT_APP_FASTAPI_URL=https://${SERVER_IP}/api/fastapi
+      - REACT_APP_API_URL=https://${SERVER_IP}/api/fastapi
+      - REACT_APP_CLOCKERS_URL=https://${SERVER_IP}/api/clockers
+      - CHOKIDAR_USEPOLLING=false
       - FAST_REFRESH=false
-      - WDS_SOCKET_PORT=80
-      - WDS_SOCKET_HOST=${SERVER_IP}
-      - WDS_SOCKET_PATH=/ws
-      - REACT_APP_CLOCKERS_URL=http://${SERVER_IP}/api/clockers
+      - WDS_SOCKET_PORT=0
+      - CI=true
     volumes:
       - ./frontend:/app
     networks:
@@ -274,4 +267,4 @@ services:
 volumes:
   postgres_data:
   django_hr_media:
-  django_auth_static:    # shared between django-auth (write) and nginx (read)
+  django_auth_static:
