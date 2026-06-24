@@ -60,7 +60,8 @@ jobs:
       - name: Restart containers
         run: |
           cd /home/github-runner/pointage
-          docker compose up -d --build
+          docker compose up -d
+          docker compose restart nginx
 
       - name: Run migrations
         run: |
