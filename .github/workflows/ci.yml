@@ -50,6 +50,7 @@ jobs:
   deploy-dev:
     needs: test
     runs-on: self-hosted
+    timeout-minutes: 10
     if: github.ref == 'refs/heads/develop'
     steps:
       - name: Pull latest code
@@ -66,7 +67,7 @@ jobs:
       - name: Run migrations
         run: |
           cd /home/github-runner/pointage
-          docker compose exec -T django_hr python manage.py migrate
+          docker compose exec -T django-hr python manage.py migrate --no-input
 
   deploy-prod:
     needs: test
@@ -80,5 +81,5 @@ jobs:
             cd /root/pointage &&
             git pull origin main &&
             docker compose up -d --no-build &&
-            docker compose exec -T django_hr python manage.py migrate
+            docker compose exec -T django-hr python manage.py migrate --no-input
           '
