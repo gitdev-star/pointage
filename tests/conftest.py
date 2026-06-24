@@ -84,3 +84,10 @@ async def auth_headers(mock_jwt_user):
 
     token = jwt.encode(mock_jwt_user, DJANGO_SECRET, algorithm=ALGORITHM)
     return {"Authorization": f"Bearer {token}"}
+
+@pytest.fixture(scope="session", autouse=True)
+async def cleanup_engine():
+    """Dispose engine after all tests to prevent hang on exit."""
+    yield
+    from app.database import engine
+    await engine.dispose()
