@@ -1,3 +1,6 @@
+import os
+os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+
 """
 Pytest configuration for FastAPI tests.
 Provides fixtures for async database and HTTP client testing.
