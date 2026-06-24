@@ -1,3 +1,4 @@
+import os
 # main.py
 import logging
 from contextlib import asynccontextmanager
@@ -17,9 +18,10 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("🚀 FastAPI starting...")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    logger.info("✅ Database ready")
+    if os.getenv("ENVIRONMENT") != "test":
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("✅ Database ready")
     logger.info("🎯 API is LIVE on :8080 — sync handled by sync_service.py")
     yield
     logger.info("🛑 API shutting down")
