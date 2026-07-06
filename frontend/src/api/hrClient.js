@@ -24,7 +24,7 @@ hrClient.interceptors.response.use(
     const original = error.config;
     const status = error.response?.status;
 
-    if (status === 401 && !original._retry) {  // 403 = forbidden (role issue), not a token problem
+    if ((status === 401 || status === 403) && !original._retry) {
       original._retry = true;
       try {
         const refresh = localStorage.getItem("refresh_token");

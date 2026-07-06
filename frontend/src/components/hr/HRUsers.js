@@ -12,7 +12,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SearchIcon from "@mui/icons-material/Search";
 import hrClient from "../../api/hrClient";
-import apiClient from "../../api/apiClient";
+import authClient from "../../api/authClient";
 import { useHRAuth } from "../../contexts/HRAuthContext";
 
 const ROLE_COLORS = {
@@ -85,7 +85,7 @@ export default function HRUsers() {
     if (ldapUsers.length === 0) {
       setLdapLoading(true);
       try {
-        const res = await apiClient.get("auth/ldap/users/");
+        const res = await authClient.get("ldap/users/");
         setLdapUsers(res.data);
       } catch {
         setAlert({ type: "error", msg: "Erreur chargement des utilisateurs AD." });
@@ -107,7 +107,7 @@ export default function HRUsers() {
     if (!selectedLdap) return;
     setImporting(true);
     try {
-      await apiClient.post("auth/ldap/import/", {
+      await authClient.post("ldap/import/", {
         username: selectedLdap.username,
         role: "HR",
       });
@@ -155,7 +155,7 @@ export default function HRUsers() {
     setDeleting(true);
     try {
       // Uses the new HR-allowed delete endpoint
-      await apiClient.delete(`auth/users/${deleteDialog.auth_user_id}/hr-delete/`);
+      await authClient.delete(`users/${deleteDialog.auth_user_id}/hr-delete/`);
       setAlert({ type: "success", msg: `${deleteDialog.username} supprimé.` });
       setDeleteDialog(null);
       fetchProfiles();

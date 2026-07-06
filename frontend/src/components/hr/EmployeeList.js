@@ -85,6 +85,8 @@ export default function EmployeeList() {
   const [factories, setFactories]     = useState([]);
   const [departments, setDepartments] = useState([]);
   const [sections, setSections]       = useState([]);
+  const [classifications, setClassifications] = useState([]);
+  const [postes, setPostes]               = useState([]);
   const [loading, setLoading]         = useState(false);
   const [exporting, setExporting]     = useState(false);
   const [total, setTotal]             = useState(0);
@@ -155,6 +157,10 @@ export default function EmployeeList() {
       .then(r => setDepartments(r.data.results || r.data)).catch(() => {});
     hrClient.get("employees/sections/?page_size=500")
       .then(r => setSections(r.data.results || r.data)).catch(() => {});
+    hrClient.get("employees/classifications/?page_size=200")
+      .then(r => setClassifications(r.data.results || r.data)).catch(() => {});
+    hrClient.get("employees/postes/?page_size=500")
+      .then(r => setPostes(r.data.results || r.data)).catch(() => {});
   }, []);
 
   const handleSearchChange = (val) => {
@@ -196,7 +202,7 @@ export default function EmployeeList() {
           [
             e.n_rh, e.employee_id, e.last_name, e.first_name, e.sexe,
             e.birth_date, e.cin, e.cin_date, e.cin_place, e.cnaps,
-            e.factory_name, e.department_name, e.section_name || "", e.job_title, e.contract_type,
+            e.factory_name, e.department_name, e.section_name || "", e.job_title_name, e.contract_type,
             e.hire_date, e.status, e.email, e.phone, e.address,
             e.nbre_enfants, e.affectation,
           ].map(v => '"' + (v ?? "").toString().replace(/"/g, '""') + '"').join(";")
@@ -239,7 +245,7 @@ export default function EmployeeList() {
       factory:          emp.factory          || "",
       department:       emp.department       || "",
       section:          emp.section          || "",
-      job_title:        emp.job_title        || "",
+      job_title:        emp.job_title        ?? "",
       contract_type:    emp.contract_type    || "CDI",
       hire_date:        emp.hire_date        || "",
       termination_date: emp.termination_date || "",
@@ -250,7 +256,7 @@ export default function EmployeeList() {
       hk_ou_pbi:        emp.hk_ou_pbi        || "",
       n_rh:             emp.n_rh             || "",
       salaire:          emp.salaire          || "",
-      classification:   emp.classification   || "",
+      classification:   emp.classification   ?? "",
       device_user_id:   emp.device_user_id   ?? "",
       auth_user_id:     emp.auth_user_id     ?? "",
       _id: emp.id,
@@ -287,7 +293,7 @@ export default function EmployeeList() {
     if (!formData.last_name.trim())   errors.last_name   = "Requis";
     if (!formData.factory)            errors.factory     = "Requis";
     if (!formData.department)         errors.department  = "Requis";
-    if (!formData.job_title.trim())   errors.job_title   = "Requis";
+    if (!formData.job_title)          errors.job_title   = "Requis";
     if (!formData.hire_date)          errors.hire_date   = "Requis";
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email))
       errors.email = "Email invalide";
@@ -438,8 +444,8 @@ export default function EmployeeList() {
           <Select value={sexeFilter} label="Sexe"
             onChange={e => { setSexe(e.target.value); setPage(0); }}>
             <MenuItem value="">Tous</MenuItem>
-            <MenuItem value="F">Femmes</MenuItem>
-            <MenuItem value="M">Hommes</MenuItem>
+            <MenuItem value="Féminin">Femmes</MenuItem>
+            <MenuItem value="Masculin">Hommes</MenuItem>
           </Select>
         </FormControl>
         {/* Usine */}
@@ -519,7 +525,7 @@ export default function EmployeeList() {
                   <TableCell sx={{ fontWeight: 600, fontSize: 13 }}>{emp.last_name}</TableCell>
                   <TableCell sx={{ fontSize: 13 }}>{emp.first_name}</TableCell>
                   <TableCell sx={{ fontSize: 12 }}>{emp.sexe || "—"}</TableCell>
-                  <TableCell sx={{ fontSize: 12 }}>{emp.job_title}</TableCell>
+                  <TableCell sx={{ fontSize: 12 }}>{emp.job_title_name || "—"}</TableCell>
                   <TableCell sx={{ fontSize: 12 }}>{emp.factory_name}</TableCell>
                   <TableCell sx={{ fontSize: 12 }}>{emp.department_name}</TableCell>
                   <TableCell>
@@ -700,9 +706,22 @@ export default function EmployeeList() {
               </FormControl>
             </Grid>
             <Grid item xs={12} sm={6}>
-              <TextField fullWidth size="small" label="Poste *" value={formData.job_title}
-                onChange={e => handleFormChange("job_title", e.target.value)}
-                error={!!formErrors.job_title} helperText={formErrors.job_title} />
+              <FormControl fullWidth size="small" error={!!formErrors.job_title}>
+                <InputLabel>Poste *</InputLabel>
+                <Select
+                  value={formData.job_title}
+                  label="Poste *"
+                  onChange={e => handleFormChange("job_title", e.target.value)}
+                >
+                  <MenuItem value="">—</MenuItem>
+                  {postes.map(p => (
+                    <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+                  ))}
+                </Select>
+                {formErrors.job_title && (
+                  <Typography variant="caption" color="error">{formErrors.job_title}</Typography>
+                )}
+              </FormControl>
             </Grid>
             <Grid item xs={12} sm={6}>
               <FormControl fullWidth size="small">
@@ -759,8 +778,19 @@ export default function EmployeeList() {
                 onChange={e => handleFormChange("salaire", e.target.value)} />
             </Grid>
             <Grid item xs={12} sm={4}>
-              <TextField fullWidth size="small" label="Classification" value={formData.classification}
-                onChange={e => handleFormChange("classification", e.target.value)} />
+              <FormControl fullWidth size="small">
+                <InputLabel>Classification</InputLabel>
+                <Select
+                  value={formData.classification}
+                  label="Classification"
+                  onChange={e => handleFormChange("classification", e.target.value)}
+                >
+                  <MenuItem value="">—</MenuItem>
+                  {classifications.map(c => (
+                    <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField fullWidth size="small" label="N° RH" value={formData.n_rh}

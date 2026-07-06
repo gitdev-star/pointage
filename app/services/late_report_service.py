@@ -117,8 +117,13 @@ def _get_employee_ids_by_classification(classification: Optional[str]) -> Option
         try:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT employee_id FROM employees_employee "
-                    "WHERE classification = %s AND employee_id IS NOT NULL",
+                    """
+                    SELECT e.employee_id
+                    FROM employees_employee e
+                    JOIN classification c ON c.id_classification = e.classification_id
+                    WHERE c.classe = %s
+                      AND e.employee_id IS NOT NULL
+                    """,
                     (classification,)
                 )
                 rows = cur.fetchall()
@@ -154,9 +159,9 @@ def get_all_classifications() -> List[str]:
         try:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT DISTINCT classification FROM employees_employee "
-                    "WHERE classification IS NOT NULL AND classification != '' "
-                    "ORDER BY classification"
+                    "SELECT DISTINCT classe FROM classification "
+                    "WHERE classe IS NOT NULL AND classe != \'\' "
+                    "ORDER BY classe"
                 )
                 rows = cur.fetchall()
         finally:
@@ -278,15 +283,36 @@ async def compute_late_report(
         f"Skipped user_ids: {sorted(set(skipped_ids))}"
     )
 
-    # ── Per-user analysis (concurrent) ────────────────────────────────────────
+    # ── Pre-fetch all schedules in parallel (1 thread per user, not per day) ────
+    # get_schedule_for_employee returns the same rule for all days of the month
+    # for a given user → cache it: uid → ScheduleRules
+    schedule_cache: dict = {}
+
+    def _fetch_schedule_for_user(uid: int, sample_date: date) -> tuple:
+        return uid, get_schedule_for_employee(uid, sample_date)
+
+    # Use first day of month as sample date for every user (schedules don't
+    # change day-to-day within a month in practice)
+    sample_date = first_day
+    schedule_futures = [
+        loop.run_in_executor(None, _fetch_schedule_for_user, uid, sample_date)
+        for uid in user_rows
+    ]
+    for fut in await asyncio.gather(*schedule_futures):
+        uid, rules = fut
+        schedule_cache[uid] = rules
+
+    logger.warning(
+        f"[PERF] Schedule cache built for {len(schedule_cache)} users"
+    )
+
+    # ── Per-user analysis (concurrent, no more per-day thread calls) ──────────
     async def _analyze_user(uid: int, day_rows) -> Optional[LateEmployee]:
         late_days_out: List[LateDay] = []
         present_count = 0
+        rules: ScheduleRules = schedule_cache[uid]
 
         for row in day_rows:
-            rules: ScheduleRules = await loop.run_in_executor(
-                None, get_schedule_for_employee, uid, row.date
-            )
             day_rec = _analyze_day(row, rules)
 
             if day_rec.is_weekend:

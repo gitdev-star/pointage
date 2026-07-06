@@ -19,3 +19,4 @@ django-filter
 pytest
 pytest-django
 pytest-cov
+pypdf

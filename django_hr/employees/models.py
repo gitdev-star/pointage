@@ -4,7 +4,6 @@ from django.db import models
 class Factory(models.Model):
     name = models.CharField(max_length=100, unique=True)
     location = models.CharField(max_length=200, blank=True)
-    code = models.CharField(max_length=20, unique=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -13,12 +12,11 @@ class Factory(models.Model):
         ordering = ["name"]
 
     def __str__(self):
-        return f"{self.code} - {self.name}"
+        return self.name
 
 
 class Department(models.Model):
     name = models.CharField(max_length=100)
-    code = models.CharField(max_length=20, unique=True)
     factory = models.ForeignKey(
         Factory, on_delete=models.PROTECT, related_name="departments"
     )
@@ -37,7 +35,7 @@ class Department(models.Model):
         unique_together = [("name", "factory")]
 
     def __str__(self):
-        return f"{self.factory.code} / {self.name}"
+        return f"{self.factory.name} / {self.name}"
 
 
 class Employee(models.Model):
@@ -61,9 +59,9 @@ class Employee(models.Model):
     photo = models.ImageField(upload_to="employees/photos/", null=True, blank=True)
     email = models.EmailField(unique=True, blank=True, null=True)
     phone = models.CharField(max_length=30, blank=True)
-    factory = models.ForeignKey(Factory, on_delete=models.PROTECT, related_name="employees")
-    department = models.ForeignKey(Department, on_delete=models.PROTECT, related_name="employees")
-    job_title = models.CharField(max_length=150)
+    factory = models.ForeignKey(Factory, on_delete=models.PROTECT, related_name="employees", null=True, blank=True)
+    department = models.ForeignKey(Department, on_delete=models.PROTECT, related_name="employees", null=True, blank=True)
+    job_title        = models.ForeignKey("Poste",    on_delete=models.PROTECT, related_name="employees", null=True, blank=True)
     contract_type = models.CharField(max_length=20, choices=ContractType.choices, default=ContractType.PERMANENT)
     hire_date = models.DateField()
     termination_date = models.DateField(null=True, blank=True)
@@ -86,7 +84,12 @@ class Employee(models.Model):
     n_rh = models.CharField(max_length=50, blank=True, null=True)
     motif_depart = models.CharField(max_length=200, blank=True, null=True)
     salaire = models.CharField(max_length=50, blank=True, null=True)
-    classification = models.CharField(max_length=50, blank=True, null=True)
+    classification = models.ForeignKey(
+        'Classification',
+            on_delete=models.SET_NULL,
+            null=True, blank=True,
+            related_name='employees',
+         )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -109,7 +112,6 @@ class Employee(models.Model):
 
 class Section(models.Model):
     name       = models.CharField(max_length=100)
-    code       = models.CharField(max_length=20, unique=True)
     department = models.ForeignKey(Department, on_delete=models.PROTECT, related_name="sections")
     is_active  = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -119,15 +121,37 @@ class Section(models.Model):
         unique_together = [("name", "department")]
 
     def __str__(self):
-        return f"{self.department.code} / {self.name}"
+        return f"{self.department.name} / {self.name}"
 
+
+
+class Poste(models.Model):
+    name        = models.CharField(max_length=150, unique=True)
+    description = models.TextField(blank=True, null=True)
+    is_active   = models.BooleanField(default=True)
+    created_at  = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        db_table = "poste"
+        managed  = False
+    def __str__(self):
+        return self.name
+
+class Classification(models.Model):
+    id_classification = models.AutoField(primary_key=True)
+    classe = models.CharField(max_length=50, unique=True)
+    salaire = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+
+    class Meta:
+        db_table = 'classification'
+        managed = False
+
+    def __str__(self):
+        return self.classe
 
 # =====================================================
 # ADD THIS TO: pointage/django_hr/employees/models.py
 # (append at the bottom, after Section)
 # =====================================================
-
-from django.db import models
 
 
 class WorkSchedule(models.Model):
