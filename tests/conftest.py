@@ -20,7 +20,7 @@ from main import app
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 async def test_engine():
     """Create a test database engine."""
     engine = create_async_engine(
@@ -37,12 +37,13 @@ async def test_engine():
 
 @pytest.fixture
 async def test_session(test_engine):
-    """Create a test database session."""
-    async_session = async_sessionmaker(
-        test_engine, class_=AsyncSession, expire_on_commit=False
-    )
-    async with async_session() as session:
+    """Create a test database session with rollback after each test."""
+    async with test_engine.connect() as conn:
+        await conn.begin()
+        session = AsyncSession(bind=conn, expire_on_commit=False)
         yield session
+        await session.close()
+        await conn.rollback()
 
 
 @pytest.fixture
@@ -102,3 +103,12 @@ def pytest_sessionfinish(session, exitstatus):
         loop.close()
     except Exception:
         pass
+
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_engine():
+    """Dispose SQLAlchemy engine after all tests to prevent hanging."""
+    yield
+    import asyncio
+    from app.database import engine
+    asyncio.get_event_loop().run_until_complete(engine.dispose())
