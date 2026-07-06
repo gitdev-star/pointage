@@ -50,7 +50,7 @@ jobs:
       - name: Run django_auth tests
         run: |
           cd django_auth
-          pytest --tb=short -q
+          python -m pytest --tb=short -q
         env:
           DJANGO_SECRET_KEY: ci-test-secret-key-minimum-32-chars-long
           LDAP_BIND_PASSWORD: test-ldap-password
