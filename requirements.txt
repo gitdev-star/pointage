@@ -34,8 +34,8 @@ psycopg2-binary
 django
 
 # Testing
-pytest>=7.4.0
-pytest-asyncio>=0.21.0
+pytest>=8.0.0
+pytest-asyncio==0.23.8
 pytest-cov>=4.1.0
 pytest-django>=4.5.0
 httpx>=0.25.0
@@ -46,3 +46,9 @@ factory-boy>=3.3.0
 # Django REST Framework (for tests that need it)
 djangorestframework>=3.14
 djangorestframework-simplejwt>=5.3
+django-cors-headers
+ldap3
+django-cors-headers
+ldap3
+whitenoise
+whitenoise
