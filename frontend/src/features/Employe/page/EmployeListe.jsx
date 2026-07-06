@@ -153,52 +153,20 @@ export default function EmployeeList() {
 
   // ── Alertes ───────────────────────────────────────────────────────────────────
   const [alert, setAlert] = useState(null); // { type, msg } | null
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
   // ── Selects cascadants ────────────────────────────────────────────────────────
   const filteredModalDepts = formData.factory
     ? departments.filter((d) => String(d.factory) === String(formData.factory))
     : departments;
-  // const filteredSections = formData.department
-  //   ? sections.filter((s) => String(s.department) === String(formData.department))
-  //   : [];
-//   const filteredSections = sections.filter((s) => {
-//   const depId = typeof s.department === "object"
-//     ? s.department.id
-//     : s.department;
-
-//   return String(depId) === String(formData.department);
-// });
-
-// const selectedDepartment = String(formData.department || "");
-
-// const filteredSections = sections.filter((s) =>
-//   String(s.department) === selectedDepartment
-// );
 const filteredSections = sections.filter(
   (s) => String(s.department) === String(formData.department)
 );
-
-// // // console.log("formData.department:", formData.department);
-// // // console.log("sections:", sections);
-// // // console.log("filteredSections:", filteredSections);
-
-  // ─── Fetch ────────────────────────────────────────────────────────────────────
-
-  // const fetchEmployees = useCallback(async () => {
-  //   setLoading(true);
-  //   try {
-  //     const r = await hrClient.get("employees/", { params: buildApiParams(filters, page, DEFAULT_PAGE_SIZE) });
-  //     setEmployees(r.data.results || r.data);
-  //     setTotal(r.data.count || 0);
-  //   } catch { }
-  //   finally { setLoading(false); }
-  // }, [filters, page]);
-
   const fetchEmployees = useCallback(async () => {
   setLoading(true);
   try {
     const r = await hrClient.get("employees/", { 
-      params: buildApiParams(filters, page, DEFAULT_PAGE_SIZE) 
+      params: buildApiParams(filters, page, pageSize) 
     });
     
     // ✅ Toujours s'assurer que c'est un tableau
@@ -220,7 +188,7 @@ const filteredSections = sections.filter(
   } finally { 
     setLoading(false); 
   }
-}, [filters, page]);
+}, [filters, page, pageSize]);
 
   useEffect(() => { fetchEmployees(); }, [fetchEmployees]);
 
@@ -315,96 +283,7 @@ const handleFormChange = (field, value) => {
   if (formErrors[field]) setFormErrors((prev) => ({ ...prev, [field]: "" }));
 };
 
-  // ─── Save ─────────────────────────────────────────────────────────────────────
-
-//   const handleSave = async () => {
-//     // // console.log("=== handleSave appelé ===");
-//   // // console.log("formData:", formData);
-//     const errors = validateEmployeeForm(formData);
-//       // // console.log("errors:", errors);
-//     if (Object.keys(errors).length) { 
-//       // // console.log("❌ Validation échouée, erreurs:", errors);
-//       setFormErrors(errors);
-//        return; }
-// // // console.log("✅ Validation OK, envoi...");
-// // // console.log("classification value:", formData.classification, typeof formData.classification);
-//     setSaving(true);
-//     try {
-//       const payload = new FormData();
-
-//       const textFields = [
-//         "employee_id","first_name","last_name","sexe","birth_date","birth_place",
-//         "email","phone","address","cin","cin_date","cin_place","cnaps",
-//         "factory","department","section","job_title","contract_type",
-//         "hire_date","termination_date","status","motif_depart",
-//         "matricule_paie","affectation","hk_ou_pbi","n_rh","salaire","classification_id",
-//       ];
-//       textFields.forEach((f) => {
-//         if (formData[f] !== "" && formData[f] != null) payload.append(f, formData[f]);
-//       });
-// if (formData.nbre_enfants !== "" && formData.nbre_enfants != null) {
-//   payload.append("nbre_enfants", parseInt(formData.nbre_enfants, 10));
-// }      if (
-//           formData.device_user_id !== null &&
-//           formData.device_user_id !== undefined &&
-//           formData.device_user_id !== ""
-//         ) 
-        
-//         {
-//           // Juste avant payload.append dans handleSave
-// textFields.forEach((f) => {
-//   // Mapper classification → classification_id
-// const formKey = f === "classification_id" ? "classification" : f;
-// if (formData[formKey] !== "" && formData[formKey] != null) {
-//   payload.append(f, formData[formKey]);
-// }
-// });
-//           payload.append("device_user_id", formData.device_user_id);
-//         }
-
-//         if (
-//           formData.auth_user_id !== null &&
-//           formData.auth_user_id !== undefined &&
-//           formData.auth_user_id !== ""
-//         ) {
-//           payload.append("auth_user_id", formData.auth_user_id);
-//         }
-//       if (photoFile) payload.append("photo", photoFile);
-
-//       const headers = { "Content-Type": "multipart/form-data" };
-
-//       if (modalMode === "add") {
-//         await hrClient.post("employees/", payload, { headers });
-//         setAlert({ type: "success", msg: "Employé créé avec succès." });
-//       } else {
-//         await hrClient.patch(`employees/${formData._id}/`, payload, { headers });
-//         setAlert({ type: "success", msg: "Employé mis à jour avec succès." });
-//       }
-//       closeModal();
-
-//       if (modalMode === "add") {
-//         await hrClient.post("employees/", payload, { headers });
-//         setAlert({ type: "success", msg: "Employé créé avec succès." });
-//       } else {
-//         await hrClient.patch(`employees/${formData._id}/`, payload, { headers });
-//         setAlert({ type: "success", msg: "Employé mis à jour avec succès." });
-//       }
-//       closeModal();
-//       if (modalMode === "add") setPage(0); // ← ajouter ça
-
-//       fetchEmployees();
-//     } catch (err) {
-//       const data = err.response?.data;
-//       if (data && typeof data === "object") {
-//         const be = {};
-//         Object.entries(data).forEach(([k, v]) => { be[k] = Array.isArray(v) ? v.join(" ") : v; });
-//         setFormErrors(be);
-//       } else {
-//         setAlert({ type: "error", msg: "Erreur lors de la sauvegarde." });
-//       }
-//     } finally { setSaving(false); }
-//   };
-
+ 
 const handleSave = async () => {
     // // console.log("=== handleSave appelé ===");
   // // console.log("formData:", formData);
@@ -607,7 +486,7 @@ const handleSave = async () => {
 
         {/* ── Tableau ── */}
         <Paper elevation={2}>
-          <TableContainer>
+          <TableContainer sx={{ maxHeight: "calc(100vh - 300px)", overflow: "auto" }}>
             <Table size="small" stickyHeader>
               <TableHead>
                 <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
@@ -693,13 +572,17 @@ const handleSave = async () => {
           </TableContainer>
 
           <TablePagination
-            className="no-print"
-            component="div" count={total} page={page}
-            onPageChange={(_, p) => setPage(p)}
-            rowsPerPage={DEFAULT_PAGE_SIZE}
-            rowsPerPageOptions={[20, 50, 100]}
-            labelRowsPerPage="Lignes par page"
-            labelDisplayedRows={({ from, to, count }) => `${from}–${to} sur ${count}`}
+              className="no-print"
+                component="div" count={total} page={page}
+                onPageChange={(_, p) => setPage(p)}
+                rowsPerPage={pageSize}                          
+                onRowsPerPageChange={(e) => {                    {/* ← nouveau */}
+                  setPageSize(parseInt(e.target.value, 10));
+                  setPage(0);                                     // reset à la page 1 pour éviter une page vide
+                }}
+                rowsPerPageOptions={[100, 1000]}
+                labelRowsPerPage="Lignes par page"
+                labelDisplayedRows={({ from, to, count }) => `${from}–${to} sur ${count}`}
           />
         </Paper>
 

@@ -24,7 +24,7 @@ function CRUDTable({ columns, rows, loading, onAdd, onEdit, onDelete, canWrite, 
           <Button variant="contained" startIcon={<AddIcon />} onClick={onAdd}>Ajouter</Button>
         </Box>
       )}
-      <TableContainer component={Paper} elevation={2}>
+      <TableContainer component={Paper} elevation={2} sx={{ maxHeight: "60vh", overflow: "auto" }}>
         <Table size="small">
           <TableHead>
             <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
