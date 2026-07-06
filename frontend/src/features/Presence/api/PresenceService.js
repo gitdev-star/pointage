@@ -1,82 +1,3 @@
-// const API_BASE = process.env.REACT_APP_API_URL + "/attendance/";
-
-// // export const attendanceService = {
-// //   async getGrouped(params, signal) {
-// //     const res = await fetch(`${API_BASE}grouped?${params}`, { signal });
-// //     if (!res.ok) throw new Error("Erreur fetch grouped");
-// //     return res.json();
-// //   },
-
-// //   async getStats(params) {
-// //     const res = await fetch(`${API_BASE}stats?${params}`);
-// //     return res.ok ? res.json() : {};
-// //   },
-
-// //   async getKpi(date) {
-// //     const res = await fetch(`${API_BASE}kpi?target_date=${date}`);
-// //     return res.ok ? res.json() : {};
-// //   },
-
-// //   async getAnalysis(userId, dateFrom, dateTo) {
-// //     const res = await fetch(
-// //       `${API_BASE}analysis/${userId}?date_from=${dateFrom}&date_to=${dateTo}`
-// //     );
-// //     return res.ok ? res.json() : null;
-// //   },
-
-// //   async getAvailableIps() {
-// //     const res = await fetch(`${API_BASE}available-ips`);
-// //     return res.ok ? res.json() : [];
-// //   }
-// // };
-
-// const getAuthHeaders = () => {
-//   const token = localStorage.getItem("access_token");
-//   return token ? { Authorization: `Bearer ${token}` } : {};
-// };
-
-// export const attendanceService = {
-//   async getGrouped(params, signal) {
-//     const res = await fetch(`${API_BASE}grouped?${params}`, {
-//       signal,
-//       headers: getAuthHeaders(),  // ✅
-//     });
-//     if (!res.ok) throw new Error("Erreur fetch grouped");
-//     return res.json();
-//   },
-
-//   async getStats(params) {
-//     const res = await fetch(`${API_BASE}stats?${params}`, {
-//       headers: getAuthHeaders(),  // ✅
-//     });
-//     return res.ok ? res.json() : {};
-//   },
-
-//   async getKpi(date) {
-//     const res = await fetch(`${API_BASE}kpi?target_date=${date}`, {
-//       headers: getAuthHeaders(),  // ✅
-//     });
-//     return res.ok ? res.json() : {};
-//   },
-
-//   async getAnalysis(userId, dateFrom, dateTo) {
-//     const res = await fetch(
-//       `${API_BASE}analysis/${userId}?date_from=${dateFrom}&date_to=${dateTo}`,
-//       { headers: getAuthHeaders() }  // ✅
-//     );
-//     return res.ok ? res.json() : null;
-//   },
-
-//   async getAvailableIps() {
-//     const res = await fetch(`${API_BASE}available-ips`, {
-//       headers: getAuthHeaders(),  // ✅
-//     });
-//     return res.ok ? res.json() : [];
-//   }
-// };
-
-
-
 import axios from "axios";
 
 const FASTAPI_BASE_URL = process.env.REACT_APP_API_URL
@@ -166,6 +87,20 @@ export const attendanceService = {
     }
   },
 
+async getLateToday(date, skip = 0, limit = 50) {
+  try {
+    const res = await fastapiClient.get(
+      `${ATTENDANCE}late-today?target_date=${date}&skip=${skip}&limit=${limit}`
+    );
+    console.log("getLateToday response:", res.data, res.headers);
+    const totalCount = parseInt(res.headers["x-total-count"] || "0", 10);
+    return { data: res.data, totalCount };
+  } catch (err) {
+    console.error("getLateToday ERROR:", err.response?.status, err.response?.data || err.message);
+    return { data: [], totalCount: 0 };
+  }
+},
+
   async getAvailableIps() {
     try {
       const res = await fastapiClient.get(`${ATTENDANCE}available-ips`);
@@ -178,10 +113,18 @@ export const attendanceService = {
   // Ajouter dans attendanceService, après getGrouped
 async getGroupedWithCount(params, signal) {
   const res = await fastapiClient.get(`${ATTENDANCE}grouped?${params}`, { signal });
-  console.log("TOUS LES HEADERS:", JSON.stringify(res.headers));
   const totalCount = parseInt(res.headers["x-total-count"] || "0", 10);
   console.log("totalCount parsé:", totalCount);
   return { data: res.data, totalCount };
+},
+
+async getPresentToday(date) {
+  try {
+    const res = await fastapiClient.get(`${ATTENDANCE}present-today?target_date=${date}`);
+    return res.data;
+  } catch {
+    return [];
+  }
 },
 };
 

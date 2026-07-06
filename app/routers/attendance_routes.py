@@ -543,6 +543,91 @@ async def get_daily_kpi(
         late_threshold="07:40",
     )
 
+# --------------------------------------------------
+# LATE TODAY — list of employees late today (same logic as /kpi)
+# --------------------------------------------------
+# --------------------------------------------------
+# LATE TODAY — paginated list of employees late today (same logic as /kpi)
+# --------------------------------------------------
+class LateEmployeeResponse(BaseModel):
+    user_id: int
+    arrival: datetime
+    minutes_late: int
+
+
+@router.get("/late-today", response_model=List[LateEmployeeResponse])
+async def get_late_today(
+    response: Response,
+    target_date: Optional[date] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=1000),
+    db: AsyncSession = Depends(get_async_db),
+):
+    """Returns the paginated list of employees whose first punch was after the
+    late cutoff. Uses the exact same logic as /kpi so counts always match."""
+    import datetime as dt_module
+    kpi_date = target_date or date.today()
+    late_cutoff = dt_module.datetime.combine(kpi_date, dt_module.time(7, 40, 0))
+
+    subq = (
+        select(
+            Attendance.user_id,
+            func.min(Attendance.timestamp).label("first_punch"),
+        )
+        .where(Attendance.date == kpi_date)
+        .group_by(Attendance.user_id)
+        .subquery()
+    )
+
+    late_filter = subq.c.first_punch > late_cutoff
+
+    count_result = await db.execute(
+        select(func.count()).select_from(subq).where(late_filter)
+    )
+    total = count_result.scalar() or 0
+    response.headers["X-Total-Count"] = str(total)
+
+    result = await db.execute(
+        select(subq.c.user_id, subq.c.first_punch)
+        .where(late_filter)
+        .order_by(subq.c.first_punch)
+        .offset(skip)
+        .limit(limit)
+    )
+    rows = result.all()
+
+    return [
+        LateEmployeeResponse(
+            user_id=row.user_id,
+            arrival=row.first_punch,
+            minutes_late=int((row.first_punch - late_cutoff).total_seconds() // 60),
+        )
+        for row in rows
+    ]
+
+# --------------------------------------------------
+# PRESENT TODAY — lightweight list of user_ids present (for factory aggregation)
+# --------------------------------------------------
+class PresentUserResponse(BaseModel):
+    user_id: int
+
+
+@router.get("/present-today", response_model=List[PresentUserResponse])
+async def get_present_today(
+    target_date: Optional[date] = Query(None),
+    db: AsyncSession = Depends(get_async_db),
+):
+    """Returns the list of distinct user_ids present on the given day.
+    Lightweight — used to compute per-factory presence/late rates on the frontend."""
+    kpi_date = target_date or date.today()
+
+    result = await db.execute(
+        select(distinct(Attendance.user_id))
+        .where(Attendance.date == kpi_date)
+    )
+    rows = result.scalars().all()
+
+    return [PresentUserResponse(user_id=uid) for uid in rows]
 
 # --------------------------------------------------
 # GROUPED ATTENDANCE — first/last punch per user per day

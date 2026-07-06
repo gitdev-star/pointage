@@ -96,9 +96,9 @@ function DonutChart({ kpi, totalActive, absentCount }) {
       {/* Mini stats sous le donut */}
       <div className="grid grid-cols-3 gap-2 mt-2">
         {[
-          { label: "À l'heure", value: presents, color: "text-green-600", bg: "bg-green-50" },
-          { label: "En retard", value: retards,  color: "text-yellow-500", bg: "bg-yellow-50" },
-          { label: "Absents",   value: absents,  color: "text-red-500",   bg: "bg-red-50"   },
+          { label: "À l'heure", value: presents, color: "#6f8f7c", bg: "bg-[#eef3f0]" },
+          { label: "En retard", value: retards,  color: "#b99b5d", bg: "bg-[#f7ecea]" },
+          { label: "Absents",   value: absents,  color: "#a45c56",   bg: "bg-[#f8f2e6]"   },
         ].map(s => (
           <div key={s.label} className={`${s.bg} rounded-xl p-2 text-center`}>
             <div className={`text-lg font-bold ${s.color}`}>{s.value}</div>
@@ -188,7 +188,7 @@ function PresenceBarChart({ attendanceData }) {
             <Tooltip content={<CustomTooltip />} cursor={{ fill: "#f3f4f6", radius: 4 }} />
             <Bar
               dataKey="présences"
-              fill="#3b82f6"
+              fill="#5b7a8c"
               radius={[4, 4, 0, 0]}
             />
           </BarChart>

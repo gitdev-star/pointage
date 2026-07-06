@@ -41,24 +41,25 @@ export default function useAttendanceData() {
   const abortRef = useRef(null);
 
   // ───────────────────────── EMPLOYEES MAP ─────────────────────────
-  const fetchEmployees = useCallback(async () => {
-    const res = await hrClient.get("employees/", {
-      params: { page_size: 5000, status: "ACTIVE" }
-    });
+const fetchEmployees = useCallback(async () => {
+  const res = await hrClient.get("employees/", {
+    params: { page_size: 5000, status: "ACTIVE" }
+  });
 
-    const map = {};
-    (res.data.results ?? res.data).forEach(e => {
-      const id = Number(e.device_user_id || e.employee_id);
-      if (!id) return;
+  const map = {};
+  (res.data.results ?? res.data).forEach(e => {
+    const id = Number(e.device_user_id || e.employee_id);
+    if (!id) return;
 
-      map[id] = {
-        name: `${e.first_name} ${e.last_name}`,
-        empId: e.employee_id
-      };
-    });
+    map[id] = {
+      name: `${e.first_name} ${e.last_name}`,
+      empId: e.employee_id,
+      factoryName: e.factory_name || "Non assigné",
+    };
+  });
 
-    setEmployeeMap(map);
-  }, []);
+  setEmployeeMap(map);
+}, []);
 
   // ───────────────────────── CLOCKERS ─────────────────────────
   const fetchClockers = useCallback(async () => {
@@ -93,8 +94,6 @@ const fetchAttendance = useCallback(async () => {
     // Page 0 — on récupère aussi le total
     const { data: firstPage, totalCount } =
       await attendanceService.getGroupedWithCount(buildParams(0), signal);
-
-    console.log("Total à fetcher:", totalCount, "| première page:", firstPage.length);
 
     if (!totalCount || firstPage.length >= totalCount) {
       setAttendanceData(firstPage);
@@ -131,32 +130,6 @@ const fetchAttendance = useCallback(async () => {
     const data = await attendanceService.getStats(params.toString());
     setStats(data);
   };
-
-  // ───────────────────────── KPI ─────────────────────────
-// const fetchKpi = async () => {
-//   setKpiLoading(true);
-//   try {
-//     const today = new Date().toISOString().split('T')[0];
-
-//     const [kpiRes, empRes] = await Promise.all([
-//       fetch(`${API_BASE}kpi?target_date=${today}`),
-//       hrClient.get('employees/', { params: { status: 'ACTIVE', page_size: 1 } }),
-//     ]);
-
-//     if (kpiRes.ok) setKpi(await kpiRes.json());
-//     if (empRes.data) setTotalActive(empRes.data.count ?? null);
-
-//     const absents =
-//   kpi.presents != null && totalActive != null
-//     ? Math.max(0, totalActive - kpi.presents)
-//     : null;
-
-//   } catch (err) {
-//     console.error('KPI error:', err);
-//   } finally {
-//     setKpiLoading(false);
-//   }
-// };
 
 const fetchKpi = async () => {
   setKpiLoading(true);

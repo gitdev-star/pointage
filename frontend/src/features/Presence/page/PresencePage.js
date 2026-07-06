@@ -121,6 +121,12 @@ const HRAttendanceDashboard = () => {
     return resolvedEmployees[Number(userId)]?.empId ?? userId;
   };
 
+  const formatEmployeeId = (userId) => {
+    const id = getEmployeeId(userId);
+    if (id === null || id === undefined || id === '') return '—';
+    return String(id).padStart(6, '0');
+  };
+
   const fetchClockers = useCallback(async () => {
     try {
       const url = (process.env.REACT_APP_CLOCKERS_URL || 'https://192.168.8.210/api/clockers') + '/';
@@ -307,7 +313,7 @@ const HRAttendanceDashboard = () => {
     if (attendanceData.length === 0) { alert('Aucune donnée à exporter.'); return; }
     const headers = ['User ID', 'Nom', 'Date', 'Arrivée', 'Départ', 'Pointages'];
     const csvData = attendanceData.map(r => [
-      getEmployeeId(r.user_id),
+      formatEmployeeId(r.user_id) ? `="${formatEmployeeId(r.user_id)}"` : '—',
       getEmployeeName(r.user_id) || `ID:${r.user_id}`,
       r.attendance_date || r.date,
       r.arrival ? new Date(r.arrival).toLocaleTimeString('fr-FR') : '—',
@@ -315,7 +321,7 @@ const HRAttendanceDashboard = () => {
       r.punch_count || 1,
     ]);
     const csv = [headers, ...csvData].map(row => row.join(';')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -383,7 +389,7 @@ const HRAttendanceDashboard = () => {
             <div className="modal-info-grid">
               <div>
                 <p className="modal-label">ID employé(e)</p>
-                <p className="modal-value">{getEmployeeId(record.user_id)}</p>
+                <p className="modal-value">{formatEmployeeId(record.user_id)}</p>
               </div>
               {/* ✅ Show employee name in modal */}
               {empName && (
@@ -600,7 +606,7 @@ const HRAttendanceDashboard = () => {
         {/* Data Table */}
         <section className="attendance-table-section">
           <div className="table-header">
-            <h2>Enregistrements de pointage</h2>
+            <h2>Enregistrements de pointage 111</h2>
             <p>
               Affichage de {attendanceData.length} sur {totalRecords} enregistrements
               {/* ✅ Show employee map load status */}
@@ -608,19 +614,19 @@ const HRAttendanceDashboard = () => {
             </p>
           </div>
 
-          <div className="table-scroll">
-            <table className="attendance-table">
-              <thead>
-                <tr>
-                  <th>Utilisateur</th>
-                  <th>Date</th>
-                  <th style={{ color: '#10b981' }}>Arrivée</th>
-                  <th style={{ color: '#ef4444' }}>Départ</th>
-                  <th>Pointages</th>
-                  <th>Clocker</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
+         <div className="table-scroll" style={{ maxHeight: '600px', overflowY: 'auto' }}>
+          <table className="attendance-table">
+            <thead>
+              <tr>
+                <th style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 2 }}>Utilisateur</th>
+                <th style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 2, color: '#111' }}>Date</th>
+                <th style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 2, color: '#10b981' }}>Arrivée</th>
+                <th style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 2, color: '#ef4444' }}>Départ</th>
+                <th style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 2 }}>Pointages</th>
+                <th style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 2 }}>Clocker</th>
+                <th style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 2 }}>Actions</th>
+              </tr>
+            </thead>
               <tbody>
                 {attendanceData.map((record, index) => {
                   const empName = getEmployeeName(record.user_id);
@@ -635,7 +641,7 @@ const HRAttendanceDashboard = () => {
                               : <div className="user-id">ID: {record.user_id}</div>
                             }
                             {empName && (
-                              <div style={{ fontSize: 11, color: '#9e9e9e' }}>#{getEmployeeId(record.user_id)}</div>
+                              <div style={{ fontSize: 11, color: '#9e9e9e' }}>#{formatEmployeeId(record.user_id)}</div>
                             )}
                           </div>
                         </div>

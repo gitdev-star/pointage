@@ -1,52 +1,3 @@
-// import React from "react";
-// import {
-//   BarChart3,
-//   Clock,
-//   TrendingUp,
-//   Users,
-// } from "lucide-react";
-// import { formatDateTime } from "../utils/FormatDate";
-// export default function StatsGrid({
-//   stats,
-//   totalRecords,
-//   kpi,
-//   totalActive,
-// }) {
-
-//   const statCards = [
-//     { title: "KPI DEMANDEE",    value:  0,          icon: BarChart3  },
-//     // { title: "Pointages",        value: stats.total_records || 0,   icon: Clock      },
-//     { title: "KPI DEMANDEE",     value:  0,    icon: Users      },
-//     { title: "Dernier pointage", value: formatDateTime(stats.latest_punch) || "—",  icon: TrendingUp },
-//   ];
-
-//   return (
-//     <div className="space-y-5 mb-8">
-//       {/* Stats générales */}
-//       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
-//         {statCards.map((card) => (
-//           <div key={card.title} className="bg-white rounded-2xl shadow-sm p-5 border">
-//             <div className="flex items-center justify-between">
-//               <div>
-//                 <p className="text-sm text-gray-500">{card.title}</p>
-//                 <h2 className="text-2xl font-bold mt-2">{card.value}</h2>
-//               </div>
-//               <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center">
-//                 <card.icon className="text-blue-600" />
-//               </div>
-//             </div>
-//           </div>
-//         ))}
-//       </div>
-
-//     </div>
-//   );
-// }
-
-
-
-
-
 import React from "react";
 import { Clock, TrendingDown, TrendingUp, UserCheck } from "lucide-react";
 import { formatDateTime } from "../utils/FormatDate";
@@ -103,12 +54,12 @@ export default function StatsGrid({ stats, kpi, totalActive, absentCount }) {
     },
   ];
 
-  const colorMap = {
-    green: { bg: "bg-green-50",  text: "text-green-600",  bar: "bg-green-500",  border: "border-l-green-500"  },
-    red:   { bg: "bg-red-50",    text: "text-red-500",    bar: "bg-red-400",    border: "border-l-red-500"    },
-    yellow:{ bg: "bg-yellow-50", text: "text-yellow-500", bar: "bg-yellow-400", border: "border-l-yellow-500" },
-    blue:  { bg: "bg-blue-50",   text: "text-blue-600",   bar: "bg-blue-400",   border: "border-l-blue-500"   },
-  };
+const colorMap = {
+  green:  { bg: "bg-[#eef3f0]", text: "text-[#4a6656]", bar: "bg-[#6f8f7c]", border: "border-l-[#6f8f7c]" },
+  red:    { bg: "bg-[#f7ecea]", text: "text-[#7c433d]", bar: "bg-[#a45c56]", border: "border-l-[#a45c56]" },
+  yellow: { bg: "bg-[#f8f2e6]", text: "text-[#8a723f]", bar: "bg-[#b99b5d]", border: "border-l-[#b99b5d]" },
+  blue:   { bg: "bg-[#eaeef0]", text: "text-[#3f5462]", bar: "bg-[#5b7a8c]", border: "border-l-[#5b7a8c]" },
+};
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 mb-8">
