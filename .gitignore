@@ -48,3 +48,4 @@ htmlcov/
 .coverage
 **/.coverage
 .env.local
+ssl/*.pem
