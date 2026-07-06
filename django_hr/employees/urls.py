@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     FactoryViewSet, DepartmentViewSet, EmployeeViewSet, SectionViewSet,
-    WorkScheduleViewSet,
+    WorkScheduleViewSet, ClassificationViewSet, PosteViewSet,
     cached_factories, cached_departments, employee_export,
 )
 
@@ -11,6 +11,8 @@ router = DefaultRouter()
 router.register(r"work-schedules", WorkScheduleViewSet,        basename="work-schedules")
 router.register("factories",       FactoryViewSet,             basename="factory")
 router.register("departments",     DepartmentViewSet,          basename="department")
+router.register(r"classifications", ClassificationViewSet, basename="classification")
+router.register(r"postes",          PosteViewSet,          basename="poste")
 router.register("sections",        SectionViewSet,             basename="section")
 router.register("",                EmployeeViewSet,            basename="employee")
 

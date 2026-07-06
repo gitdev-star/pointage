@@ -15,12 +15,12 @@ class TestFactoryModel:
     def test_factory_creation(self, test_factory):
         """Test that a factory can be created."""
         assert test_factory.name == "Test Factory"
-        assert test_factory.code == "TF001"
+        # code field removed
         assert test_factory.is_active is True
 
     def test_factory_str_representation(self, test_factory):
         """Test string representation of factory."""
-        expected = f"{test_factory.code} - {test_factory.name}"
+        expected = test_factory.name
         assert str(test_factory) == expected
 
 
@@ -31,7 +31,7 @@ class TestDepartmentModel:
     def test_department_creation(self, test_department, test_factory):
         """Test that a department can be created."""
         assert test_department.factory == test_factory
-        assert test_department.code == "TD001"
+        # code field removed
 
     def test_department_factory_relationship(self, test_department, test_factory):
         """Test relationship between department and factory."""
@@ -46,7 +46,7 @@ class TestSectionModel:
     def test_section_creation(self, test_section, test_department):
         """Test that a section can be created."""
         assert test_section.department == test_department
-        assert test_section.code == "TS001"
+        # code field removed
 
 
 @pytest.mark.django_db

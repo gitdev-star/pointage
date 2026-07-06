@@ -190,7 +190,7 @@ function RegistreView() {
           [
             e.n_rh, e.employee_id, e.last_name, e.first_name, e.sexe,
             e.birth_date, e.cin, e.cin_date, e.cin_place, e.cnaps,
-            e.factory_name, e.department_name, e.section_name || "", e.job_title, e.contract_type,
+            e.factory_name, e.department_name, e.section_name || "", e.job_title_name, e.contract_type,
             e.hire_date, e.status, e.email, e.phone, e.address,
             e.nbre_enfants, e.affectation,
           ].map(v => '"' + (v ?? "").toString().replace(/"/g, '""') + '"').join(";")
@@ -337,7 +337,7 @@ function RegistreView() {
                     <TableCell sx={{ ...tdSt, fontFamily: "monospace" }}>{e.cnaps || "—"}</TableCell>
                     <TableCell sx={tdSt}>{e.factory_name}</TableCell>
                     <TableCell sx={tdSt}>{e.department_name}</TableCell>
-                    <TableCell sx={tdSt}>{e.job_title}</TableCell>
+                    <TableCell sx={tdSt}>{e.job_title || "—"}</TableCell>
                     <TableCell sx={tdSt}><ContractBadge value={e.contract_type} /></TableCell>
                     <TableCell sx={tdSt}>{e.hire_date}</TableCell>
                     <TableCell sx={tdSt}><StatusBadge value={e.status} /></TableCell>
@@ -461,7 +461,7 @@ function FicheDetail() {
             <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <Box>
                 <Typography variant="h5" fontWeight={700}>{employee.last_name} {employee.first_name}</Typography>
-                <Typography variant="body1" color="text.secondary" mb={1}>{employee.job_title}</Typography>
+                <Typography variant="body1" color="text.secondary" mb={1}>{employee.job_title_name}</Typography>
                 <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
                   <Chip label={employee.employee_id} size="small" variant="outlined" sx={{ fontFamily: "monospace" }} />
                   <Chip label={STATUS_LABELS[employee.status]} color={STATUS_COLORS[employee.status]} size="small" />
@@ -527,7 +527,7 @@ function FicheDetail() {
       {tab === 1 && (
         <Paper sx={{ p: 3 }} elevation={1}>
           <Typography fontWeight={700} mb={2}>Contrat & Poste</Typography>
-          <InfoRow label="Poste"           value={employee.job_title} />
+          <InfoRow label="Poste"           value={employee.job_title_name} />
           <InfoRow label="Type de contrat" value={CONTRACT_LABELS[employee.contract_type]} />
           <InfoRow label="Usine"           value={employee.factory_name} />
           <InfoRow label="Département"     value={employee.department_name} />

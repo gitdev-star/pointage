@@ -4,6 +4,7 @@ import {
   TableContainer, TableHead, TableRow, Button, IconButton, Tooltip,
   Dialog, DialogTitle, DialogContent, DialogActions, TextField,
   FormControl, InputLabel, Select, MenuItem, Chip, Alert, CircularProgress,
+  Autocomplete, Stack,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
@@ -11,9 +12,9 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import hrClient from "../../api/hrClient";
 import { useHRAuth } from "../../contexts/HRAuthContext";
 
-const EMPTY_FACTORY    = { name: "", code: "", location: "", is_active: true };
-const EMPTY_DEPARTMENT = { name: "", code: "", factory: "", is_active: true };
-const EMPTY_SECTION    = { name: "", code: "", department: "", is_active: true };
+const EMPTY_FACTORY    = { name: "", location: "", is_active: true };
+const EMPTY_DEPARTMENT = { name: "", factory: "", is_active: true };
+const EMPTY_SECTION    = { name: "", department: "", is_active: true };
 
 function CRUDTable({ columns, rows, loading, onAdd, onEdit, onDelete, canWrite, canDelete }) {
   return (
@@ -23,7 +24,7 @@ function CRUDTable({ columns, rows, loading, onAdd, onEdit, onDelete, canWrite, 
           <Button variant="contained" startIcon={<AddIcon />} onClick={onAdd}>Ajouter</Button>
         </Box>
       )}
-      <TableContainer component={Paper} elevation={2}>
+      <TableContainer component={Paper} elevation={2} sx={{ maxHeight: "60vh", overflow: "auto" }}>
         <Table size="small">
           <TableHead>
             <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
@@ -97,25 +98,49 @@ export default function OrganisationManager() {
   const [deleteDialog, setDeleteDialog] = useState(null);
   const [deleting, setDeleting]         = useState(false);
 
+  // Fetch paginated resources fully (follow `next` links)
+  const fetchAllResource = useCallback(async (url) => {
+    const all = [];
+    let next = url;
+    while (next) {
+      const res = await hrClient.get(next);
+      const data = res.data;
+      if (Array.isArray(data)) {
+        all.push(...data);
+        break;
+      }
+      if (data.results) all.push(...data.results);
+      else if (data.items) all.push(...data.items);
+      // follow pagination link if provided
+      next = data.next || null;
+    }
+    return all;
+  }, []);
+
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
       const [f, d, s] = await Promise.all([
-        hrClient.get("employees/factories/?page_size=200"),
-        hrClient.get("employees/departments/?page_size=200"),
-        hrClient.get("employees/sections/?page_size=200"),
+        fetchAllResource("employees/factories/?page_size=1000"),
+        fetchAllResource("employees/departments/?page_size=1000"),
+        fetchAllResource("employees/sections/?page_size=1000"),
       ]);
-      setFactories(f.data.results || f.data);
-      setDepts(d.data.results     || d.data);
-      setSections(s.data.results  || s.data);
-    } catch {
+      setFactories(f);
+      setDepts(d);
+      setSections(s);
+    } catch (err) {
       setAlert({ type: "error", msg: "Erreur chargement." });
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchAllResource]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // Filters / search
+  const [filterFactory, setFilterFactory] = useState(null);
+  const [filterDept, setFilterDept] = useState(null);
+  const [query, setQuery] = useState("");
 
   const openAdd = (type) => {
     const empty = type === "factory" ? EMPTY_FACTORY
@@ -135,7 +160,6 @@ export default function OrganisationManager() {
   const validate = () => {
     const errors = {};
     if (!form.name?.trim()) errors.name = "Requis";
-    if (!form.code?.trim()) errors.code = "Requis";
     if (dialog.type === "department" && !form.factory) errors.factory = "Requis";
     if (dialog.type === "section"    && !form.department) errors.department = "Requis";
     setFormErrors(errors);
@@ -189,24 +213,47 @@ export default function OrganisationManager() {
   };
 
   const factoryColumns = [
-    { key: "code",      label: "Code" },
     { key: "name",      label: "Nom" },
     { key: "location",  label: "Localisation" },
     { key: "is_active", label: "Statut", chip: true },
   ];
   const deptColumns = [
-    { key: "code",         label: "Code" },
     { key: "name",         label: "Nom" },
     { key: "factory_name", label: "Usine" },
     { key: "is_active",    label: "Statut", chip: true },
   ];
   const sectionColumns = [
-    { key: "code",            label: "Code" },
     { key: "name",            label: "Nom" },
     { key: "department_name", label: "Département" },
     { key: "factory_name",    label: "Usine" },
     { key: "is_active",       label: "Statut", chip: true },
   ];
+
+  // Derived filtered data
+  const filteredFactories = factories.filter(f => {
+    if (!query) return true;
+    const q = query.toLowerCase();
+    return (f.name || "").toLowerCase().includes(q) || (f.location || "").toLowerCase().includes(q);
+  });
+  const filteredDepts = departments.filter(d => {
+    if (filterFactory && d.factory !== filterFactory.id) return false;
+    if (!query) return true;
+    const q = query.toLowerCase();
+    return (d.name || "").toLowerCase().includes(q) || (d.factory_name || "").toLowerCase().includes(q);
+  });
+  const deptIdsForFactory = filterFactory ? departments.filter(d => d.factory === filterFactory.id).map(d => d.id) : null;
+
+  const filteredSections = sections.filter(s => {
+    if (filterFactory) {
+      const directFactoryMatch = s.factory === filterFactory.id || s.factory_id === filterFactory.id;
+      const viaDepartment = deptIdsForFactory && deptIdsForFactory.includes(s.department);
+      if (!directFactoryMatch && !viaDepartment) return false;
+    }
+    if (filterDept && s.department !== filterDept.id) return false;
+    if (!query) return true;
+    const q = query.toLowerCase();
+    return (s.name || "").toLowerCase().includes(q) || (s.department_name || "").toLowerCase().includes(q) || (s.factory_name || "").toLowerCase().includes(q);
+  });
 
   return (
     <Box sx={{ p: 3 }}>
@@ -221,10 +268,38 @@ export default function OrganisationManager() {
         <Tab label={`Départements (${departments.length})`} />
         <Tab label={`Sections (${sections.length})`} />
       </Tabs>
+      {/* Filters */}
+      <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+        <TextField size="small" placeholder="Rechercher par nom, localisation..." value={query}
+          onChange={e => setQuery(e.target.value)} sx={{ width: 320 }} />
+        {tab >= 1 && (
+          <Autocomplete
+            size="small"
+            options={factories}
+            getOptionLabel={opt => opt?.name || ""}
+            value={filterFactory}
+            onChange={(_, v) => { setFilterFactory(v || null); setFilterDept(null); }}
+            sx={{ width: 240 }}
+            renderInput={(params) => <TextField {...params} label="Filtrer par Usine" />}
+          />
+        )}
+        {tab === 2 && (
+          <Autocomplete
+            size="small"
+            options={departments.filter(d => !filterFactory || d.factory === filterFactory.id)}
+            getOptionLabel={opt => `${opt?.name || ""} — ${opt?.factory_name || ""}`}
+            value={filterDept}
+            onChange={(_, v) => setFilterDept(v || null)}
+            sx={{ width: 320 }}
+            renderInput={(params) => <TextField {...params} label="Filtrer par Département" />}
+          />
+        )}
+        <Box sx={{ flex: 1 }} />
+      </Stack>
 
       {tab === 0 && (
         <CRUDTable
-          columns={factoryColumns} rows={factories} loading={loading}
+          columns={factoryColumns} rows={filteredFactories} loading={loading}
           onAdd={() => openAdd("factory")}
           onEdit={row => openEdit("factory", row)}
           onDelete={row => setDeleteDialog({ type: "factory", id: row.id, name: row.name })}
@@ -233,7 +308,7 @@ export default function OrganisationManager() {
       )}
       {tab === 1 && (
         <CRUDTable
-          columns={deptColumns} rows={departments} loading={loading}
+          columns={deptColumns} rows={filteredDepts} loading={loading}
           onAdd={() => openAdd("department")}
           onEdit={row => openEdit("department", row)}
           onDelete={row => setDeleteDialog({ type: "department", id: row.id, name: row.name })}
@@ -242,7 +317,7 @@ export default function OrganisationManager() {
       )}
       {tab === 2 && (
         <CRUDTable
-          columns={sectionColumns} rows={sections} loading={loading}
+          columns={sectionColumns} rows={filteredSections} loading={loading}
           onAdd={() => openAdd("section")}
           onEdit={row => openEdit("section", row)}
           onDelete={row => setDeleteDialog({ type: "section", id: row.id, name: row.name })}
@@ -258,9 +333,6 @@ export default function OrganisationManager() {
         </DialogTitle>
         <DialogContent dividers>
           <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
-            <TextField size="small" label="Code *" value={form.code || ""}
-              onChange={e => setForm(p => ({ ...p, code: e.target.value }))}
-              error={!!formErrors.code} helperText={formErrors.code} />
             <TextField size="small" label="Nom *" value={form.name || ""}
               onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
               error={!!formErrors.name} helperText={formErrors.name} />
@@ -269,24 +341,28 @@ export default function OrganisationManager() {
                 onChange={e => setForm(p => ({ ...p, location: e.target.value }))} />
             )}
             {dialog?.type === "department" && (
-              <FormControl size="small" fullWidth error={!!formErrors.factory}>
-                <InputLabel>Usine *</InputLabel>
-                <Select value={form.factory || ""} label="Usine *"
-                  onChange={e => setForm(p => ({ ...p, factory: e.target.value }))}>
-                  {factories.map(f => <MenuItem key={f.id} value={f.id}>{f.name}</MenuItem>)}
-                </Select>
-                {formErrors.factory && <Typography variant="caption" color="error">{formErrors.factory}</Typography>}
-              </FormControl>
+              <Autocomplete
+                size="small"
+                options={factories}
+                getOptionLabel={opt => opt?.name || ""}
+                value={factories.find(f => f.id === form.factory) || null}
+                onChange={(_, v) => setForm(p => ({ ...p, factory: v?.id }))}
+                renderInput={(params) => (
+                  <TextField {...params} label="Usine *" error={!!formErrors.factory} helperText={formErrors.factory} />
+                )}
+              />
             )}
             {dialog?.type === "section" && (
-              <FormControl size="small" fullWidth error={!!formErrors.department}>
-                <InputLabel>Département *</InputLabel>
-                <Select value={form.department || ""} label="Département *"
-                  onChange={e => setForm(p => ({ ...p, department: e.target.value }))}>
-                  {departments.map(d => <MenuItem key={d.id} value={d.id}>{d.name} — {d.factory_name}</MenuItem>)}
-                </Select>
-                {formErrors.department && <Typography variant="caption" color="error">{formErrors.department}</Typography>}
-              </FormControl>
+              <Autocomplete
+                size="small"
+                options={departments}
+                getOptionLabel={opt => `${opt?.name || ""} — ${opt?.factory_name || ""}`}
+                value={departments.find(d => d.id === form.department) || null}
+                onChange={(_, v) => setForm(p => ({ ...p, department: v?.id }))}
+                renderInput={(params) => (
+                  <TextField {...params} label="Département *" error={!!formErrors.department} helperText={formErrors.department} />
+                )}
+              />
             )}
             <FormControl size="small" fullWidth>
               <InputLabel>Statut</InputLabel>

@@ -3,8 +3,23 @@
 # =====================================================
 
 from rest_framework import serializers
-from .models import Factory, Department, Employee, Section, WorkSchedule
+from .models import Classification, Poste, Factory, Department, Employee, Section, WorkSchedule
 
+
+
+
+class ClassificationSerializer(serializers.ModelSerializer):
+    id   = serializers.IntegerField(source="id_classification", read_only=True)
+    name = serializers.CharField(source="classe", read_only=True)
+
+    class Meta:
+        model  = Classification
+        fields = ["id", "name", "salaire"]
+
+class PosteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = Poste
+        fields = ["id", "name", "description", "is_active", "created_at"]
 
 class FactorySerializer(serializers.ModelSerializer):
     employee_count = serializers.SerializerMethodField()
@@ -31,24 +46,33 @@ class DepartmentSerializer(serializers.ModelSerializer):
 
 class EmployeeListSerializer(serializers.ModelSerializer):
     """Lightweight — used for list views."""
-    full_name = serializers.CharField(read_only=True)
-    factory_name = serializers.CharField(source="factory.name", read_only=True)
+    full_name       = serializers.CharField(read_only=True)
+    factory_name    = serializers.CharField(source="factory.name", read_only=True)
     department_name = serializers.CharField(source="department.name", read_only=True)
+    section_name    = serializers.CharField(source="section.name", read_only=True)
+    job_title_name  = serializers.CharField(source="job_title.name", read_only=True)
 
     class Meta:
         model = Employee
         fields = [
             "id", "employee_id", "first_name", "last_name", "full_name",
-            "photo", "job_title", "factory", "factory_name",
-            "department", "department_name", "status", "device_user_id",
+            "photo", "job_title", "job_title_name",
+            "factory", "factory_name",
+            "department", "department_name",
+            "section", "section_name",
+            "sexe", "contract_type", "hire_date",
+            "status", "device_user_id",
+            "cin", "cnaps", "matricule_paie", "n_rh",
         ]
 
 
 class EmployeeDetailSerializer(serializers.ModelSerializer):
     """Full — used for create / update / detail."""
-    full_name = serializers.CharField(read_only=True)
-    factory_name = serializers.CharField(source="factory.name", read_only=True)
+    full_name       = serializers.CharField(read_only=True)
+    factory_name    = serializers.CharField(source="factory.name", read_only=True)
     department_name = serializers.CharField(source="department.name", read_only=True)
+    section_name    = serializers.CharField(source="section.name", read_only=True)
+    job_title_name  = serializers.CharField(source="job_title.name", read_only=True)
 
     class Meta:
         model = Employee

@@ -15,7 +15,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 from django.core.cache import cache
 from .models import (
-    Factory, Department, Employee, Section, WorkSchedule,
+    Classification, Poste, Factory, Department, Employee, Section, WorkSchedule,
 )
 from .serializers import (
     SectionSerializer,
@@ -24,6 +24,8 @@ from .serializers import (
     EmployeeListSerializer,
     EmployeeDetailSerializer,
     WorkScheduleSerializer,
+    ClassificationSerializer,
+    PosteSerializer,
 )
 from alerts.email_utils import (
     notify_resiliation,
@@ -34,8 +36,8 @@ from accounts.permissions import get_hr_profile
 
 REQUIRED_COLUMNS = [
     "employee_id", "first_name", "last_name",
-    "factory_code", "factory_name",
-    "department_code", "department_name",
+    "factory_name",
+    "department_name",
     "job_title", "contract_type", "hire_date",
 ]
 
@@ -79,6 +81,7 @@ EXCEL_COLUMN_MAP = {
     "user_id":                      "device_user_id",
     "Période":                      "matricule_paie",
     "Etablissement":                "factory_name",
+    "Département":               "department_name",
 }
 
 VALID_CONTRACT_TYPES = {"CDI", "CDD", "INTERN", "PART", "SEASONAL"}
@@ -127,40 +130,29 @@ def _safe_date(value):
     return v
 
 
-def _get_or_create_factory(code, name, location):
-    factory = Factory.objects.filter(code=code).first()
-    if factory:
-        return factory, False
-    factory = Factory.objects.filter(name=name).first()
-    if factory:
-        return factory, False
-    factory = Factory.objects.create(
-        code=code, name=name, location=location or "", is_active=True
-    )
-    return factory, True
-
-
-def _get_or_create_section(code, name, department):
-    if not code or not name:
+def _safe_int(value):
+    if not value:
         return None
-    sect = Section.objects.filter(code=code).first()
-    if sect:
-        return sect
-    sect = Section.objects.filter(name=name, department=department).first()
-    if sect:
-        return sect
-    return Section.objects.create(code=code, name=name, department=department, is_active=True)
+    v = str(value).strip()
+    if not v or v.lower() in ("none", "nan", "null", ""):
+        return None
+    try:
+        return int(float(v))
+    except (ValueError, TypeError):
+        return None
+
+def _get_factory(name):
+    return Factory.objects.filter(name=name).first()
 
 
-def _get_or_create_department(code, name, factory):
-    dept = Department.objects.filter(code=code).first()
-    if dept:
-        return dept, False
-    dept = Department.objects.filter(name=name, factory=factory).first()
-    if dept:
-        return dept, False
-    dept = Department.objects.create(code=code, name=name, factory=factory, is_active=True)
-    return dept, True
+def _get_section(name, department):
+    if not name:
+        return None
+    return Section.objects.filter(name=name, department=department).first()
+
+
+def _get_department(name, factory):
+    return Department.objects.filter(name=name, factory=factory).first()
 
 
 def _parse_row(row, row_num):
@@ -175,15 +167,8 @@ def _parse_row(row, row_num):
     status_val    = row.get("status", "ACTIVE").strip().upper() or "ACTIVE"
 
     factory_name  = row.get("factory_name", "").strip()
-    factory_code  = row.get("factory_code", "").strip()
-    if not factory_code and factory_name:
-        factory_code = _slugify_code(factory_name)
-
-    dept_name     = row.get("department_name", "").strip() or factory_name
-    dept_code     = row.get("department_code", "").strip() or factory_code
-
+    dept_name     = row.get("department_name", "").strip() or None
     section_name  = row.get("section_name", "").strip()
-    section_code  = _slugify_code(section_name) if section_name else None
 
     contract_type = row.get("contract_type", "").strip().upper()
     if not contract_type:
@@ -192,10 +177,9 @@ def _parse_row(row, row_num):
     if not employee_id:   errors.append("employee_id is required")
     if not first_name:    first_name = last_name
     if not last_name:     last_name = first_name
-    if not factory_name:  factory_name = "UNKNOWN"
-    if not factory_code:  factory_code = "UNKNOWN"
-    if not dept_name:     dept_name = "UNKNOWN"
-    if not dept_code:     dept_code = "UNKNOWN"
+    if not factory_name:  factory_name = None
+    if not dept_name:
+        errors.append("'Département' column is missing or empty (should be placed after 'Etablissement' in your Excel file)")
     if not job_title:     job_title = ""
     if contract_type not in VALID_CONTRACT_TYPES:
         contract_type = "CDI"
@@ -223,10 +207,8 @@ def _parse_row(row, row_num):
         "employee_id":      employee_id,
         "first_name":       first_name,
         "last_name":        last_name,
-        "factory_code":     factory_code,
         "factory_name":     factory_name,
         "factory_location": row.get("factory_location", "").strip(),
-        "department_code":  dept_code,
         "department_name":  dept_name,
         "job_title":        job_title,
         "contract_type":    contract_type,
@@ -234,8 +216,8 @@ def _parse_row(row, row_num):
         "status":           status_val,
         "email":            row.get("email", "").strip() or None,
         "phone":            row.get("phone", "").strip(),
-        "device_user_id":   int(row["device_user_id"]) if str(row.get("device_user_id", "")).strip() else None,
-        "auth_user_id":     int(row["auth_user_id"])   if str(row.get("auth_user_id", "")).strip()   else None,
+        "device_user_id":   _safe_int(row.get("device_user_id")),
+        "auth_user_id":     _safe_int(row.get("auth_user_id")),
         "cin":              row.get("cin", "").strip() or None,
         "cin_date":         _safe_date(row.get("cin_date")),
         "cin_place":        row.get("cin_place", "").strip() or None,
@@ -252,9 +234,8 @@ def _parse_row(row, row_num):
         "motif_depart":     row.get("motif_depart", "").strip() or None,
         "termination_date": _safe_date(row.get("termination_date")),
         "section_name":     section_name,
-        "section_code":     section_code,
         "salaire":          salaire_val,
-        "classification":   classification_val,
+        "classification_name":   classification_val,
     }, None
 
 
@@ -262,16 +243,16 @@ def _parse_row(row, row_num):
 
 class FactoryViewSet(viewsets.ModelViewSet):
     queryset = Factory.objects.only(
-        "id", "code", "name", "location", "is_active", "created_at"
+        "id", "name", "location", "is_active", "created_at"
     )
     serializer_class = FactorySerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ["name", "code", "location"]
+    search_fields = ["name", "location"]
 
     @action(detail=True, methods=["get"])
     def departments(self, request, pk=None):
         factory = self.get_object()
-        depts = factory.departments.filter(is_active=True).only("id", "code", "name", "is_active")
+        depts = factory.departments.filter(is_active=True).only("id", "name", "is_active")
         return Response(DepartmentSerializer(depts, many=True).data)
 
     @action(detail=True, methods=["get"])
@@ -291,14 +272,14 @@ class FactoryViewSet(viewsets.ModelViewSet):
 
 class DepartmentViewSet(viewsets.ModelViewSet):
     queryset = Department.objects.select_related("factory", "manager").only(
-        "id", "code", "name", "is_active", "created_at",
-        "factory__id", "factory__name", "factory__code",
+        "id", "name", "is_active", "created_at",
+        "factory__id", "factory__name",
         "manager__id", "manager__first_name", "manager__last_name",
     )
     serializer_class = DepartmentSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ["factory", "is_active"]
-    search_fields = ["name", "code"]
+    search_fields = ["name"]
 
     @action(detail=True, methods=["get"])
     def employees(self, request, pk=None):
@@ -325,13 +306,13 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             "hire_date", "termination_date", "status",
             "device_user_id", "auth_user_id",
             "created_at", "updated_at",
-            "factory__id", "factory__name", "factory__code",
-            "department__id", "department__name", "department__code",
+            "factory__id", "factory__name",
+            "department__id", "department__name",
         )
     )
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ["factory", "department", "status", "contract_type"]
-    search_fields = ["first_name", "last_name", "employee_id", "email", "job_title"]
+    search_fields = ["first_name", "last_name", "employee_id", "email", "job_title__name", "cin", "cnaps", "matricule_paie"]
     ordering_fields = ["last_name", "hire_date", "employee_id"]
 
     def get_queryset(self):
@@ -448,6 +429,10 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 return Response({"detail": f"CSV is missing required columns: {missing_cols}"}, status=status.HTTP_400_BAD_REQUEST)
 
         existing_ids = set(Employee.objects.values_list("employee_id", flat=True))
+        existing_cins = {
+            cin: eid for cin, eid in
+            Employee.objects.exclude(cin=None).exclude(cin="").values_list("cin", "employee_id")
+        }
         existing_device_ids = set(
             Employee.objects.exclude(device_user_id=None).values_list("device_user_id", flat=True)
         )
@@ -477,6 +462,12 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 skipped += 1
                 continue
 
+            cin_val = payload.get("cin")
+            if cin_val and cin_val in existing_cins:
+                results.append({"row": row_num, "employee_id": employee_id, "status": "skipped", "detail": f"CIN '{cin_val}' déjà utilisé par l'employé {existing_cins[cin_val]}."})
+                skipped += 1
+                continue
+
             if payload["device_user_id"] and payload["device_user_id"] in existing_device_ids:
                 results.append({"row": row_num, "employee_id": employee_id, "status": "skipped", "detail": f"device_user_id {payload['device_user_id']} already assigned."})
                 skipped += 1
@@ -487,40 +478,44 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 skipped += 1
                 continue
 
-            fac_code = payload["factory_code"]
-            if fac_code not in factory_cache:
-                try:
-                    factory, fac_created = _get_or_create_factory(fac_code, payload["factory_name"], payload["factory_location"])
-                    factory_cache[fac_code] = factory
-                    if fac_created:
-                        new_factories.append(fac_code)
-                except Exception as e:
-                    results.append({"row": row_num, "employee_id": employee_id, "status": "error", "detail": f"Factory error: {e}"})
+            fac_name = payload["factory_name"] or ""
+            if fac_name not in factory_cache:
+                factory = _get_factory(payload["factory_name"])
+                if not factory:
+                    results.append({"row": row_num, "employee_id": employee_id, "status": "error", "detail": f"Factory '{payload['factory_name']}' not found. Please create it in the DB first."})
                     errors += 1
                     continue
-            factory = factory_cache[fac_code]
+                factory_cache[fac_name] = factory
+            factory = factory_cache[fac_name]
 
-            dept_key = f"{payload['department_code']}_{fac_code}"
+            dept_key = f"{payload['department_name']}_{fac_name}"
             if dept_key not in department_cache:
-                try:
-                    dept, dept_created = _get_or_create_department(payload["department_code"], payload["department_name"], factory)
-                    department_cache[dept_key] = dept
-                    if dept_created:
-                        new_departments.append(payload["department_code"])
-                except Exception as e:
-                    results.append({"row": row_num, "employee_id": employee_id, "status": "error", "detail": f"Department error: {e}"})
+                department = _get_department(payload["department_name"], factory)
+                if not department:
+                    results.append({"row": row_num, "employee_id": employee_id, "status": "error", "detail": f"Department '{payload['department_name']}' not found in factory '{payload['factory_name']}'. Please create it in the DB first."})
                     errors += 1
                     continue
+                department_cache[dept_key] = department
             department = department_cache[dept_key]
 
             section = None
             if payload["section_name"]:
-                sect_key = f"{payload['section_code']}_{dept_key}"
+                sect_key = f"{payload['section_name']}_{dept_key}"
                 if sect_key not in department_cache:
-                    section = _get_or_create_section(payload["section_code"], payload["section_name"], department)
+                    section = _get_section(payload["section_name"], department)
+                    if not section:
+                        results.append({"row": row_num, "employee_id": employee_id, "status": "error", "detail": f"Section '{payload['section_name']}' not found in department '{payload['department_name']}'. Please create it in the DB first."})
+                        errors += 1
+                        continue
                     department_cache[sect_key] = section
                 else:
                     section = department_cache[sect_key]
+
+            classification_obj = None
+            if payload["classification_name"]:
+                classification_obj = Classification.objects.filter(
+                    classe__iexact=payload["classification_name"]
+                ).first()
 
             to_create.append(Employee(
                 employee_id=payload["employee_id"],
@@ -530,7 +525,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 phone=payload["phone"],
                 factory=factory,
                 department=department,
-                job_title=payload["job_title"],
+                job_title=Poste.objects.filter(name__iexact=payload["job_title"]).first() if payload["job_title"] else None,
                 contract_type=payload["contract_type"],
                 hire_date=payload["hire_date"],
                 status=payload["status"],
@@ -553,7 +548,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 motif_depart=payload["motif_depart"],
                 section=section,
                 salaire=payload["salaire"],
-                classification=payload["classification"],
+                classification=classification_obj,
             ))
             existing_ids.add(payload["employee_id"])
             if payload["device_user_id"]:
@@ -597,8 +592,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 "created":                 created,
                 "skipped":                 skipped,
                 "errors":                  errors,
-                "new_factories_created":   new_factories,
-                "new_departments_created": new_departments,
+
             },
             "rows": results,
         }, status=status.HTTP_200_OK)
@@ -606,14 +600,14 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
 class SectionViewSet(viewsets.ModelViewSet):
     queryset = Section.objects.select_related("department", "department__factory").only(
-        "id", "code", "name", "is_active", "created_at",
-        "department__id", "department__name", "department__code",
+        "id", "name", "is_active", "created_at",
+        "department__id", "department__name",
         "department__factory__id", "department__factory__name",
     )
     serializer_class = SectionSerializer
     filter_backends  = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ["department", "is_active"]
-    search_fields    = ["name", "code"]
+    search_fields    = ["name"]
 
 
 class WorkScheduleViewSet(viewsets.ModelViewSet):
@@ -631,13 +625,24 @@ class WorkScheduleViewSet(viewsets.ModelViewSet):
     ordering_fields  = ["name", "created_at"]
 
 
+class ClassificationViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Classification.objects.all()
+    serializer_class = ClassificationSerializer
+
+class PosteViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Poste.objects.filter(is_active=True)
+    serializer_class = PosteSerializer
+    filter_backends = [filters.SearchFilter]
+    search_fields = ["name"]
+
+
 # ── Function-based views ───────────────────────────────────────────────────
 
 @api_view(["GET"])
 def cached_factories(request):
     data = cache.get("factories_list")
     if not data:
-        qs   = Factory.objects.filter(is_active=True).only("id", "code", "name", "location")
+        qs   = Factory.objects.filter(is_active=True).only("id", "name", "location")
         data = FactorySerializer(qs, many=True).data
         cache.set("factories_list", data, 60 * 30)
     return Response(data)
@@ -648,7 +653,7 @@ def cached_departments(request):
     data = cache.get("departments_list")
     if not data:
         qs   = Department.objects.filter(is_active=True).select_related("factory").only(
-            "id", "code", "name", "factory__id", "factory__name"
+            "id", "name", "factory__id", "factory__name"
         )
         data = DepartmentSerializer(qs, many=True).data
         cache.set("departments_list", data, 60 * 30)

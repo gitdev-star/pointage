@@ -154,6 +154,27 @@ const LateReport = () => {
     [employeeMap]
   );
 
+  // Fetch employee map on mount if empty
+  useEffect(() => {
+    sessionStorage.removeItem("empMap_v1");
+    import('../api/hrClient').then(({ default: hrClient }) => {
+      hrClient.get('employees/', { params: { page_size: 5000, status: 'ACTIVE' } })
+        .then(res => {
+          const employees = res.data.results ?? res.data;
+          const map = {};
+          employees.forEach(e => {
+            const numId = parseInt(e.employee_id, 10);
+            if (!isNaN(numId)) {
+              map[numId] = { name: `${e.first_name} ${e.last_name}`.trim() || e.employee_id };
+            }
+          });
+          try { sessionStorage.setItem('empMap_v1', JSON.stringify(map)); } catch (_) {}
+          setEmployeeMap(map);
+        })
+        .catch(() => {});
+    });
+  }, []);
+
   // ── Fetch available classifications on mount ───────────────────────────────
 
   useEffect(() => {
