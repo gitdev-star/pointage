@@ -38,51 +38,11 @@ jobs:
           pip install -r requirements.txt
           pip install asyncpg aiosqlite pytest-timeout
 
-      - name: Wait for postgres
-        run: until pg_isready -h localhost -p 5432; do sleep 1; done
-
       - name: Run pytest
-        run: pytest --tb=short -q --timeout=30 --no-cov
+        run: pytest --tb=short -q --timeout=30
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/pointage_test
           SECRET_KEY: ci-test-secret-key-minimum-32-chars-long
           ENVIRONMENT: test
           DJANGO_AUTH_URL: http://mock-auth
           DJANGO_SECRET_KEY: ci-test-secret-key-minimum-32-chars-long
-
-  deploy-dev:
-    needs: test
-    runs-on: self-hosted
-    timeout-minutes: 10
-    if: github.ref == 'refs/heads/develop'
-    steps:
-      - name: Pull latest code
-        run: |
-          cd /home/github-runner/pointage
-          git pull origin develop
-
-      - name: Restart containers
-        run: |
-          cd /home/github-runner/pointage
-          docker compose up -d
-          docker compose restart nginx
-
-      - name: Run migrations
-        run: |
-          cd /home/github-runner/pointage
-          docker compose exec -T django-hr python manage.py migrate --no-input
-
-  deploy-prod:
-    needs: test
-    runs-on: self-hosted
-    if: github.ref == 'refs/heads/main'
-    environment: production
-    steps:
-      - name: Deploy to 210
-        run: |
-          ssh root@192.168.8.210 '
-            cd /root/pointage &&
-            git pull origin main &&
-            docker compose up -d --no-build &&
-            docker compose exec -T django-hr python manage.py migrate --no-input
-          '
