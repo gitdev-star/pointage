@@ -1,8 +1,5 @@
-"""
-Pytest configuration for Django Auth tests.
-Uses get_user_model() to support custom User model (accounts.User).
-"""
 import pytest
+from unittest.mock import patch, MagicMock
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -10,15 +7,24 @@ from rest_framework_simplejwt.tokens import RefreshToken
 User = get_user_model()
 
 
+@pytest.fixture(autouse=True)
+def mock_signal_requests():
+    """Mock all HTTP calls from signals — prevents 3s timeouts during tests."""
+    with patch("accounts.signals.requests.get") as mock_get, \
+         patch("accounts.signals.requests.post") as mock_post, \
+         patch("accounts.signals.requests.patch") as mock_patch, \
+         patch("accounts.signals.requests.delete") as mock_delete:
+        mock_get.return_value = MagicMock(json=lambda: {"results": []})
+        yield
+
+
 @pytest.fixture
 def api_client():
-    """Create a REST API client."""
     return APIClient()
 
 
 @pytest.fixture
 def test_user(db):
-    """Create a test user."""
     user = User.objects.create_user(
         username="testuser",
         email="test@example.com",
@@ -30,7 +36,6 @@ def test_user(db):
 
 @pytest.fixture
 def authenticated_client(test_user):
-    """Create an authenticated REST API client."""
     client = APIClient()
     refresh = RefreshToken.for_user(test_user)
     client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
@@ -39,6 +44,5 @@ def authenticated_client(test_user):
 
 @pytest.fixture
 def jwt_token(test_user):
-    """Generate a JWT token for a test user."""
     refresh = RefreshToken.for_user(test_user)
     return str(refresh.access_token)

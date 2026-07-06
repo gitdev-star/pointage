@@ -9,3 +9,5 @@ DATABASES = {
 
 SECRET_KEY = "test-secret-key-not-for-production"
 DEBUG = True
+
+TESTING = True
