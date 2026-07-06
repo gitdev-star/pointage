@@ -11,20 +11,6 @@ from main import app
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 
-@pytest.fixture(scope="session")
-def engine():
-    import asyncio
-    eng = create_async_engine(
-        TEST_DATABASE_URL,
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    asyncio.get_event_loop().run_until_complete(
-        eng.begin().__aenter__()
-    )
-    return eng
-
-
 @pytest.fixture
 async def test_engine():
     eng = create_async_engine(
