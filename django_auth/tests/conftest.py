@@ -8,13 +8,17 @@ User = get_user_model()
 
 
 @pytest.fixture(autouse=True)
-def mock_signal_requests():
-    """Mock all HTTP calls from signals — prevents 3s timeouts during tests."""
+def mock_external_services():
+    """Mock LDAP and signal HTTP calls — prevents timeouts in CI."""
     with patch("accounts.signals.requests.get") as mock_get, \
          patch("accounts.signals.requests.post") as mock_post, \
          patch("accounts.signals.requests.patch") as mock_patch, \
-         patch("accounts.signals.requests.delete") as mock_delete:
+         patch("accounts.signals.requests.delete") as mock_delete, \
+         patch("accounts.ldap_service.get_ldap_connection") as mock_ldap, \
+         patch("accounts.ldap_service.authenticate_ldap_user") as mock_auth:
         mock_get.return_value = MagicMock(json=lambda: {"results": []})
+        mock_ldap.return_value = MagicMock()
+        mock_auth.return_value = None
         yield
 
 
