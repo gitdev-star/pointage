@@ -12,6 +12,8 @@ from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
+from datetime import date
+from django.core.exceptions import ValidationError as DjangoValidationError
 
 from django.core.cache import cache
 from .models import (
@@ -129,6 +131,8 @@ def _safe_date(value):
     except ValueError:
         return None
     return v
+
+
 
 
 def _safe_int(value):
@@ -264,7 +268,7 @@ class FactoryViewSet(viewsets.ModelViewSet):
             .select_related("department")
             .only(
                 "id", "employee_id", "first_name", "last_name",
-                "photo", "job_title", "status", "device_user_id",
+                "photo", "job_title__id", "job_title__name", "status", "device_user_id",
                 "factory_id", "department__id", "department__name",
             )
         )
@@ -290,7 +294,7 @@ class DepartmentViewSet(viewsets.ModelViewSet):
             .select_related("factory")
             .only(
                 "id", "employee_id", "first_name", "last_name",
-                "photo", "job_title", "status", "device_user_id",
+                "photo", "job_title__id", "job_title__name", "status", "device_user_id",
                 "factory_id", "factory__name", "department_id",
             )
         )
@@ -300,15 +304,16 @@ class DepartmentViewSet(viewsets.ModelViewSet):
 class EmployeeViewSet(viewsets.ModelViewSet):
     queryset = (
         Employee.objects
-        .select_related("factory", "department")
+        .select_related("factory", "department", "job_title", "classification")
         .only(
             "id", "employee_id", "first_name", "last_name", "photo",
-            "email", "phone", "job_title", "contract_type",
+            "email", "phone", "job_title__id", "job_title__name", "contract_type",
             "hire_date", "termination_date", "status",
             "device_user_id", "auth_user_id",
             "created_at", "updated_at",
             "factory__id", "factory__name",
             "department__id", "department__name",
+            "classification__id_classification", "classification__classe",
         )
     )
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -318,9 +323,34 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
+
         sexe = self.request.query_params.get("sexe")
         if sexe:
-            qs = qs.filter(sexe__iregex=r"^f[eé]minin$")
+            if sexe.upper() == "F":
+                qs = qs.filter(sexe__iregex=r"^f[eé]minin$")
+            else:
+                qs = qs.filter(sexe__icontains="masc")
+
+        ref_month = self.request.query_params.get("ref_month")          # "2026-07"
+        anciennete_months = self.request.query_params.get("anciennete_months")  # "6"
+
+        if ref_month and anciennete_months:
+            try:
+                ref_year, ref_m = map(int, ref_month.split("-"))
+                months = int(anciennete_months)
+            except (ValueError, TypeError):
+                raise ValidationError({"anciennete_months": "Doit être un entier (3, 6, 12 ou 18)."})
+
+            # mois cible = mois de référence - X mois d'ancienneté
+            total = ref_year * 12 + (ref_m - 1) - months
+            target_year = total // 12
+            target_month = total % 12 + 1
+
+            qs = qs.filter(
+                hire_date__year=target_year,
+                hire_date__month=target_month,
+            )
+
         return qs
 
     def get_serializer_class(self):
@@ -371,7 +401,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             .select_related("factory", "department")
             .only(
                 "id", "employee_id", "first_name", "last_name",
-                "photo", "job_title", "status", "device_user_id",
+                "photo", "job_title__id", "job_title__name", "status", "device_user_id",
                 "factory__id", "factory__name",
                 "department__id", "department__name",
             )
@@ -383,6 +413,16 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["post"], url_path="import", parser_classes=[MultiPartParser])
     def import_csv(self, request):
+        import traceback as _tb
+        try:
+            return self._import_csv_inner(request)
+        except Exception as _e:
+            _tb.print_exc()
+            from rest_framework.response import Response as _R
+            from rest_framework import status as _s
+            return _R({"detail": f"Unhandled exception: {_e}", "trace": _tb.format_exc()}, status=_s.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def _import_csv_inner(self, request):
         csv_file = request.FILES.get("file")
         if not csv_file:
             return Response(
@@ -463,14 +503,14 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 skipped += 1
                 continue
 
-            cin_val = payload.get("cin")
-            if cin_val and cin_val in existing_cins:
-                results.append({"row": row_num, "employee_id": employee_id, "status": "skipped", "detail": f"CIN '{cin_val}' déjà utilisé par l'employé {existing_cins[cin_val]}."})
+            if payload["device_user_id"] and payload["device_user_id"] in existing_device_ids:
+                results.append({"row": row_num, "employee_id": employee_id, "status": "skipped", "detail": f"device_user_id {payload['device_user_id']} already assigned."})
                 skipped += 1
                 continue
 
-            if payload["device_user_id"] and payload["device_user_id"] in existing_device_ids:
-                results.append({"row": row_num, "employee_id": employee_id, "status": "skipped", "detail": f"device_user_id {payload['device_user_id']} already assigned."})
+            cin_val = payload.get("cin")
+            if cin_val and cin_val in existing_cins:
+                results.append({"row": row_num, "employee_id": employee_id, "status": "skipped", "detail": f"CIN '{cin_val}' déjà utilisé par l'employé {existing_cins[cin_val]}."})
                 skipped += 1
                 continue
 
@@ -518,6 +558,10 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                     classe__iexact=payload["classification_name"]
                 ).first()
 
+            poste_obj = None
+            if payload["job_title"]:
+                poste_obj = Poste.objects.filter(name__iexact=payload["job_title"]).first()
+
             to_create.append(Employee(
                 employee_id=payload["employee_id"],
                 first_name=payload["first_name"],
@@ -526,7 +570,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 phone=payload["phone"],
                 factory=factory,
                 department=department,
-                job_title=Poste.objects.filter(name__iexact=payload["job_title"]).first() if payload["job_title"] else None,
+                job_title=poste_obj,
                 contract_type=payload["contract_type"],
                 hire_date=payload["hire_date"],
                 status=payload["status"],
@@ -560,7 +604,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         created = 0
         if to_create:
             try:
-                Employee.objects.bulk_create(to_create, batch_size=500)
+                Employee.objects.bulk_create(to_create, batch_size=500, ignore_conflicts=True)
                 created = len(to_create)
                 for r in results:
                     if r["status"] == "queued":
@@ -664,16 +708,14 @@ class WorkScheduleViewSet(viewsets.ModelViewSet):
         )
 
 
-class ClassificationViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Classification.objects.all()
-    serializer_class = ClassificationSerializer
 
-class PosteViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Poste.objects.filter(is_active=True)
+
+class PosteViewSet(viewsets.ModelViewSet):
+    queryset = Poste.objects.all().order_by("name")
     serializer_class = PosteSerializer
-    filter_backends = [filters.SearchFilter]
+    filter_backends = [filters.SearchFilter, DjangoFilterBackend]
+    filterset_fields = ["is_active"]
     search_fields = ["name"]
-
 
 # ── Function-based views ───────────────────────────────────────────────────
 
@@ -726,4 +768,18 @@ def employee_export(request):
     return Response({"count": len(data), "results": data})
 
 
+class ClassificationViewSet(viewsets.ModelViewSet):
+    queryset = Classification.objects.all().order_by("classe")
+    serializer_class = ClassificationSerializer
+    filter_backends = [filters.SearchFilter]
+    search_fields = ["classe"]
 
+
+@api_view(["GET"])
+def cached_classifications(request):
+    data = cache.get("classifications_list")
+    if not data:
+        qs   = Classification.objects.all().order_by("classe")
+        data = ClassificationSerializer(qs, many=True).data
+        cache.set("classifications_list", data, 60 * 30)
+    return Response(data)
