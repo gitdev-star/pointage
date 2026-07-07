@@ -26,6 +26,7 @@ from .serializers import (
     WorkScheduleSerializer,
     ClassificationSerializer,
     PosteSerializer,
+    WorkScheduleBulkAssignSerializer,
 )
 from alerts.email_utils import (
     notify_resiliation,
@@ -624,6 +625,44 @@ class WorkScheduleViewSet(viewsets.ModelViewSet):
     ]
     ordering_fields  = ["name", "created_at"]
 
+    @action(detail=False, methods=["post"], url_path="bulk-assign")
+    def bulk_assign(self, request):
+        serializer = WorkScheduleBulkAssignSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        employee_ids = data.pop("employee_ids")
+        deactivate_previous = data.pop("deactivate_previous")
+        base_name = data.pop("name")  # pull name out so we can customize it per employee
+
+        employees = Employee.objects.filter(id__in=employee_ids)
+        found_ids = set(employees.values_list("id", flat=True))
+        missing_ids = set(employee_ids) - found_ids
+        if missing_ids:
+            return Response(
+                {"detail": f"Employee IDs not found: {sorted(missing_ids)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        created = []
+        for employee in employees:
+            if deactivate_previous:
+                WorkSchedule.objects.filter(
+                    employee=employee, is_active=True
+                ).update(is_active=False)
+
+            unique_name = f"{base_name} - {employee.employee_id}"
+            schedule = WorkSchedule.objects.create(
+                employee=employee, name=unique_name, **data
+            )
+            created.append(schedule)
+
+        result = WorkScheduleSerializer(created, many=True).data
+        return Response(
+            {"created_count": len(created), "schedules": result},
+            status=status.HTTP_201_CREATED,
+        )
+
 
 class ClassificationViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Classification.objects.all()
@@ -685,3 +724,6 @@ def employee_export(request):
 
     data = EmployeeDetailSerializer(qs, many=True).data
     return Response({"count": len(data), "results": data})
+
+
+

@@ -71,7 +71,6 @@ class WorkScheduleFactory(factory.django.DjangoModelFactory):
 
     name = factory.Faker("word")
     employee = factory.SubFactory(EmployeeFactory)
-    work_start = factory.LazyAttribute(lambda o: factory.datetime.time(7, 40))
     standard_start = factory.LazyAttribute(lambda o: factory.datetime.time(7, 30))
     standard_end = factory.LazyAttribute(lambda o: factory.datetime.time(16, 30))
     early_leave_limit = factory.LazyAttribute(lambda o: factory.datetime.time(16, 27))
