@@ -127,9 +127,8 @@ class WorkScheduleSerializer(serializers.ModelSerializer):
             "employee", "employee_name",
             "department", "department_name",
             "section", "section_name",
-            "work_start", "early_leave_limit",
+            "early_leave_limit",
             "standard_start", "standard_end",
-            "lunch_start", "lunch_end",
             "standard_work_hours", "overtime_threshold_hours",
             "valid_from", "valid_until",
             "is_active", "created_at", "updated_at",
@@ -146,14 +145,12 @@ class WorkScheduleSerializer(serializers.ModelSerializer):
     def get_section_name(self, obj):
         return obj.section.name if obj.section else None
 
-
 class WorkScheduleBulkAssignSerializer(serializers.Serializer):
     employee_ids = serializers.ListField(
         child=serializers.IntegerField(), allow_empty=False
     )
     name = serializers.CharField(max_length=100)
     description = serializers.CharField(required=False, allow_blank=True)
-    work_start = serializers.TimeField()
     standard_start = serializers.TimeField()
     standard_end = serializers.TimeField()
     early_leave_limit = serializers.TimeField()
