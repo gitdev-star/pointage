@@ -3,6 +3,7 @@ import {
   Paper, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Checkbox, CircularProgress, TablePagination
 } from "@mui/material";
+import { formatDateFR } from "../../../utils/dateUtils";
 
 export default function EmployeeDocumentTable({
   employees,
@@ -14,7 +15,10 @@ export default function EmployeeDocumentTable({
   onPageChange,
   onToggleOne,
   onToggleAll,
-})  {
+}) {
+
+  console.log("employe:", employees)
+
   return (
     <Paper elevation={2}>
       <TableContainer>
@@ -32,6 +36,7 @@ export default function EmployeeDocumentTable({
               <TableCell><strong>Nom</strong></TableCell>
               <TableCell><strong>Prénom</strong></TableCell>
               <TableCell><strong>Poste</strong></TableCell>
+              <TableCell><strong>Date d'embauche</strong></TableCell>
               <TableCell><strong>Département</strong></TableCell>
               <TableCell><strong>Statut</strong></TableCell>
             </TableRow>
@@ -70,6 +75,7 @@ export default function EmployeeDocumentTable({
                   <TableCell>{emp.last_name}</TableCell>
                   <TableCell>{emp.first_name}</TableCell>
                   <TableCell>{emp.job_title_name || emp.job_title || "—"}</TableCell>
+                  <TableCell>{formatDateFR(emp.hire_date)}</TableCell>
                   <TableCell>{emp.department_name || "—"}</TableCell>
                   <TableCell>{emp.status}</TableCell>
                 </TableRow>
