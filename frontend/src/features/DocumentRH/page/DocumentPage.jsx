@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { FormControl, InputLabel, Select, MenuItem } from "@mui/material";
 import {
   Alert, Button, Chip, TextField, Dialog,
   DialogTitle, DialogContent, DialogActions,
@@ -18,26 +19,43 @@ export default function DocumentsRHPage() {
   const [total, setTotal] = useState(0);
   const [docModalOpen, setDocModalOpen] = useState(false);
   const rowsPerPage = 50;
+  const currentMonth = new Date().toISOString().slice(0, 7); // "2026-07"
+  const [refMonth, setRefMonth] = useState(currentMonth);
+  const [cddType, setCddType] = useState(""); // "" | "cdd_3" | "cdd_6" | "cdd_12" | "cdd_18"
 
-  const selectedEmployees = employees.filter((emp) => selectedIds.includes(emp.employee_id));
-  const hasOnlyCDI = selectedEmployees.length > 0 && selectedEmployees.every((emp) => emp.contract_type === "CDI");
+  // const selectedEmployees = employees.filter((emp) => selectedIds.includes(emp.employee_id));
+  // const hasOnlyCDI = selectedEmployees.length > 0 && selectedEmployees.every((emp) => emp.contract_type === "CDI");
 
-  const fetchEmployees = async () => {
-    setLoading(true); setError("");
-    try {
-      const res = await hrClient.get("employees/", {
-        params: { page: page + 1, page_size: rowsPerPage, status: "ACTIVE", search: search || undefined },
-      });
-      const data = res.data;
-      if (Array.isArray(data)) { setEmployees(data); setTotal(data.length); }
-      else { setEmployees(data.results || []); setTotal(data.count || 0); }
-    } catch (err) {
-      console.error("Erreur employees:", err.response?.data || err);
-      setError("Impossible de charger la liste des employes.");
-    } finally { setLoading(false); }
-  };
+const fetchEmployees = async () => {
+  setLoading(true); setError("");
+  try {
+    const anciennete = cddType
+      ? CDD_ANCIENNETE_TYPES.find((t) => t.value === cddType)?.months
+      : undefined;
 
-  useEffect(() => { fetchEmployees(); }, [page, search]);
+    const res = await hrClient.get("employees/", {
+      params: {
+        page: page + 1,
+        page_size: rowsPerPage,
+        status: "ACTIVE",
+        search: search || undefined,
+        contract_type: cddType ? "CDD" : undefined,
+        ref_month: cddType ? refMonth : undefined,
+        anciennete_months: cddType
+        ? CDD_ANCIENNETE_TYPES.find((t) => t.value === cddType)?.months
+        : undefined,
+      },
+    });
+    const data = res.data;
+    if (Array.isArray(data)) { setEmployees(data); setTotal(data.length); }
+    else { setEmployees(data.results || []); setTotal(data.count || 0); }
+  } catch (err) {
+    console.error("Erreur employees:", err.response?.data || err);
+    setError("Impossible de charger la liste des employes.");
+  } finally { setLoading(false); }
+};
+
+useEffect(() => { fetchEmployees(); }, [page, search, cddType, refMonth]);
 
   const filteredEmployees = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -58,49 +76,122 @@ export default function DocumentsRHPage() {
     else setSelectedIds((prev) => [...new Set([...prev, ...visibleIds])]);
   };
 
-  const handleBulkZipDownload = async (documentType) => {
-    if (selectedIds.length === 0) { alert("Veuillez selectionner au moins un employe."); return; }
-    try {
-      const res = await hrClient.post("documents/bulk/",
-        { employee_ids: selectedIds, document_type: documentType, extra: {} },
-        { responseType: "blob" }
-      );
-      const url = URL.createObjectURL(new Blob([res.data], { type: "application/zip" }));
-      const a = document.createElement("a"); a.href = url;
-      a.download = `documents_rh_${documentType}.zip`; a.click();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      let message = "Erreur lors de la generation du ZIP.";
-      try {
-        if (err.response?.data instanceof Blob) {
-          const json = JSON.parse(await err.response.data.text());
-          message = json.detail || message;
-        }
-      } catch {}
-      alert(message);
-    }
-  };
+  
+const CDD_MONTHS_LABEL = {
+  "3": "3mois", "6": "6mois", "12": "12mois", "18": "18mois",
+};
 
-  const handleBulkPrint = async (documentType) => {
-    if (selectedIds.length === 0) { alert("Veuillez selectionner au moins un employe."); return; }
+const getRefMonthLabel = () => {
+  // "2026-07" -> "juillet2026"
+  const [year, m] = refMonth.split("-");
+  const mois = [
+    "janvier","fevrier","mars","avril","mai","juin",
+    "juillet","aout","septembre","octobre","novembre","decembre",
+  ];
+  return `${mois[parseInt(m, 10) - 1]}${year}`;
+};
+
+const handleBulkZipDownload = async (documentType) => {
+  if (selectedIds.length === 0) { alert("Veuillez selectionner au moins un employe."); return; }
+  try {
+    const extra = cddType
+      ? {
+          anciennete_months: CDD_ANCIENNETE_TYPES.find((t) => t.value === cddType)?.months,
+          ref_month: refMonth,
+        }
+      : {};
+
+    const res = await hrClient.post("documents/bulk/",
+      { employee_ids: selectedIds, document_type: documentType, extra },
+      { responseType: "blob" }
+    );
+
+    const suffix = cddType
+      ? `_${CDD_ANCIENNETE_TYPES.find(t => t.value === cddType)?.months}mois_${getRefMonthLabel()}`
+      : "";
+
+    const url = URL.createObjectURL(new Blob([res.data], { type: "application/zip" }));
+    const a = document.createElement("a"); a.href = url;
+    a.download = `documents_rh_${documentType}${suffix}.zip`; a.click();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    let message = "Erreur lors de la generation du ZIP.";
     try {
-      const res = await hrClient.post("documents/bulk-pdf/",
-        { employee_ids: selectedIds, document_type: documentType, extra: {} },
-        { responseType: "blob" }
-      );
-      const url = URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
-      const win = window.open(url, "_blank");
-      if (win) win.onload = () => { win.focus(); win.print(); };
-    } catch (err) { console.error("Erreur impression :", err); alert("Erreur lors de l'impression."); }
-  };
+      if (err.response?.data instanceof Blob) {
+        const json = JSON.parse(await err.response.data.text());
+        message = json.detail || message;
+      }
+    } catch {}
+    alert(message);
+  }
+};
+
+const handleBulkPrint = async (documentType) => {
+  if (selectedIds.length === 0) { alert("Veuillez selectionner au moins un employe."); return; }
+  try {
+    const extra = cddType
+    ? {
+        anciennete_months: CDD_ANCIENNETE_TYPES.find((t) => t.value === cddType)?.months,
+        ref_month: refMonth,
+      }
+    : {};
+
+    const res = await hrClient.post("documents/bulk-pdf/",
+      { employee_ids: selectedIds, document_type: documentType, extra },
+      { responseType: "blob" }
+    );
+    const url = URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
+    const win = window.open(url, "_blank");
+    if (win) win.onload = () => { win.focus(); win.print(); };
+  } catch (err) { console.error("Erreur impression :", err); alert("Erreur lors de l'impression."); }
+};
+
+  // const DOC_TYPES = [
+  //   { type: "attestation",      label: "Attestation d'emploi",           color: "primary",   always: true },
+  //   { type: "certificat",       label: "Certificat de travail",           color: "success",   always: true },
+  //   { type: "cdd_6",      label: "Contrat de travail CDD",          color: "warning",   always: false },
+  //   { type: "evaluation_cdd",   label: "Evaluation & Renouvellement CDD", color: "secondary", always: false },
+  //   { type: "ccdd_18", label: "Evaluation & Confirmation CDI",   color: "info",      always: true },
+  // ];
 
   const DOC_TYPES = [
-    { type: "attestation",      label: "Attestation d'emploi",           color: "primary",   always: true },
-    { type: "certificat",       label: "Certificat de travail",           color: "success",   always: true },
-    { type: "contrat_cdd",      label: "Contrat de travail CDD",          color: "warning",   always: false },
-    { type: "evaluation_cdd",   label: "Evaluation & Renouvellement CDD", color: "secondary", always: false },
-    { type: "confirmation_cdi", label: "Evaluation & Confirmation CDI",   color: "info",      always: true },
-  ];
+  { type: "attestation",      label: "Attestation d'emploi",           color: "primary",   always: true },
+  { type: "certificat",       label: "Certificat de travail",           color: "success",   always: true },
+  // { type: "cdd_6",            label: "Contrat de travail CDD 6 mois",          color: "warning",   always: false },
+  { type: "evaluation_cdd",   label: "Evaluation & Renouvellement CDD", color: "secondary", always: true },
+  { type: "cdd_18",           label: "Evaluation & Confirmation CDI - CDD 18 mois",   color: "info",      always: true },
+  { type: "cdd_12",           label: "Evaluation - Contrat CDD 12 mois",   color: "secondary",      always: true },
+  { type: "cdd_3",           label: "Evaluation - Contrat CDD 3 mois",   color: "secondary",      always: true },
+  { type: "cdd_6",            label: "Evaluation - Contrat CDD 6 mois",       color: "warning",   always: true },
+];
+  // en haut du fichier, à côté de DOC_TYPES
+const CDD_ANCIENNETE_TYPES = [
+  { value: "cdd_3",  label: "CDD 3 mois",  months: 3 },
+  { value: "cdd_6",  label: "CDD 6 mois",  months: 6 },
+  { value: "cdd_12", label: "CDD 12 mois", months: 12 },
+  { value: "cdd_18", label: "CDD 18 mois", months: 18 },
+];
+
+// helper : différence en mois calendaires entre la date d'embauche et le mois de référence
+function getMonthsBetween(hireDateStr, refYearMonth) {
+  if (!hireDateStr || !refYearMonth) return null;
+  const hire = new Date(hireDateStr);
+  const [refYear, refMonthNum] = refYearMonth.split("-").map(Number);
+  const hireYear = hire.getFullYear();
+  const hireMonthNum = hire.getMonth() + 1;
+  return (refYear - hireYear) * 12 + (refMonthNum - hireMonthNum);
+}
+
+const anciennetEmployees = useMemo(() => {
+  if (!cddType) return filteredEmployees;
+  const target = CDD_ANCIENNETE_TYPES.find((d) => d.value === cddType)?.months;
+  if (target == null) return filteredEmployees;
+
+  return filteredEmployees.filter((emp) => {
+    if (emp.contract_type !== "CDD") return false;
+    return getMonthsBetween(emp.hire_date, refMonth) === target;
+  });
+}, [filteredEmployees, cddType, refMonth]);
 
   return (
     <div className="p-6">
@@ -120,10 +211,43 @@ export default function DocumentsRHPage() {
         />
       </div>
 
+      <div className="mb-4 flex gap-3 flex-wrap items-center">
+        <TextField
+          label="Mois de référence"
+          type="month"
+          size="small"
+          value={refMonth}
+          onChange={(e) => { setRefMonth(e.target.value); setPage(0); }}
+          InputLabelProps={{ shrink: true }}
+        />
+
+        <FormControl size="small" sx={{ minWidth: 220 }}>
+          <InputLabel>Type de contrat CDD</InputLabel>
+          <Select
+            label="Type de contrat CDD"
+            value={cddType}
+            onChange={(e) => { setCddType(e.target.value); setPage(0); }}
+          >
+            <MenuItem value="">Tous</MenuItem>
+            {CDD_ANCIENNETE_TYPES.map((t) => (
+              <MenuItem key={t.value} value={t.value}>{t.label}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        {cddType && (
+          <Chip
+            label={`${anciennetEmployees.length} employé(s) — ${CDD_ANCIENNETE_TYPES.find(t => t.value === cddType)?.label}`}
+            color="warning"
+          />
+        )}
+      </div>
+
+
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
       <EmployeeDocumentTable
-        employees={filteredEmployees} selectedIds={selectedIds} loading={loading}
+        employees={anciennetEmployees } selectedIds={selectedIds} loading={loading}
         page={page} total={total} rowsPerPage={rowsPerPage}
         onPageChange={setPage} onToggleOne={toggleOne} onToggleAll={toggleAll}
       />
@@ -144,7 +268,7 @@ export default function DocumentsRHPage() {
             {selectedIds.length} employe(s) selectionne(s). Choisissez le document a generer.
           </Typography>
           <Box display="flex" flexDirection="column" gap={2}>
-            {DOC_TYPES.filter((d) => d.always || !hasOnlyCDI).map((doc) => (
+            {DOC_TYPES.filter((d) => d.always).map((doc) => (
               <Box key={doc.type} sx={{ p: 2, border: "1px solid #e0e0e0", borderRadius: 2, backgroundColor: "#fafafa" }}>
                 <Typography fontWeight={700} mb={1}>{doc.label}</Typography>
                 <Box display="flex" gap={1} flexWrap="wrap">
