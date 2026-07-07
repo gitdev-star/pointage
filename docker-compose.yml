@@ -178,6 +178,8 @@ services:
         max-file: "3"
     networks:
       - pointage_net
+    cap_add:
+      - NET_RAW
     restart: unless-stopped
 
   # ── Attendance Sync ──────────────────────────────────────────────────────────

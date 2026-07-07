@@ -260,6 +260,9 @@ function RegistreView() {
   );
 }
 
+const SANCTION_STATUS_COLORS = { ACTIVE: "error", CANCELLED: "default", APPEALED: "warning" };
+const SANCTION_STATUS_LABELS = { ACTIVE: "Active", CANCELLED: "Annulée", APPEALED: "En appel" };
+
 // ─── FicheDetail ──────────────────────────────────────────────────────────────
 
 function FicheDetail() {
@@ -276,6 +279,7 @@ function FicheDetail() {
   const [shifts,    setShifts]    = useState(null);
   const [maternity, setMaternity] = useState(null);
   const fetchedTabs = React.useRef(new Set());
+  const [sanctions, setSanctions] = useState(null);
 
   useEffect(() => {
     setLoading(true);
@@ -313,6 +317,13 @@ function FicheDetail() {
         .catch(() => setShifts([]));
     }
   }, [tab, employee, id]);
+
+  if (tab === 9 && !fetchedTabs.current.has(9)) {
+  fetchedTabs.current.add(9);
+  hrClient.get(`sanctions/?employee=${id}&page_size=50`)
+    .then((r) => setSanctions(r.data.results || r.data))
+    .catch(() => setSanctions([]));
+}
 
   if (loading)   return <Box sx={{ display: "flex", justifyContent: "center", mt: 8 }}><CircularProgress /></Box>;
   if (error)     return <Alert severity="error" sx={{ m: 3 }}>{error}</Alert>;
@@ -380,6 +391,7 @@ function FicheDetail() {
         <Tab label="Documents RH" />
         <Tab label="Horaire" />
         <Tab label="Analyse présences" disabled={!attendanceId} />
+        <Tab label={`Sanctions${sanctions !== null ? ` (${sanctions?.length || 0})` : ""}`} />
       </Tabs>
 
       {tab === 0 && (
@@ -581,6 +593,48 @@ function FicheDetail() {
           </Button>
         </Paper>
       )}
+
+      {tab === 9 && (
+  sanctions === null ? <TabSpinner /> : (
+    <TableContainer component={Paper} elevation={1}>
+      <Table size="small">
+        <TableHead>
+          <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
+            {["Sanction", "Date", "Motif", "Statut"].map((h) => (
+              <TableCell key={h}><strong>{h}</strong></TableCell>
+            ))}
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {sanctions.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={4} align="center" sx={{ py: 4, color: "text.secondary" }}>
+                Aucune sanction enregistrée
+              </TableCell>
+            </TableRow>
+          ) : sanctions.map((s) => (
+            <TableRow key={s.id} hover>
+              <TableCell>
+                <Chip
+                  label={s.sanction_type_name}
+                  size="small"
+                  sx={{ bgcolor: s.sanction_color, color: "#fff", fontWeight: 600 }}
+                />
+              </TableCell>
+              <TableCell>{s.date}</TableCell>
+              <TableCell sx={{ maxWidth: 350, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {s.reason}
+              </TableCell>
+              <TableCell>
+                <Chip label={SANCTION_STATUS_LABELS[s.status]} color={SANCTION_STATUS_COLORS[s.status]} size="small" />
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  )
+)}
     </div>
   );
 }

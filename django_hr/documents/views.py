@@ -11,6 +11,9 @@ from rest_framework.response import Response
 from rest_framework import status
 from employees.models import Employee
 from accounts.permissions import IsHRUser
+import copy 
+from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
 
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
 
@@ -18,6 +21,7 @@ TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
 
 MONTHS_FR = ["","janvier","f\u00e9vrier","mars","avril","mai","juin",
              "juillet","ao\u00fbt","septembre","octobre","novembre","d\u00e9cembre"]
+
 
 def fmt_date(value):
     if not value: return "\u2014"
@@ -70,10 +74,76 @@ def remove_underline(doc):
                         if r.underline:
                             r.underline = False
 
-def fill_template(tpl_path, reps, strip_underline=False):
+def replace_mergefields(doc, field_map):
+    """Remplace les champs MERGEFIELD Word par du texte statique."""
+    root = doc.element
+    paragraphs = root.findall('.//' + qn('w:p'))
+    for p in paragraphs:
+        runs = list(p.findall(qn('w:r')))
+        i = 0
+        while i < len(runs):
+            r = runs[i]
+            fld = r.find(qn('w:fldChar'))
+            if fld is not None and fld.get(qn('w:fldCharType')) == 'begin':
+                collected = [r]
+                field_name = None
+                j = i + 1
+                while j < len(runs):
+                    rj = runs[j]
+                    collected.append(rj)
+                    instr = rj.find(qn('w:instrText'))
+                    if instr is not None and instr.text and 'MERGEFIELD' in instr.text:
+                        m = re.search(r'MERGEFIELD\s+"?([^"\s]+)"?', instr.text)
+                        if m:
+                            field_name = m.group(1)
+                    fld2 = rj.find(qn('w:fldChar'))
+                    if fld2 is not None and fld2.get(qn('w:fldCharType')) == 'separate':
+                        j += 1
+                        break
+                    j += 1
+                template_run = None
+                k = j
+                while k < len(runs):
+                    rk = runs[k]
+                    collected.append(rk)
+                    if template_run is None and rk.find(qn('w:t')) is not None:
+                        template_run = rk
+                    fldend = rk.find(qn('w:fldChar'))
+                    if fldend is not None and fldend.get(qn('w:fldCharType')) == 'end':
+                        break
+                    k += 1
+
+                value = field_map.get(field_name, "") if field_name else ""
+
+                new_r = OxmlElement('w:r')
+                if template_run is not None:
+                    rpr = template_run.find(qn('w:rPr'))
+                    if rpr is not None:
+                        new_r.append(copy.deepcopy(rpr))
+                t = OxmlElement('w:t')
+                t.set(qn('xml:space'), 'preserve')
+                t.text = str(value)
+                new_r.append(t)
+
+                collected[0].addprevious(new_r)
+                for el in collected:
+                    parent = el.getparent()
+                    if parent is not None:
+                        parent.remove(el)
+
+                runs = list(p.findall(qn('w:r')))
+                i = runs.index(new_r) + 1
+                continue
+            i += 1
+
+def fill_template(tpl_path, reps, strip_underline=False, mergefields=None):
     from docx import Document
     from docx.oxml.ns import qn
     doc = Document(tpl_path)
+
+    if mergefields:
+        replace_mergefields(doc, mergefields)
+
     for p in doc.paragraphs: replace_in_paragraph(p, reps)
     for tbl in doc.tables:
         for row in tbl.rows:
@@ -148,7 +218,7 @@ def build_certificat(emp, extra):
     })
 
 
-def build_contrat_cdd(emp, extra):
+def build_cdd_6(emp, extra):
     # Auto-fill salary from classification if not provided
     classif_salaire = None
     if emp.classification and emp.classification.salaire:
@@ -179,7 +249,7 @@ def build_contrat_cdd(emp, extra):
     cin_plc = getattr(emp, "cin_place", None) or "—"
 
     return fill_template(
-        os.path.join(TEMPLATES_DIR, "CONTRAT DE TRAVAIL OUVRIERS CDD 06 MOIS 2025.docx"),
+        os.path.join(TEMPLATES_DIR, "cdd-6mois.docx"),
         {
             # Ancien template avec placeholders
             "Madame/Monsieur": civ,
@@ -256,7 +326,7 @@ def build_evaluation_cdd(emp, extra):
         "manomboka ny xxxxxxxxx  hatramin\u2019ny xxxxxxxxxxxxxxx" : f"manomboka ny {d_debut} hatramin\u2019ny {d_fin}",
     })
 
-def build_confirmation_cdi(emp, extra):
+def build_cdd_18(emp, extra):
     dept     = emp.department.name if emp.department else "—"
     section  = extra.get("section") or (emp.section.name if emp.section else dept)
     factory  = emp.factory.name if emp.factory else "—"
@@ -268,7 +338,7 @@ def build_confirmation_cdi(emp, extra):
     matricule = emp.employee_id or "—"
 
     return fill_template(
-        os.path.join(TEMPLATES_DIR, "Evaluation et Confirmation CDI.docx"),
+        os.path.join(TEMPLATES_DIR, "cdd-18mois.docx"),
         {
             # Header block
             "ONJANIAINA Virginie"                          : name,
@@ -289,14 +359,77 @@ def build_confirmation_cdi(emp, extra):
         }
     )
 
+def build_cdd_3(emp, extra):
+    raw = extra.get("date_embauche") or str(emp.hire_date or date.today())
+    hire_fr = fmt_date(raw)
+    fin_essai = add_months(raw, 3)
+
+    fonction = emp.job_title.name if emp.job_title else "—"
+    section = extra.get("section") or (emp.section.name if emp.section else (emp.department.name if emp.department else "—"))
+    factory = emp.factory.name if emp.factory else "—"
+
+    mergefields = {
+        "Nom": emp.last_name or "—",
+        "Prénom": emp.first_name or "—",
+        "Matricule": emp.employee_id or "—",
+        "Fonction": fonction,
+        "Section": section,
+        "Site_Publi": factory,
+        "DE_en_LETTRES": hire_fr,
+        "D_Fin_Ess_en_lettres": fin_essai,
+    }
+    return fill_template(
+        os.path.join(TEMPLATES_DIR, "cdd-3mois.docx"),
+        {},  # pas de remplacement texte classique ici
+        mergefields=mergefields,
+    )
+
+
+def build_cdd_12(emp, extra):
+    raw = extra.get("date_embauche") or str(emp.hire_date or date.today())
+    hire_fr = fmt_date(raw)
+    fin6 = add_months(raw, 6)
+    fin12 = add_months(raw, 12)
+
+    fonction = emp.job_title.name if emp.job_title else "—"
+    section = extra.get("section") or (emp.section.name if emp.section else (emp.department.name if emp.department else "—"))
+    factory = emp.factory.name if emp.factory else "—"
+
+    mergefields = {
+        "Nom": emp.last_name or "—",
+        "Prénom": emp.first_name or "—",
+        "Matricule": emp.employee_id or "—",
+        "Fonction": fonction,
+        "Section": section,
+        "Site_Publi": factory,
+        "DE_en_LETTRES": hire_fr,
+        "D_Fin_6_en_lettres": fin6,
+        "D_Fin_12_en_lettres": fin12,
+        "Début_1_ère_renouvellement1": fin6,
+        "Fin_1ère_renouvellement1": fin12,
+    }
+    return fill_template(
+        os.path.join(TEMPLATES_DIR, "cdd-12mois.docx"),
+        {},
+        mergefields=mergefields,
+    )
 # ── API ───────────────────────────────────────────────────────────────────────
 
+# BUILDERS = {
+#     "attestation"   : (build_attestation,    "Attestation_emploi"),
+#     "certificat"    : (build_certificat,     "Certificat_travail"),
+#     "contrat_cdd"   : (build_contrat_cdd,    "Contrat_CDD"),
+#     "evaluation_cdd": (build_evaluation_cdd, "Evaluation_CDD"),
+#     "confirmation_cdi" : (build_confirmation_cdi,  "Confirmation_CDI"),
+# }
 BUILDERS = {
-    "attestation"   : (build_attestation,    "Attestation_emploi"),
-    "certificat"    : (build_certificat,     "Certificat_travail"),
-    "contrat_cdd"   : (build_contrat_cdd,    "Contrat_CDD"),
-    "evaluation_cdd": (build_evaluation_cdd, "Evaluation_CDD"),
-    "confirmation_cdi" : (build_confirmation_cdi,  "Confirmation_CDI"),
+    "attestation"     : (build_attestation,      "Attestation_emploi"),
+    "certificat"      : (build_certificat,       "Certificat_travail"),
+    "cdd_3"           : (build_cdd_3,            "Evaluation_CDD_3mois"),
+    "cdd_6"           : (build_cdd_6,            "Contrat_CDD_6mois"),      # ex build_contrat_cdd, renommé
+    "cdd_12"          : (build_cdd_12,           "Evaluation_CDD_12mois"),
+    "cdd_18"          : (build_cdd_18,           "Contrat_CDD_18mois"),     # ex build_confirmation_cdi, renommé
+    "evaluation_cdd"  : (build_evaluation_cdd,   "Evaluation_CDD"),
 }
 
 @api_view(["POST"])
@@ -392,17 +525,28 @@ def bulk_documents_zip(request):
     return resp
 
 
+# @api_view(["GET"])
+# @permission_classes([IsHRUser])
+# def list_templates(request):
+#     return Response({"templates":[
+#         {"id":"attestation",    "title":"Attestation d\u2019emploi"},
+#         {"id":"certificat",     "title":"Certificat de travail"},
+#         {"id":"contrat_cdd",    "title":"Contrat CDD 6 mois"},
+#         {"id":"evaluation_cdd", "title":"\u00c9valuation & Renouvellement CDD"},
+#         {"id":"confirmation_cdi", "title":"Évaluation & Confirmation CDI"},
+#     ]})
 @api_view(["GET"])
 @permission_classes([IsHRUser])
 def list_templates(request):
     return Response({"templates":[
-        {"id":"attestation",    "title":"Attestation d\u2019emploi"},
-        {"id":"certificat",     "title":"Certificat de travail"},
-        {"id":"contrat_cdd",    "title":"Contrat CDD 6 mois"},
-        {"id":"evaluation_cdd", "title":"\u00c9valuation & Renouvellement CDD"},
-        {"id":"confirmation_cdi", "title":"Évaluation & Confirmation CDI"},
+        {"id":"attestation",     "title":"Attestation d\u2019emploi"},
+        {"id":"certificat",      "title":"Certificat de travail"},
+        {"id":"cdd_3",           "title":"Contrat CDD 3 mois"},
+        {"id":"cdd_6",           "title":"Contrat CDD 6 mois"},
+        {"id":"cdd_12",          "title":"Contrat CDD 12 mois"},
+        {"id":"cdd_18",          "title":"Contrat CDD 18 mois"},
+        {"id":"evaluation_cdd",  "title":"\u00c9valuation & Renouvellement CDD"},
     ]})
-
 
 @api_view(["POST"])
 @permission_classes([IsHRUser])
