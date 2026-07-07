@@ -142,27 +142,97 @@ class Employee(models.Model):
 
 
 class WorkSchedule(models.Model):
-    name        = models.CharField(max_length=100, unique=True)
-    description = models.TextField(blank=True)
-    employee    = models.ForeignKey("Employee",   on_delete=models.CASCADE, null=True, blank=True, related_name="work_schedules")
-    department  = models.ForeignKey("Department", on_delete=models.CASCADE, null=True, blank=True, related_name="work_schedules")
-    section     = models.ForeignKey("Section",    on_delete=models.CASCADE, null=True, blank=True, related_name="work_schedules")
-    work_start               = models.TimeField()
-    standard_start           = models.TimeField()
-    standard_end             = models.TimeField()
-    early_leave_limit        = models.TimeField()
-    lunch_start              = models.TimeField(default="12:00")
-    lunch_end                = models.TimeField(default="13:00")
-    standard_work_hours      = models.FloatField(default=8.0)
-    overtime_threshold_hours = models.FloatField(default=8.5)
-    valid_from  = models.DateField(null=True, blank=True)
-    valid_until = models.DateField(null=True, blank=True)
-    is_active   = models.BooleanField(default=True)
-    created_at  = models.DateTimeField(auto_now_add=True)
-    updated_at  = models.DateTimeField(auto_now=True)
+    """
+    Defines a custom work schedule that can be assigned to:
+      - A specific employee  (highest priority)
+      - A section            (medium priority)
+      - A department         (lower priority)
+
+    If none match, the global constants in analysis_service.py are used.
+
+    Use-cases:
+      - Maternity / breastfeeding employees allowed to leave early
+      - Night-shift or afternoon employees starting at 13:00
+      - Part-time employees with a 4-hour day
+    """
 
     class Meta:
         ordering = ["name"]
+        verbose_name = "Work Schedule"
+        verbose_name_plural = "Work Schedules"
+
+    name = models.CharField(
+        max_length=100,
+        unique=True,
+        help_text="Human label, e.g. 'Maternity', 'Afternoon Shift', 'Part-Time'",
+    )
+    description = models.TextField(blank=True)
+
+    # ── Who does this schedule apply to? (all optional — at least one recommended) ──
+    employee = models.ForeignKey(
+        "Employee",
+        on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name="work_schedules",
+        help_text="Assign directly to a single employee.",
+    )
+    department = models.ForeignKey(
+        "Department",
+        on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name="work_schedules",
+        help_text="Applies to all employees in this department (unless overridden by section/employee).",
+    )
+    section = models.ForeignKey(
+        "Section",
+        on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name="work_schedules",
+        help_text="Applies to all employees in this section (unless overridden by employee).",
+    )
+
+    # ── Schedule times ────────────────────────────────────────────────────────
+    standard_start = models.TimeField(
+        help_text="Official start of the workday for hours calculation. e.g. 07:30",
+    )
+    standard_end = models.TimeField(
+        help_text="Official end of the workday. e.g. 16:30",
+    )
+    early_leave_limit = models.TimeField(
+        help_text="Employee is considered to have left EARLY if departure is before this. e.g. 16:27",
+    )
+
+    standard_work_hours = models.FloatField(
+        default=8.0,
+        help_text="Effective work hours per day after lunch deduction.",
+    )
+    overtime_threshold_hours = models.FloatField(
+        default=8.5,
+        help_text="Hours worked beyond this count as overtime.",
+    )
+
+    # ── Validity window (optional) ───────────────────────────────────────────
+    valid_from = models.DateField(
+        null=True, blank=True,
+        help_text="Schedule is active from this date. Leave blank for no start limit.",
+    )
+    valid_until = models.DateField(
+        null=True, blank=True,
+        help_text="Schedule expires after this date. Leave blank for no end limit.",
+    )
+
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return self.name
+        target = (
+            f"employee:{self.employee_id}"
+            if self.employee_id
+            else f"section:{self.section_id}"
+            if self.section_id
+            else f"dept:{self.department_id}"
+            if self.department_id
+            else "global-override"
+        )
+        return f"{self.name} [{target}]"
