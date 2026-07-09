@@ -158,7 +158,7 @@ function PresenceBarChart({ attendanceData }) {
   return (
     <div className="bg-white rounded-2xl border shadow-sm p-5">
       <h3 className="text-sm font-semibold text-gray-700 mb-1">
-        Présences par jour
+        Pointage global des usines de la semaine
       </h3>
       <p className="text-xs text-gray-400 mb-4">
         Sur la période filtrée — {chartData.length} jour(s)

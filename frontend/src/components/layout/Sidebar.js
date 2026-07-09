@@ -136,6 +136,7 @@ import NavItem from "./NavItem";
 import RoleBadge from "./RoleBadge";
 import { X } from "lucide-react";
 import DocumentsRH from "../hr/DocumentsRH";
+import TransportPage from "../../features/Transport/page/TransportPage";
 
 const POINTAGE_ITEMS = [
   { to: "/",  label: "Tableau de bord" },
@@ -153,6 +154,7 @@ export default function Sidebar({isOpen, onClose}) {
     { to: "/hr/leaves",              label: "Événements",            module: "leaves"       },
     { to: "/hr/payroll",             label: "Fiches de paie",        module: "payroll"      },
     { to: "/hr/document", label: "Document RH",  module: <DocumentsRH/>    },
+    { to: "/hr/transport", label: "Transport",  module: <TransportPage/>    },
 
   ].filter(item => canSee(item.module));
 

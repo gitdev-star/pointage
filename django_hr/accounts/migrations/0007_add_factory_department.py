@@ -1,15 +1,35 @@
-from django.db import migrations
+import django.db.models.deletion
+from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
 
     dependencies = [
         ('accounts', '0006_hrprofile_perm_hr_events_read_and_more'),
+        ('employees', '0001_initial'),  # <-- adjust: must be a migration that creates Factory & Department
     ]
 
     operations = [
-        migrations.RunSQL(
-            sql="ALTER TABLE accounts_hrprofile ADD COLUMN IF NOT EXISTS factory_id integer NULL, ADD COLUMN IF NOT EXISTS department_id integer NULL;",
-            reverse_sql="ALTER TABLE accounts_hrprofile DROP COLUMN IF EXISTS factory_id, DROP COLUMN IF EXISTS department_id;"
+        migrations.AddField(
+            model_name='hrprofile',
+            name='factory',
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name='hr_managers',
+                to='employees.factory',
+            ),
+        ),
+        migrations.AddField(
+            model_name='hrprofile',
+            name='department',
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name='hr_managers',
+                to='employees.department',
+            ),
         ),
     ]
