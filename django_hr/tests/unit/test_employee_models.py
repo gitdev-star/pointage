@@ -76,7 +76,7 @@ class TestEmployeeModel:
         assert "INACTIVE" in statuses
         assert "TERMINATED" in statuses
 
-    def test_multiple_employees_creation(self, test_factory, test_department):
+    def test_multiple_employees_creation(self, test_factory, test_department, test_poste):
         """Test creating multiple employees."""
         employees = []
         for i in range(5):
@@ -87,7 +87,7 @@ class TestEmployeeModel:
                 email=f"emp{i}@test.com",
                 factory=test_factory,
                 department=test_department,
-                job_title="Engineer",
+                job_title=test_poste,
                 hire_date=date.today()
             )
             employees.append(emp)

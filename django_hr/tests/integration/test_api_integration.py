@@ -27,7 +27,6 @@ class TestEmployeeAPIIntegration:
             "email": "jane@example.com",
             "factory": test_factory.id,
             "department": test_department.id,
-            "job_title": "Developer",
             "hire_date": date.today().isoformat(),
             "contract_type": "CDI",
             "status": "ACTIVE"
@@ -47,7 +46,7 @@ class TestEmployeeAPIIntegration:
     def test_update_employee_via_api(self, authenticated_client, test_employee):
         """Test updating employee via API."""
         data = {
-            "job_title": "Senior Developer"
+            "first_name": "UpdatedName"
         }
         response = authenticated_client.patch(
             reverse("employee-detail", kwargs={"pk": test_employee.id}),
