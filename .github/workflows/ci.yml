@@ -50,6 +50,8 @@ jobs:
           ENVIRONMENT: test
           DJANGO_AUTH_URL: http://mock-auth
           DJANGO_SECRET_KEY: ci-test-secret-key-minimum-32-chars-long
+          JWT_SECRET_KEY: ci-test-secret-key-minimum-32-chars-long
+          SERVICE_INTERNAL_KEY: ci-test-service-key-minimum-32-chars-long
 
       - name: Run django_auth tests
         working-directory: django_auth
