@@ -236,3 +236,24 @@ class WorkSchedule(models.Model):
             else "global-override"
         )
         return f"{self.name} [{target}]"
+class TransportList(models.Model):
+    transport_date = models.DateField()
+    heure_fin      = models.CharField(max_length=20)
+    created_by     = models.CharField(max_length=150, blank=True, null=True)
+    created_at     = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-transport_date", "-created_at"]
+
+    def __str__(self):
+        return f"Transport {self.transport_date} - {self.heure_fin}"
+
+
+class TransportListItem(models.Model):
+    transport_list = models.ForeignKey(TransportList, on_delete=models.CASCADE, related_name="items")
+    employee       = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, blank=True)
+    matricule = models.CharField(max_length=100)
+    nom       = models.CharField(max_length=255, blank=True)
+    prenom    = models.CharField(max_length=255, blank=True)
+    fonction  = models.CharField(max_length=255, blank=True, null=True)
+    adresse   = models.TextField(blank=True, null=True)
