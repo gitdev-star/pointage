@@ -224,10 +224,12 @@ services:
       - REACT_APP_CLOCKERS_URL=https://${SERVER_IP}/api/clockers
       - CHOKIDAR_USEPOLLING=true
       - FAST_REFRESH=false
-      - WDS_SOCKET_PROTOCOL=wss
-      - WDS_SOCKET_PORT=443
-      - WDS_SOCKET_HOST=${SERVER_IP}
-      - WDS_SOCKET_PATH=/ws
+      - WDS_SOCKET_PORT=0
+
+      #- WDS_SOCKET_PROTOCOL=wss
+      #- WDS_SOCKET_PORT=443
+      #- WDS_SOCKET_HOST=${SERVER_IP}
+      #- WDS_SOCKET_PATH=/ws
     volumes:
       - ./frontend:/app
     networks:
