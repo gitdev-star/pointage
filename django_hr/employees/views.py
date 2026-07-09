@@ -16,18 +16,20 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 from django.core.cache import cache
 from .models import (
-    Classification, Poste, Factory, Department, Employee, Section, WorkSchedule,
+    Classification, Poste, Factory, Department, Employee, Section, TransportList, WorkSchedule,
 )
 from .serializers import (
+    EmployeeTransportSerializer,
     SectionSerializer,
     FactorySerializer,
     DepartmentSerializer,
     EmployeeListSerializer,
     EmployeeDetailSerializer,
+    TransportListCreateSerializer,
+    TransportListSerializer,
     WorkScheduleSerializer,
     ClassificationSerializer,
     PosteSerializer,
-    WorkScheduleBulkAssignSerializer,
 )
 from alerts.email_utils import (
     notify_resiliation,
@@ -644,6 +646,29 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             },
             "rows": results,
         }, status=status.HTTP_200_OK)
+    
+    @action(detail=False, methods=["get"], url_path="transport-search")
+    
+    def transport_search(self, request):
+        """Recherche légère pour la sélection transport : ne renvoie rien tant
+        que l'utilisateur n'a pas tapé au moins 2 caractères, et limite à 20 résultats."""
+        search = (request.query_params.get("search") or "").strip()
+        if len(search) < 2:
+            return Response([])
+
+        from django.db.models import Q
+        qs = (
+            Employee.objects
+            .filter(status="ACTIVE")
+            .select_related("job_title")
+            .filter(
+                Q(employee_id__icontains=search) |
+                Q(first_name__icontains=search) |
+                Q(last_name__icontains=search)
+            )
+            .only("id", "employee_id", "first_name", "last_name", "address", "job_title__name")[:20]
+        )
+        return Response(EmployeeTransportSerializer(qs, many=True).data)
 
 
 class SectionViewSet(viewsets.ModelViewSet):
@@ -671,45 +696,6 @@ class WorkScheduleViewSet(viewsets.ModelViewSet):
         "department__name", "section__name",
     ]
     ordering_fields  = ["name", "created_at"]
-
-    @action(detail=False, methods=["post"], url_path="bulk-assign")
-    def bulk_assign(self, request):
-        serializer = WorkScheduleBulkAssignSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
-
-        employee_ids = data.pop("employee_ids")
-        deactivate_previous = data.pop("deactivate_previous")
-        base_name = data.pop("name")  # pull name out so we can customize it per employee
-
-        employees = Employee.objects.filter(id__in=employee_ids)
-        found_ids = set(employees.values_list("id", flat=True))
-        missing_ids = set(employee_ids) - found_ids
-        if missing_ids:
-            return Response(
-                {"detail": f"Employee IDs not found: {sorted(missing_ids)}"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        created = []
-        for employee in employees:
-            if deactivate_previous:
-                WorkSchedule.objects.filter(
-                    employee=employee, is_active=True
-                ).update(is_active=False)
-
-            unique_name = f"{base_name} - {employee.employee_id}"
-            schedule = WorkSchedule.objects.create(
-                employee=employee, name=unique_name, **data
-            )
-            created.append(schedule)
-
-        result = WorkScheduleSerializer(created, many=True).data
-        return Response(
-            {"created_count": len(created), "schedules": result},
-            status=status.HTTP_201_CREATED,
-        )
-
 
 
 
@@ -791,3 +777,23 @@ def cached_classifications(request):
         data = ClassificationSerializer(qs, many=True).data
         cache.set("classifications_list", data, 60 * 30)
     return Response(data)
+
+class TransportListViewSet(viewsets.ModelViewSet):
+    queryset = TransportList.objects.prefetch_related("items").all()
+    serializer_class = TransportListSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        date_param = self.request.query_params.get("date")
+        if date_param:
+            qs = qs.filter(transport_date=date_param)
+        return qs
+
+    def create(self, request, *args, **kwargs):
+        serializer = TransportListCreateSerializer(
+            data=request.data,
+            context={"created_by": getattr(request.user, "username", None)},
+        )
+        serializer.is_valid(raise_exception=True)
+        transport_list = serializer.save()
+        return Response(TransportListSerializer(transport_list).data, status=status.HTTP_201_CREATED)
