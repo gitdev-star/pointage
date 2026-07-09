@@ -71,7 +71,7 @@ jobs:
 
   deploy-test-217:
     needs: test
-    runs-on: [self-hosted, SRV-DEV-TEST-217]
+    runs-on: self-hosted
     if: github.ref == 'refs/heads/develop'
     defaults:
       run:
