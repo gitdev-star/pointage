@@ -411,7 +411,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             return self.get_paginated_response(EmployeeListSerializer(page, many=True).data)
         return Response(EmployeeListSerializer(emps, many=True).data)
 
-    @action(detail=False, methods=["post"], url_path="import", parser_classes=[MultiPartParser])
+    @action(detail=False, methods=["post"], url_path="import", url_name="import", parser_classes=[MultiPartParser])
     def import_csv(self, request):
         import traceback as _tb
         try:
