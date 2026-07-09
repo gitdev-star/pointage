@@ -16,7 +16,7 @@ import HRUsers       from "./components/hr/HRUsers";
 import HRPermissions  from "./components/hr/HRPermissions";
 // import EmployeeFiche       from "./components/hr/EmployeeFiche";
 // import HREvents           from "./components/hr/HREvents";
-import Sanctions          from "./components/hr/Sanctions";
+// import Sanctions          from "./components/hr/Sanctions";
 import CDDAlerts         from "./components/hr/CDDAlerts";
 import MaternityLeave    from "./components/hr/MaternityLeave";
 import NotificationsRH   from "./components/hr/NotificationsRH";
@@ -33,6 +33,8 @@ import EmployeeFiche from "./features/Employe/page/EmployeFiche";
 import EventsPage from "./features/Evenement/page/EvenementPage";
 import DocumentsRH from "./features/DocumentRH/page/DocumentPage";
 import HRAttendanceDashboard from "./features/Presence/page/PresencePage";
+import SanctionPage from "./features/Sanction/page/SanctionPage";
+import TransportPage from "./features/Transport/page/TransportPage";
 
 function App() {
   return (
@@ -50,7 +52,8 @@ function App() {
           <Route path="hr/employees/:id"    element={<EmployeeFiche />} />
           {/* <Route path="hr/events"           element={<LeaveRequests />} /> */}
           <Route path="/hr/document" element={<DocumentsRH />} />
-          <Route path="hr/sanctions"        element={<Sanctions />} />
+          <Route path="/hr/transport" element={<TransportPage />} />
+          <Route path="hr/sanctions"        element={<SanctionPage />} />
           <Route path="hr/import"           element={<EmployeeImport />} />
           <Route path="hr/leaves"           element={<EventsPage />} />
           <Route path="hr/payroll"          element={<Payroll />} />
@@ -63,9 +66,9 @@ function App() {
           <Route path="hr/cdd-alerts"       element={<CDDAlerts />} />
           <Route path="hr/notifications"    element={<NotificationsRH />} />
           <Route path="hr/maternity"        element={<MaternityLeave />} />
-	  <Route path="hr/work-schedules" element={<WorkSchedules />} />
+	        <Route path="hr/work-schedules" element={<WorkSchedules />} />
           <Route path="hr/schedule-assignment" element={<ScheduleAssignment />} />
-	  <Route path="attendance/late-report" element={<RetardPage />} />
+	        <Route path="attendance/late-report" element={<RetardPage />} />
         </Route>
       </Routes>
     </Router>

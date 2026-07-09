@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 // ✅ Import hrClient for authenticated HR API calls
 import hrClient from '../../../api/hrClient';
-import authClient from '../../../api/authClient';
+// import authClient from '../../../api/authClient';
 
 // ── Performance: debounce hook ──────────────────────────────────────
 function useDebounce(value, delay) {
@@ -59,57 +59,75 @@ const HRAttendanceDashboard = () => {
   const [showModal, setShowModal] = useState(false);
   const [filterMode, setFilterMode] = useState('range');
   const abortRef = useRef(null);
+  const [classificationFilter, setClassificationFilter] = useState('');
 
   const API_BASE = process.env.REACT_APP_API_URL + '/attendance/';
   const debouncedUserId = useDebounce(filters.user_id, 400);
 
-  // ✅ Load all employees once on mount — build device_user_id → name map
-  const fetchEmployeeMap = useCallback(async () => {
-    // ── Perf: serve from sessionStorage cache, reload only if missing ──
-    const CACHE_KEY = 'empMap_v1';
-    try {
-      const cached = sessionStorage.getItem(CACHE_KEY);
-      if (cached) {
-        setEmployeeMap(JSON.parse(cached));
-        return;
-      }
-    } catch (_) {}
-
-    setLoadingEmployees(true);
-    try {
-      const res = await hrClient.get('employees/', {
-        params: { page_size: 5000, status: 'ACTIVE' }
-      });
-      const employees = res.data.results ?? res.data;
-      const map = {};
-      employees.forEach(e => {
-        const displayId = e.employee_id ? parseInt(e.employee_id, 10) : null;
-        if (e.device_user_id != null) {
-          map[e.device_user_id] = {
-            name: `${e.first_name} ${e.last_name}`.trim() || e.employee_id,
-            empId: displayId,
-          };
-        } else if (e.employee_id) {
-          const numId = parseInt(e.employee_id, 10);
-          if (!isNaN(numId)) {
-            map[numId] = {
-              name: `${e.first_name} ${e.last_name}`.trim() || e.employee_id,
-              empId: numId,
-            };
-          }
-        }
-      });
-      try { sessionStorage.setItem(CACHE_KEY, JSON.stringify(map)); } catch (_) {}
-      setEmployeeMap(map);
-    } catch (err) {
-      console.warn('Could not load employee names:', err.message);
-    } finally {
-      setLoadingEmployees(false);
+const fetchEmployeeMap = useCallback(async () => {
+  const CACHE_KEY = 'empMap_v3'; // ⚠️ bump la clé de cache car on change la structure
+  try {
+    const cached = sessionStorage.getItem(CACHE_KEY);
+    if (cached) {
+      setEmployeeMap(JSON.parse(cached));
+      return;
     }
-  }, []);
+  } catch (_) {}
+
+  setLoadingEmployees(true);
+  try {
+    const res = await hrClient.get('employees/', {
+      params: { page_size: 5000, status: 'ACTIVE' }
+    });
+    const employees = res.data.results ?? res.data;
+    console.log('Exemple employé:', employees[0]);
+    const map = {};
+    employees.forEach(e => {
+      const displayId = e.employee_id ? parseInt(e.employee_id, 10) : null;
+      const entry = {
+        name: `${e.first_name} ${e.last_name}`.trim() || e.employee_id,
+        empId: displayId,
+        classification: e.classification_name || null,  // ✅ adapte au nom réel du champ
+        section: e.section_name || null,
+      };
+      if (e.device_user_id != null) {
+        map[e.device_user_id] = entry;
+      } else if (e.employee_id) {
+        const numId = parseInt(e.employee_id, 10);
+        if (!isNaN(numId)) map[numId] = entry;
+      }
+    });
+    try { sessionStorage.setItem(CACHE_KEY, JSON.stringify(map)); } catch (_) {}
+    setEmployeeMap(map);
+  } catch (err) {
+    console.warn('Could not load employee names:', err.message);
+  } finally {
+    setLoadingEmployees(false);
+  }
+}, []);
+
+const getEmployeeClassification = (userId) => {
+  if (!userId) return null;
+  return resolvedEmployees[Number(userId)]?.classification || null;
+};
+
+const getEmployeeSection = (userId) => {
+  if (!userId) return null;
+  return resolvedEmployees[Number(userId)]?.section || null;
+};
 
   // ── Perf: memoize lookups so renders don't iterate the map ──
   const resolvedEmployees = useMemo(() => employeeMap, [employeeMap]);
+
+    const availableClassifications = useMemo(() => {
+      const set = new Set(
+        Object.values(resolvedEmployees)
+          .map(e => e.classification)
+          .filter(Boolean)
+      );
+      return Array.from(set).sort();
+    }, [resolvedEmployees]);
+
 
   const getEmployeeName = (userId) => {
     if (!userId) return null;
@@ -143,36 +161,36 @@ const HRAttendanceDashboard = () => {
     return clocker.specific_name || clocker.name || ip;
   };
 
-  const fetchAvailableIPs = useCallback(async () => {
-    setLoadingIPs(true);
-    try {
-      const response = await fetch(`${API_BASE}available-ips`);
-      if (response.ok) {
-        const ips = await response.json();
-        setAvailableIPs(ips);
-      } else {
-        await extractIPsFromData();
-      }
-    } catch (err) {
-      console.error('Error fetching available IPs:', err);
-      await extractIPsFromData();
-    } finally {
-      setLoadingIPs(false);
-    }
-  }, []);
+const fetchAvailableIPs = useCallback(async () => {
+  setLoadingIPs(true);
+  try {
+    const response = await hrClient.get(`${API_BASE}available-ips`);
+    setAvailableIPs(response.data);
+  } catch (err) {
+    console.error('Error fetching available IPs:', err);
+    await extractIPsFromData();
+  } finally {
+    setLoadingIPs(false);
+  }
+}, []);
 
-  const extractIPsFromData = async () => {
-    try {
-      const response = await fetch(`${API_BASE}?limit=1000&skip=0`);
-      if (response.ok) {
-        const data = await response.json();
-        const uniqueIPs = [...new Set(data.map(record => record.device_ip).filter(ip => ip))];
-        setAvailableIPs(uniqueIPs.sort());
-      }
-    } catch (err) {
-      console.error('Error extracting IPs from data:', err);
-    }
-  };
+const extractIPsFromData = async () => {
+  try {
+    const response = await hrClient.get(`${API_BASE}?limit=1000&skip=0`);
+    const data = response.data;
+    const uniqueIPs = [...new Set(data.map(record => record.device_ip).filter(ip => ip))];
+    setAvailableIPs(uniqueIPs.sort());
+  } catch (err) {
+    console.error('Error extracting IPs from data:', err);
+  }
+};
+
+  const filteredAttendanceData = useMemo(() => {
+  if (!classificationFilter) return attendanceData;
+  return attendanceData.filter(
+    r => getEmployeeClassification(r.user_id) === classificationFilter
+  );
+}, [attendanceData, classificationFilter, resolvedEmployees]);
 
   const fetchAttendance = useCallback(async () => {
     // ── Perf: cancel any in-flight request before firing a new one ──
@@ -211,21 +229,19 @@ const HRAttendanceDashboard = () => {
       params.append('skip', filters.skip || 0);
       params.append('limit', filters.limit || 1000);
 
-      const response = await fetch(`${API_BASE}grouped?${params.toString()}`, { signal });
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const data = await response.json();
+      const response = await hrClient.get(`${API_BASE}grouped?${params.toString()}`, { signal });
+      const data = response.data;
       const cleanData = Array.isArray(data) ? data : [];
-      const totalCount = response.headers.get('X-Total-Count');
+      const totalCount = response.headers['x-total-count'];
       setTotalRecords(totalCount ? parseInt(totalCount) : cleanData.length);
       setAttendanceData(cleanData);
-      // ── Perf: run stats/kpi/analysis in parallel ──
       await Promise.all([fetchStats(), fetchKpi(), fetchAnalysis()]);
     } catch (err) {
-      if (err.name === 'AbortError') return;
-      setError(`Erreur de récupération : ${err.message}`);
-      setAttendanceData([]);
-      setTotalRecords(0);
-    } finally {
+  if (err.code === 'ERR_CANCELED') return;
+  setError(`Erreur de récupération : ${err.message}`);
+  setAttendanceData([]);
+  setTotalRecords(0);
+} finally {
       setLoading(false);
     }
   }, [filters, filterMode, sevenDaysAgoStr, todayStr, selectedGroup, clockers]);
@@ -253,8 +269,8 @@ const HRAttendanceDashboard = () => {
       if (filters.device_ip) deviceIPs = [filters.device_ip];
       else if (selectedGroup) deviceIPs = clockers.filter(c => c.group_name === selectedGroup && c.ip_address).map(c => c.ip_address);
       if (deviceIPs.length > 0) params.append('device_ip', deviceIPs.join(','));
-      const response = await fetch(`${API_BASE}stats?${params.toString()}`);
-      if (response.ok) setStats(await response.json());
+      const response = await hrClient.get(`${API_BASE}stats?${params.toString()}`);
+      setStats(response.data);
     } catch (err) {
       console.error('Error fetching stats:', err);
     }
@@ -273,12 +289,12 @@ const HRAttendanceDashboard = () => {
       } else if (filterMode === 'range' && filters.date_to) {
         kpiDate = filters.date_to;
       }
-      const [kpiRes, empRes] = await Promise.all([
-        fetch(`${API_BASE}kpi?target_date=${kpiDate}`),
-        hrClient.get('employees/', { params: { status: 'ACTIVE', page_size: 1 } }),
-      ]);
-      if (kpiRes.ok) setKpi(await kpiRes.json());
-      if (empRes.data) setTotalActive(empRes.data.count ?? null);
+        const [kpiRes, empRes] = await Promise.all([
+      hrClient.get(`${API_BASE}kpi?target_date=${kpiDate}`),
+      hrClient.get('employees/', { params: { status: 'ACTIVE', page_size: 1 } }),
+    ]);
+    setKpi(kpiRes.data);
+    if (empRes.data) setTotalActive(empRes.data.count ?? null);
     } catch (err) {
       console.error('KPI error:', err);
     } finally {
@@ -294,9 +310,8 @@ const HRAttendanceDashboard = () => {
     try {
       const dateFrom = filters.date_from || sevenDaysAgoStr;
       const dateTo   = filters.date_to   || todayStr;
-      const res = await fetch(`${API_BASE}analysis/${uid}?date_from=${dateFrom}&date_to=${dateTo}`);
-      if (res.ok) setAnalysisData(await res.json());
-      else setAnalysisData(null);
+const res = await hrClient.get(`${API_BASE}analysis/${uid}?date_from=${dateFrom}&date_to=${dateTo}`);
+setAnalysisData(res.data);
     } catch { setAnalysisData(null); }
     finally { setAnalysisLoading(false); }
   };
@@ -310,9 +325,9 @@ const HRAttendanceDashboard = () => {
   };
 
   const exportToExcel = () => {
-    if (attendanceData.length === 0) { alert('Aucune donnée à exporter.'); return; }
+    if (filteredAttendanceData.length === 0) { alert('Aucune donnée à exporter.'); return; }
     const headers = ['User ID', 'Nom', 'Date', 'Arrivée', 'Départ', 'Pointages'];
-    const csvData = attendanceData.map(r => [
+    const csvData = filteredAttendanceData.map(r => [
       formatEmployeeId(r.user_id) ? `="${formatEmployeeId(r.user_id)}"` : '—',
       getEmployeeName(r.user_id) || `ID:${r.user_id}`,
       r.attendance_date || r.date,
@@ -489,6 +504,20 @@ const HRAttendanceDashboard = () => {
               </div>
 
               <div className="filter-group">
+                <label className="filter-label">Classification</label>
+                <select
+                  value={classificationFilter}
+                  onChange={(e) => setClassificationFilter(e.target.value)}
+                  className="filter-input"
+                >
+                  <option value="">-- Toutes les classifications --</option>
+                  {availableClassifications.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="filter-group">
                 <label className="filter-label">Groupe de clockers</label>
                 <select value={selectedGroup}
                   onChange={(e) => { setSelectedGroup(e.target.value); handleFilterChange('device_ip', ''); }}
@@ -608,7 +637,7 @@ const HRAttendanceDashboard = () => {
           <div className="table-header">
             <h2>Enregistrements de pointage 111</h2>
             <p>
-              Affichage de {attendanceData.length} sur {totalRecords} enregistrements
+              Affichage de {filteredAttendanceData.length} sur {totalRecords} enregistrements
               {/* ✅ Show employee map load status */}
               {loadingEmployees && <span style={{ color: '#9e9e9e', marginLeft: 8, fontSize: 12 }}>• Chargement des noms…</span>}
             </p>
@@ -624,11 +653,12 @@ const HRAttendanceDashboard = () => {
                 <th style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 2, color: '#ef4444' }}>Départ</th>
                 <th style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 2 }}>Pointages</th>
                 <th style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 2 }}>Clocker</th>
+                <th style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 2 }}>Section</th>
                 <th style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 2 }}>Actions</th>
               </tr>
             </thead>
               <tbody>
-                {attendanceData.map((record, index) => {
+                {filteredAttendanceData.map((record, index) => {
                   const empName = getEmployeeName(record.user_id);
                   return (
                     <tr key={`${record.user_id}-${record.timestamp}-${index}`}>
@@ -657,6 +687,9 @@ const HRAttendanceDashboard = () => {
                         {record.punch_count || 1}
                       </td>
                       <td className="ip-cell">{getClockerName(record.device_ip)}</td>
+                      <td style={{ fontSize: 13, color: '#374151' }}>
+                        {getEmployeeSection(record.user_id) || '—'}
+                      </td>
                       <td>
                         <button onClick={() => viewRecord(record)} className="btn btn-view">
                           <Eye className="icon" />Voir
@@ -668,7 +701,7 @@ const HRAttendanceDashboard = () => {
               </tbody>
             </table>
 
-            {!loading && attendanceData.length === 0 && (
+            {!loading && filteredAttendanceData.length === 0 && (
               <div className="no-data">
                 <Users className="icon large" />
                 <p className="no-data-title">Aucun pointage trouvé</p>
@@ -702,7 +735,7 @@ const HRAttendanceDashboard = () => {
             <div className="pagination-stats">
               <span>Page {getCurrentPage()} sur {getTotalPages()}</span>
               <span className="pagination-range">
-                ({filters.skip + 1} - {Math.min(filters.skip + attendanceData.length, totalRecords)} sur {totalRecords})
+                ({filters.skip + 1} - {Math.min(filters.skip + filteredAttendanceData.length, totalRecords)} sur {totalRecords})
               </span>
             </div>
             <div className="pagination-controls">
@@ -727,7 +760,7 @@ const HRAttendanceDashboard = () => {
                 return pages;
               })()}
               <button onClick={() => handleFilterChange('skip', filters.skip + filters.limit)}
-                disabled={attendanceData.length < filters.limit} className="pagination-btn">
+                disabled={filteredAttendanceData.length < filters.limit} className="pagination-btn">
                 Suivant<ChevronRight className="icon" />
               </button>
               <button onClick={() => goToPage(getTotalPages())}

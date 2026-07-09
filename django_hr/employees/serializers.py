@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Classification, Poste, Factory, Department, Employee, Section, WorkSchedule
+from .models import Classification, Poste, Factory, Department, Employee, Section, TransportList, TransportListItem, WorkSchedule
 
 
 class ClassificationSerializer(serializers.ModelSerializer):
@@ -51,6 +51,8 @@ class EmployeeListSerializer(serializers.ModelSerializer):
     factory_name    = serializers.CharField(source="factory.name",    read_only=True)
     department_name = serializers.CharField(source="department.name", read_only=True)
     job_title_name  = serializers.CharField(source="job_title.name",  read_only=True, default=None)
+    classification_name  = serializers.CharField(source="classification.classe", read_only=True, default=None)
+    section_name    = serializers.CharField(source="section.name",    read_only=True, default=None)
 
     class Meta:
         model  = Employee
@@ -59,6 +61,8 @@ class EmployeeListSerializer(serializers.ModelSerializer):
             "photo", "job_title", "job_title_name",
             "factory", "factory_name",
             "department", "department_name",
+            "classification", "classification_name",
+            "section", "section_name",
             "status", "device_user_id", "sexe", "contract_type", "hire_date"
         ]
 
@@ -127,8 +131,9 @@ class WorkScheduleSerializer(serializers.ModelSerializer):
             "employee", "employee_name",
             "department", "department_name",
             "section", "section_name",
-            "early_leave_limit",
+            "work_start", "early_leave_limit",
             "standard_start", "standard_end",
+            "lunch_start", "lunch_end",
             "standard_work_hours", "overtime_threshold_hours",
             "valid_from", "valid_until",
             "is_active", "created_at", "updated_at",
@@ -145,17 +150,56 @@ class WorkScheduleSerializer(serializers.ModelSerializer):
     def get_section_name(self, obj):
         return obj.section.name if obj.section else None
 
-class WorkScheduleBulkAssignSerializer(serializers.Serializer):
-    employee_ids = serializers.ListField(
-        child=serializers.IntegerField(), allow_empty=False
-    )
-    name = serializers.CharField(max_length=100)
-    description = serializers.CharField(required=False, allow_blank=True)
-    standard_start = serializers.TimeField()
-    standard_end = serializers.TimeField()
-    early_leave_limit = serializers.TimeField()
-    standard_work_hours = serializers.FloatField(required=False, default=8.0)
-    overtime_threshold_hours = serializers.FloatField(required=False, default=8.5)
-    valid_from = serializers.DateField(required=False, allow_null=True)
-    valid_until = serializers.DateField(required=False, allow_null=True)
-    deactivate_previous = serializers.BooleanField(required=False, default=True)
+class EmployeeTransportSerializer(serializers.ModelSerializer):
+    full_name      = serializers.CharField(read_only=True)
+    job_title_name = serializers.CharField(source="job_title.name", read_only=True, default=None)
+
+    class Meta:
+        model  = Employee
+        fields = ["id", "employee_id", "first_name", "last_name", "full_name", "job_title_name", "address"]
+
+
+class TransportListItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = TransportListItem
+        fields = ["id", "matricule", "nom", "prenom", "fonction", "adresse"]
+
+
+class TransportListSerializer(serializers.ModelSerializer):
+    items = TransportListItemSerializer(many=True, read_only=True)
+
+    class Meta:
+        model  = TransportList
+        fields = ["id", "transport_date", "heure_fin", "created_by", "created_at", "items"]
+
+
+class TransportListCreateSerializer(serializers.Serializer):
+    transport_date = serializers.DateField()
+    heure_fin      = serializers.CharField(max_length=20)
+    employee_ids   = serializers.ListField(child=serializers.IntegerField(), allow_empty=False)
+
+    def create(self, validated_data):
+        employees = Employee.objects.filter(
+            id__in=validated_data["employee_ids"]
+        ).select_related("job_title")
+
+        transport_list = TransportList.objects.create(
+            transport_date=validated_data["transport_date"],
+            heure_fin=validated_data["heure_fin"],
+            created_by=self.context.get("created_by"),
+        )
+
+        items = [
+            TransportListItem(
+                transport_list=transport_list,
+                employee=emp,
+                matricule=emp.employee_id,
+                nom=emp.last_name or "",
+                prenom=emp.first_name or "",
+                fonction=emp.job_title.name if emp.job_title else "",
+                adresse=emp.address or "",
+            )
+            for emp in employees
+        ]
+        TransportListItem.objects.bulk_create(items)
+        return transport_list
