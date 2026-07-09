@@ -66,3 +66,4 @@ jobs:
         run: python -m pytest --tb=short -q --timeout=30
         env:
           DJANGO_SECRET_KEY: ci-test-secret-key-minimum-32-chars-long-hr
+          SERVICE_INTERNAL_KEY: ci-test-service-key-minimum-32-chars-long
