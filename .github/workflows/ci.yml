@@ -10,7 +10,6 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-
     services:
       postgres:
         image: postgres:15
@@ -21,7 +20,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U postgres"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 5
@@ -50,9 +49,15 @@ jobs:
           SECRET_KEY: ci-test-secret-key-minimum-32-chars-long
           ENVIRONMENT: test
           DJANGO_AUTH_URL: http://mock-auth
+          DJANGO_HR_URL: http://mock-hr
           DJANGO_SECRET_KEY: ci-test-secret-key-minimum-32-chars-long
           JWT_SECRET_KEY: ci-test-secret-key-minimum-32-chars-long
           SERVICE_INTERNAL_KEY: ci-test-service-key-minimum-32-chars-long
+          HR_DB_HOST: localhost
+          HR_DB_PORT: "5432"
+          HR_DB_NAME: pointage_test
+          HR_DB_USER: postgres
+          HR_DB_PASSWORD: postgres
 
       - name: Run django_auth tests
         working-directory: django_auth
@@ -68,6 +73,11 @@ jobs:
         env:
           DJANGO_SECRET_KEY: ci-test-secret-key-minimum-32-chars-long-hr
           SERVICE_INTERNAL_KEY: ci-test-service-key-minimum-32-chars-long
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/pointage_test
+          ATTENDANCE_DB_URL: postgresql://postgres:postgres@localhost:5432/pointage_test
+          ALLOWED_HOSTS: localhost,127.0.0.1
+          DEBUG: "True"
+          CORS_ALLOWED_ORIGINS: http://localhost:3000
 
   deploy-test-217:
     needs: test
@@ -90,8 +100,8 @@ jobs:
 
       - name: Rebuild and restart backend containers
         run: |
-          docker compose build fastapi django-hr django-auth
-          docker compose up -d fastapi django-hr django-auth
+          docker compose build fastapi django-hr django-auth react
+          docker compose up -d fastapi django-hr django-auth react
 
       - name: Restart nginx to refresh upstream connections
         run: docker compose restart nginx
