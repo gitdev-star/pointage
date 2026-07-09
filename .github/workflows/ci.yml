@@ -5,6 +5,7 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
+  workflow_dispatch:
 
 jobs:
   test:
@@ -67,3 +68,43 @@ jobs:
         env:
           DJANGO_SECRET_KEY: ci-test-secret-key-minimum-32-chars-long-hr
           SERVICE_INTERNAL_KEY: ci-test-service-key-minimum-32-chars-long
+
+  deploy-test-217:
+    needs: test
+    runs-on: [self-hosted, SRV-DEV-TEST-217]
+    if: github.ref == 'refs/heads/develop'
+    defaults:
+      run:
+        working-directory: /home/github-runner/pointage
+    steps:
+      - name: Pull latest code into the real deploy directory
+        run: |
+          git fetch origin develop
+          git checkout develop
+          git reset --hard origin/develop
+
+      - name: Show what commit is being deployed
+        run: |
+          echo "Deploying commit: $(git rev-parse HEAD)"
+          echo "Commit message: $(git log -1 --pretty=%B)"
+
+      - name: Rebuild and restart backend containers
+        run: |
+          docker compose build fastapi django-hr django-auth
+          docker compose up -d fastapi django-hr django-auth
+
+      - name: Restart nginx to refresh upstream connections
+        run: docker compose restart nginx
+
+      - name: Run migrations
+        run: |
+          docker exec django_auth python manage.py migrate --noinput
+          docker exec django_hr python manage.py migrate --noinput
+
+      - name: Health check
+        run: |
+          sleep 5
+          curl -k -f https://localhost/api/fastapi/health || (echo "FastAPI health check failed" && exit 1)
+
+      - name: Show running containers
+        run: docker compose ps
