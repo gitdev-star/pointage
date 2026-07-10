@@ -92,40 +92,75 @@ def create_unmanaged_tables(django_db_setup, django_db_blocker):
     """
     Classification and Poste both use managed=False (their tables are
     owned/populated outside Django migrations in real environments). The
-    test SQLite DB has no other source for these tables, so create them
-    here for the test session only.
+    test DB (SQLite locally, real Postgres in CI) has no other source for
+    these tables, so create them here for the test session only.
 
     Raw SQL is used for Classification instead of schema_editor.create_model()
     because the Employee->Classification FK was generated against
     Classification's original 'id' primary key (migration 0010), but the
     live model's PK is now 'id_classification' -- a field rename that was
-    never migrated. schema_editor's automatic PRAGMA foreign_key_check on
-    exit fails on that mismatch even though the table itself is fine for
-    ORM use.
+    never migrated. schema_editor's automatic FK check on exit fails on
+    that mismatch even though the table itself is fine for ORM use.
+
+    Branches on connection.vendor because CI runs this against a real
+    postgres:15 service container (see ci.yml's django_hr test step,
+    DATABASE_URL), while local runs without DATABASE_URL fall back to
+    SQLite (see config/test_settings.py) -- the two dialects don't share
+    AUTOINCREMENT/SERIAL syntax or a common "does this table exist"
+    introspection query.
     """
     from django.db import connection
     with django_db_blocker.unblock():
         with connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='classification'"
-            )
-            if not cursor.fetchone():
+            if connection.vendor == "postgresql":
                 cursor.execute(
-                    "CREATE TABLE classification ("
-                    "id_classification INTEGER PRIMARY KEY AUTOINCREMENT, "
-                    "classe VARCHAR(50) NOT NULL UNIQUE, "
-                    "salaire DECIMAL NOT NULL)"
+                    "SELECT to_regclass('public.classification') IS NOT NULL"
                 )
+                classification_exists = cursor.fetchone()[0]
+                if not classification_exists:
+                    cursor.execute(
+                        "CREATE TABLE classification ("
+                        "id_classification SERIAL PRIMARY KEY, "
+                        "classe VARCHAR(50) NOT NULL UNIQUE, "
+                        "salaire DECIMAL(10, 2) NOT NULL)"
+                    )
 
-            cursor.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='poste'"
-            )
-            if not cursor.fetchone():
                 cursor.execute(
-                    "CREATE TABLE poste ("
-                    "id INTEGER PRIMARY KEY AUTOINCREMENT, "
-                    "name VARCHAR(150) NOT NULL UNIQUE, "
-                    "description TEXT NULL, "
-                    "is_active BOOLEAN NOT NULL DEFAULT 1, "
-                    "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+                    "SELECT to_regclass('public.poste') IS NOT NULL"
                 )
+                poste_exists = cursor.fetchone()[0]
+                if not poste_exists:
+                    cursor.execute(
+                        "CREATE TABLE poste ("
+                        "id SERIAL PRIMARY KEY, "
+                        "name VARCHAR(150) NOT NULL UNIQUE, "
+                        "description TEXT NULL, "
+                        "is_active BOOLEAN NOT NULL DEFAULT TRUE, "
+                        "created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+                    )
+            else:
+                # SQLite fallback -- only reached for local runs without
+                # DATABASE_URL set (see config/test_settings.py default).
+                cursor.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='classification'"
+                )
+                if not cursor.fetchone():
+                    cursor.execute(
+                        "CREATE TABLE classification ("
+                        "id_classification INTEGER PRIMARY KEY AUTOINCREMENT, "
+                        "classe VARCHAR(50) NOT NULL UNIQUE, "
+                        "salaire DECIMAL NOT NULL)"
+                    )
+
+                cursor.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='poste'"
+                )
+                if not cursor.fetchone():
+                    cursor.execute(
+                        "CREATE TABLE poste ("
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                        "name VARCHAR(150) NOT NULL UNIQUE, "
+                        "description TEXT NULL, "
+                        "is_active BOOLEAN NOT NULL DEFAULT 1, "
+                        "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+                    )
