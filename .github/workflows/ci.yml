@@ -43,7 +43,7 @@ jobs:
           pip install asyncpg aiosqlite pytest-timeout
 
       - name: Run FastAPI tests
-        run: pytest --tb=short -q --timeout=30
+        run: pytest --tb=short -q --timeout=30 -m "not real_cross_service"
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/pointage_test
           SECRET_KEY: ci-test-secret-key-minimum-32-chars-long
@@ -118,3 +118,25 @@ jobs:
 
       - name: Show running containers
         run: docker compose ps
+
+  cross-service-integration-217:
+    needs: deploy-test-217
+    runs-on: self-hosted
+    if: github.ref == 'refs/heads/develop'
+    defaults:
+      run:
+        working-directory: /home/github-runner/pointage
+    steps:
+      - name: Run real cross-service tests inside fastapi container
+        run: |
+          docker compose exec -T fastapi pytest tests/integration/test_cross_service_real.py -v --tb=short -m real_cross_service
+
+      - name: Verify JWT_SECRET_KEY matches between django-auth and fastapi
+        run: |
+          AUTH_SECRET=$(docker exec django_auth printenv JWT_SECRET_KEY)
+          FASTAPI_SECRET=$(docker exec fastapi printenv JWT_SECRET_KEY 2>/dev/null || docker exec fastapi printenv DJANGO_SECRET_KEY)
+          if [ "$AUTH_SECRET" != "$FASTAPI_SECRET" ]; then
+            echo "JWT secret mismatch between django-auth and fastapi containers!"
+            exit 1
+          fi
+          echo "JWT secrets match."
