@@ -129,7 +129,7 @@ jobs:
     steps:
       - name: Run real cross-service tests inside fastapi container
         run: |
-          docker compose exec -T fastapi pytest tests/integration/test_cross_service_real.py -v --tb=short -m real_cross_service
+          docker compose exec -T fastapi pytest tests/integration/ -v --tb=short -m real_cross_service
 
       - name: Verify JWT_SECRET_KEY matches between django-auth and fastapi
         run: |
