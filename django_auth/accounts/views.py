@@ -138,8 +138,12 @@ class LDAPLoginView(APIView):
         if not username or not password:
             return Response({"detail": "username et password requis."}, status=400)
 
-        # Try AD authentication first
-        ldap_info = authenticate_ldap_user(username, password)
+        # Try AD authentication first — never let an LDAP failure crash
+        # the endpoint; fall through to local auth instead.
+        try:
+            ldap_info = authenticate_ldap_user(username, password)
+        except Exception:
+            ldap_info = None
 
         if ldap_info:
             # Only allow users already registered in Django (by admin or HR director)
