@@ -2,24 +2,17 @@ name: Pointage CI/CD
 
 on:
   push:
-    branches:
-      - main
-      - develop
-
+    branches: [main, develop]
   pull_request:
-    branches:
-      - main
-      - develop
-
+    branches: [main, develop]
   workflow_dispatch:
 
 
 jobs:
 
-# ==========================================================
-# UNIT TESTS
-# ==========================================================
-
+  # =====================================
+  # UNIT TESTS
+  # =====================================
   test:
 
     runs-on: ubuntu-latest
@@ -27,7 +20,6 @@ jobs:
     services:
       postgres:
         image: postgres:15
-
         env:
           POSTGRES_DB: pointage_test
           POSTGRES_USER: postgres
@@ -49,7 +41,7 @@ jobs:
         uses: actions/checkout@v4
 
 
-      - name: Setup Python
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -64,20 +56,23 @@ jobs:
           pip install pytest-timeout
 
 
-      - name: FastAPI tests
+      - name: Run FastAPI tests
         run: |
           pytest --tb=short -q --timeout=30 -m "not real_cross_service"
 
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/pointage_test
           SECRET_KEY: ci-test-secret-key-minimum-32-chars-long
-          JWT_SECRET_KEY: ci-test-secret-key-minimum-32-chars-long
+          ENVIRONMENT: test
+          DJANGO_AUTH_URL: http://mock-auth
+          DJANGO_HR_URL: http://mock-hr
           DJANGO_SECRET_KEY: ci-test-secret-key-minimum-32-chars-long
+          JWT_SECRET_KEY: ci-test-secret-key-minimum-32-chars-long
           SERVICE_INTERNAL_KEY: ci-test-service-key-minimum-32-chars-long
 
 
-      - name: django_auth tests
 
+      - name: Run django_auth tests
         working-directory: django_auth
 
         run: |
@@ -85,13 +80,12 @@ jobs:
 
         env:
           DJANGO_SECRET_KEY: ci-test-secret-key-minimum-32-chars-long
-          JWT_SECRET_KEY: ci-test-secret-key-minimum-32-chars-long
           LDAP_BIND_PASSWORD: test-ldap-password
+          JWT_SECRET_KEY: ci-test-secret-key-minimum-32-chars-long
 
 
 
-      - name: django_hr tests
-
+      - name: Run django_hr tests
         working-directory: django_hr
 
         run: |
@@ -102,14 +96,16 @@ jobs:
           SERVICE_INTERNAL_KEY: ci-test-service-key-minimum-32-chars-long
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/pointage_test
           ATTENDANCE_DB_URL: postgresql://postgres:postgres@localhost:5432/pointage_test
+          ALLOWED_HOSTS: localhost,127.0.0.1
+          DEBUG: "True"
+          CORS_ALLOWED_ORIGINS: http://localhost:3000
 
 
 
-# ==========================================================
-# AUTH INTEGRATION
-# ==========================================================
-
-  auth-integration:
+  # =====================================
+  # DEPLOY TO SERVER 217
+  # =====================================
+  deploy-test-217:
 
     needs: test
 
@@ -125,188 +121,97 @@ jobs:
 
     steps:
 
-      - name: Auth integration tests
-
+      - name: Pull latest code
         run: |
-
-          docker compose exec -T fastapi \
-          pytest tests/integration/test_cross_service_real.py \
-          -v \
-          --tb=short \
-          -m real_cross_service
-
-
-
-# ==========================================================
-# HR INTEGRATION
-# ==========================================================
-
-  hr-integration:
-
-    needs: auth-integration
-
-    runs-on: self-hosted
-
-    if: github.ref == 'refs/heads/develop'
-
-
-    defaults:
-      run:
-        working-directory: /home/github-runner/pointage
-
-
-    steps:
-
-      - name: HR integration tests
-
-        run: |
-
-          docker compose exec -T fastapi \
-          pytest tests/integration/test_django_hr_real.py \
-          -v \
-          --tb=short \
-          -m real_cross_service
-
-
-
-# ==========================================================
-# END TO END
-# ==========================================================
-
-  end-to-end:
-
-    needs: hr-integration
-
-    runs-on: self-hosted
-
-    if: github.ref == 'refs/heads/develop'
-
-
-    defaults:
-      run:
-        working-directory: /home/github-runner/pointage
-
-
-    steps:
-
-      - name: End to end tests
-
-        run: |
-
-          docker compose exec -T fastapi \
-          pytest tests/integration/test_attendance_integration.py \
-          tests/integration/test_nginx_routing_real.py \
-          -v \
-          --tb=short
-
-
-
-# ==========================================================
-# DEPLOY TO 217 (LAST)
-# ==========================================================
-
-  deploy-test-217:
-
-    needs: end-to-end
-
-    runs-on: self-hosted
-
-    if: github.ref == 'refs/heads/develop'
-
-
-    defaults:
-      run:
-        working-directory: /home/github-runner/pointage
-
-
-    steps:
-
-
-      - name: Pull latest develop
-
-        run: |
-
           git fetch origin develop
           git checkout develop
           git reset --hard origin/develop
 
 
-
-      - name: Build containers
-
+      - name: Show deployed commit
         run: |
+          echo "Deploying:"
+          git rev-parse HEAD
+          git log -1 --pretty=%B
 
-          docker compose build \
-          fastapi \
-          django-hr \
-          django-auth \
-          react
 
+      - name: Rebuild containers
+        run: |
+          docker compose build fastapi django-hr django-auth react
 
 
       - name: Restart containers
-
         run: |
-
-          docker compose up -d \
-          fastapi \
-          django-hr \
-          django-auth \
-          react
-
+          docker compose up -d fastapi django-hr django-auth react
 
 
       - name: Restart nginx
-
         run: |
-
           docker compose restart nginx
 
 
-
       - name: Run migrations
-
         run: |
-
           docker exec django_auth python manage.py migrate --noinput
           docker exec django_hr python manage.py migrate --noinput
 
 
+      - name: Show containers
+        run: |
+          docker compose ps
 
-# ==========================================================
-# POST DEPLOY VALIDATION
-# ==========================================================
 
+
+  # =====================================
+  # HEALTH CHECK
+  # =====================================
   health-check:
 
     needs: deploy-test-217
 
     runs-on: self-hosted
 
+    if: github.ref == 'refs/heads/develop'
+
+
+    defaults:
+      run:
+        working-directory: /home/github-runner/pointage
+
+
     steps:
 
-      - name: Health check
 
+      - name: FastAPI health check
         run: |
-
           sleep 5
 
-          curl -k -f \
-          https://localhost/api/fastapi/health
+          curl -k -f https://localhost/api/fastapi/health \
+          || (echo "FastAPI health failed" && exit 1)
 
 
 
+  # =====================================
+  # JWT VERIFICATION
+  # =====================================
   jwt-verification:
 
-    needs: health-check
+    needs: deploy-test-217
 
     runs-on: self-hosted
 
+    if: github.ref == 'refs/heads/develop'
+
+
+    defaults:
+      run:
+        working-directory: /home/github-runner/pointage
+
 
     steps:
 
-      - name: Verify JWT secrets
 
+      - name: Verify JWT secrets
         run: |
 
           AUTH_SECRET=$(docker exec django_auth printenv JWT_SECRET_KEY)
@@ -314,38 +219,144 @@ jobs:
           FASTAPI_SECRET=$(docker exec fastapi printenv JWT_SECRET_KEY 2>/dev/null || docker exec fastapi printenv DJANGO_SECRET_KEY)
 
 
-          if [ "$AUTH_SECRET" != "$FASTAPI_SECRET" ];
+          if [ "$AUTH_SECRET" != "$FASTAPI_SECRET" ]; then
 
-          then
-
-            echo "JWT mismatch"
+            echo "JWT secret mismatch"
 
             exit 1
 
           fi
 
 
-          echo "JWT OK"
+          echo "JWT secrets match"
 
 
 
-# ==========================================================
-# FINAL STATUS
-# ==========================================================
+  # =====================================
+  # AUTH INTEGRATION
+  # =====================================
+  auth-integration:
 
-  deployment-passed:
+    needs:
+      - health-check
+      - jwt-verification
 
-    needs: jwt-verification
 
     runs-on: self-hosted
+
+    if: github.ref == 'refs/heads/develop'
+
+
+    defaults:
+      run:
+        working-directory: /home/github-runner/pointage
 
 
     steps:
 
-      - name: Success
 
+      - name: Run Auth integration tests
+        run: |
+
+          docker compose exec -T fastapi \
+          python -m pytest \
+          tests/integration/test_cross_service_real.py \
+          -v \
+          --tb=short \
+          -m real_cross_service
+
+
+
+  # =====================================
+  # HR INTEGRATION
+  # =====================================
+  hr-integration:
+
+    needs:
+      - health-check
+      - jwt-verification
+
+
+    runs-on: self-hosted
+
+    if: github.ref == 'refs/heads/develop'
+
+
+    defaults:
+      run:
+        working-directory: /home/github-runner/pointage
+
+
+    steps:
+
+
+      - name: Run HR integration tests
+        run: |
+
+          docker compose exec -T fastapi \
+          python -m pytest \
+          tests/integration/test_django_hr_real.py \
+          -v \
+          --tb=short \
+          -m real_cross_service
+
+
+
+  # =====================================
+  # END TO END
+  # =====================================
+  end-to-end-integration:
+
+    needs:
+      - auth-integration
+      - hr-integration
+
+
+    runs-on: self-hosted
+
+    if: github.ref == 'refs/heads/develop'
+
+
+    defaults:
+      run:
+        working-directory: /home/github-runner/pointage
+
+
+    steps:
+
+
+      - name: Run attendance end-to-end tests
+        run: |
+
+          docker compose exec -T fastapi \
+          python -m pytest \
+          tests/integration/test_attendance_integration.py \
+          -v \
+          --tb=short
+
+
+
+  # =====================================
+  # FINAL
+  # =====================================
+  deployment-passed:
+
+    needs:
+      - end-to-end-integration
+
+
+    runs-on: self-hosted
+
+    if: github.ref == 'refs/heads/develop'
+
+
+    steps:
+
+
+      - name: Deployment Passed
         run: |
 
           echo "================================="
-          echo "POINTAGE DEPLOYMENT SUCCESS"
+          echo "POINTAGE DEPLOYMENT PASSED"
+          echo "All tests successful"
           echo "================================="
