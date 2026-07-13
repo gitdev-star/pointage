@@ -106,6 +106,13 @@ jobs:
           DEBUG: "True"
 
 
+      - name: Frontend tests
+        working-directory: frontend
+        run: |
+          npm ci
+          npm test -- --watchAll=false
+
+
 
   #################################################
   # 2 - INTEGRATION TESTS
@@ -171,6 +178,28 @@ jobs:
 
           docker compose exec -T fastapi \
           pytest tests/integration/test_nginx_routing_real.py \
+          -v --tb=short \
+          -m real_cross_service
+
+
+
+      - name: HRProfile Sync Integration (django_auth -> django-hr)
+
+        run: |
+
+          docker compose exec -T django-auth \
+          pytest tests/integration/test_hr_profile_sync_real.py \
+          -v --tb=short \
+          -m real_cross_service
+
+
+
+      - name: Late Report HR-DB Schema Integration
+
+        run: |
+
+          docker compose exec -T fastapi \
+          pytest tests/integration/test_late_report_hr_db_real.py \
           -v --tb=short \
           -m real_cross_service
 
