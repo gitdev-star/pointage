@@ -71,6 +71,10 @@ test-auth:
 test-hr:
 	docker exec django_hr bash -c "cd /app && python -m pytest tests/ -v"
 
+test-hr-local:
+	docker compose -f docker-compose.yml -f docker-compose.test.override.yml up -d django-hr postgres
+	docker exec django_hr bash -c "cd /app && python -m pytest tests/ -v"
+
 test-debug:
 	@echo "=== FastAPI ==="
 	venv/bin/python3.11 -m pytest tests/ -vv -s --tb=long
