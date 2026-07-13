@@ -184,13 +184,12 @@ jobs:
 
 
       - name: HRProfile Sync Integration (django_auth -> django-hr)
-
         run: |
-
           docker compose exec -T django-auth \
           pytest tests/integration/test_hr_profile_sync_real.py \
           -v --tb=short \
-          -m real_cross_service
+          -m real_cross_service \
+          --no-cov
 
 
 
