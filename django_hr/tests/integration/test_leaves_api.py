@@ -3,12 +3,38 @@
 QE gap: leaves/ (LeaveRequest approve/reject workflow + MaternityLeave
 lifecycle) had no dedicated coverage — only two smoke tests existed in
 tests/test_api_integration.py (list/submit).
+
+NOTE: leaves/views.py was moved onto HasModulePerm (require_perm) as part
+of the sanctions/leaves/hr_events permission-consistency fix. The global
+authenticated_client fixture in conftest.py does not attach an HRProfile,
+so it now gets 403'd on every leaves/ endpoint. This file overrides
+authenticated_client locally with an HR profile carrying full leaves
+perms, scoped only to this file — it does not affect other test modules.
 """
 import pytest
 from datetime import date, timedelta
 from unittest.mock import patch
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.test import APIClient
 
 pytestmark = pytest.mark.django_db
+
+
+@pytest.fixture
+def authenticated_client(test_user, test_factory):
+    """Override: authenticated client backed by an HR profile with full leaves perms."""
+    from accounts.models import HRProfile
+    HRProfile.objects.create(
+        auth_user_id=test_user.id, username=test_user.username, email=test_user.email,
+        job_title="HR Manager", factory=test_factory, is_director=False,
+        perm_leaves_read=True, perm_leaves_write=True, perm_leaves_approve=True,
+    )
+    client = APIClient()
+    refresh = RefreshToken.for_user(test_user)
+    refresh["role"] = "HR"
+    refresh["username"] = test_user.username
+    client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
+    return client
 
 
 @pytest.fixture
