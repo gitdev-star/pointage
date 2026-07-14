@@ -13,6 +13,12 @@
 
 SECRET_KEY = "test-secret-key-not-for-production-django-hr"
 DEBUG = True
+
+EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+DEFAULT_FROM_EMAIL = "test@example.com"
+HELPDESK_EMAIL = "helpdesk@example.com"
+
+
 ALLOWED_HOSTS = ["*"]
 
 INSTALLED_APPS = [
@@ -62,6 +68,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    "accounts.middleware.HRJWTMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
