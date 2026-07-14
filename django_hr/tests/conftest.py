@@ -75,6 +75,11 @@ def test_employee(test_factory, test_department, test_section, test_poste):
 
 @pytest.fixture
 def hr_profile(test_user, test_factory):
+    perm_fields = {
+        f.name: True
+        for f in HRProfile._meta.get_fields()
+        if f.name.startswith("perm_")
+    }
     return HRProfile.objects.create(
         auth_user_id=test_user.id,
         username=test_user.username,
@@ -82,8 +87,7 @@ def hr_profile(test_user, test_factory):
         job_title='HR Manager',
         factory=test_factory,
         is_director=False,
-        perm_employees_read=True,
-        perm_employees_write=True
+        **perm_fields,
     )
 
 
