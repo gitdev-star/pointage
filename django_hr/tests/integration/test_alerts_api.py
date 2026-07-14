@@ -114,7 +114,10 @@ class TestSendBulkAlertsView:
 class TestInAppNotifications:
 
     def test_requires_alerts_read_permission(self, authenticated_client, hr_profile):
-        # hr_profile fixture does not grant perm_alerts_read
+        # hr_profile fixture now grants every perm_* flag by default (see conftest.py) —
+        # explicitly strip this one to test the denial path.
+        hr_profile.perm_alerts_read = False
+        hr_profile.save()
         resp = authenticated_client.get("/api/alerts/inbox/")
         assert resp.status_code == 403
 
