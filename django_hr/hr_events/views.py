@@ -1,3 +1,6 @@
+#=========================================
+#Django_hr/hr_events/views.py
+#=========================================
 from rest_framework import viewsets, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -28,8 +31,7 @@ class HREventViewSet(viewsets.ModelViewSet):
     ordering_fields    = ["start_date", "created_at"]
 
     def perform_create(self, serializer):
-        user_id = getattr(self.request, "hr_user_id", 1)
-        event   = serializer.save(created_by=user_id)
+        event = serializer.save(created_by=self.request.user.id)
         if event.event_type.affects_status and event.event_type.target_status:
             event.employee.status = event.event_type.target_status
             event.employee.save(update_fields=["status"])
