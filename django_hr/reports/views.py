@@ -17,11 +17,11 @@ class HeadcountReportView(APIView):
 
     def get(self, request):
         by_factory = list(
-            Factory.objects.annotate(
-                active_count=Count("employees", filter=Q(employees__status="ACTIVE")),
-                total_count=Count("employees"),
-            ).values("id", "name", "code", "active_count", "total_count")
-        )
+        Factory.objects.annotate(
+            active_count=Count("employees", filter=Q(employees__status="ACTIVE")),
+            total_count=Count("employees"),
+        ).values("id", "name", "active_count", "total_count")
+    )
         by_department = list(
             Department.objects.annotate(
                 active_count=Count("employees", filter=Q(employees__status="ACTIVE")),

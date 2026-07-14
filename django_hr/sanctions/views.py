@@ -34,8 +34,7 @@ class SanctionViewSet(viewsets.ModelViewSet):
     ordering_fields    = ["date", "created_at"]
 
     def perform_create(self, serializer):
-        user_id = getattr(self.request, "hr_user_id", 1)
-        sanction = serializer.save(created_by=user_id)
+        sanction = serializer.save(created_by=self.request.user.id)
 
         # Licenciement -> terminate employee
         if sanction.sanction_type.code == "LICENCIEMENT":
@@ -82,7 +81,7 @@ class SanctionViewSet(viewsets.ModelViewSet):
         )
         from .models import SanctionType
         if last is None:
-            next_type = SanctionType.objects.filter(code="RAO").first()
+            next_type = SanctionType.objects.filter(code="RAPPEL").first()
         else:
             current_level = last.sanction_type.level
             next_type = (
