@@ -2,8 +2,6 @@ from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from django.core.cache import cache
 from .models import Factory, Department, Section
-import os
-print(">>> employees.signals LOADED", os.getpid())
 
 @receiver([post_save, post_delete], sender=Factory)
 def clear_factory_cache(sender, **kwargs):
