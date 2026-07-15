@@ -106,10 +106,16 @@ jobs:
           DEBUG: "True"
 
 
+      - name: Frontend lint
+        working-directory: frontend
+        continue-on-error: true
+        run: |
+          npm ci
+          npm run lint
+
       - name: Frontend tests
         working-directory: frontend
         run: |
-          npm ci
           npm test -- --watchAll=false
 
 
