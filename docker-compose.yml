@@ -259,7 +259,7 @@ services:
     image: postgres:15
     environment:
       POSTGRES_USER: glitchtip
-      POSTGRES_PASSWORD: glitchtip
+      POSTGRES_PASSWORD: QgEQymtIzuc9FSvvbgo3lJY4qSEsKfdm
       POSTGRES_DB: glitchtip
     volumes:
       - glitchtip_pg_data:/var/lib/postgresql/data
@@ -279,7 +279,7 @@ services:
     expose:
       - "8000"
     environment:
-      DATABASE_URL: postgresql://glitchtip:glitchtip@glitchtip-postgres:5432/glitchtip
+      DATABASE_URL: postgresql://glitchtip:QgEQymtIzuc9FSvvbgo3lJY4qSEsKfdm@glitchtip-postgres:5432/glitchtip
       SECRET_KEY: ${GLITCHTIP_SECRET_KEY}
       PORT: 8000
       EMAIL_URL: smtp://noreply%40pb-industries.mg:XFphaGzDKbzCTj7@smtpauth.moov.mg:465/?ssl=True
@@ -301,7 +301,7 @@ services:
       - glitchtip-postgres
       - glitchtip-redis
     environment:
-      DATABASE_URL: postgresql://glitchtip:glitchtip@glitchtip-postgres:5432/glitchtip
+      DATABASE_URL: postgresql://glitchtip:QgEQymtIzuc9FSvvbgo3lJY4qSEsKfdm@glitchtip-postgres:5432/glitchtip
       SECRET_KEY: ${GLITCHTIP_SECRET_KEY}
       PORT: 8000
       EMAIL_URL: smtp://noreply%40pb-industries.mg:XFphaGzDKbzCTj7@smtpauth.moov.mg:465/?ssl=True
