@@ -1,0 +1,10 @@
+{
+  "extends": ["react-app", "react-app/jest"],
+  "plugins": ["unused-imports"],
+  "rules": {
+    "react-hooks/rules-of-hooks": "error",
+    "react-hooks/exhaustive-deps": "warn",
+    "unused-imports/no-unused-imports": "warn",
+    "no-console": ["warn", { "allow": ["warn", "error"] }]
+  }
+}
