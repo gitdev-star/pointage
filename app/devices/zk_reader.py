@@ -1,7 +1,6 @@
 # app/devices/zk_reader.py
 import logging
-from datetime import datetime
-from typing import List, Optional
+from typing import List
 
 from zk import ZK
 from sqlalchemy.ext.asyncio import AsyncSession

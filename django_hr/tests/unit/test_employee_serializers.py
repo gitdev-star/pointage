@@ -13,7 +13,7 @@ from employees.serializers import (
     EmployeeListSerializer,
     WorkScheduleBulkAssignSerializer,
 )
-from employees.models import Factory, Department, Employee
+from employees.models import Factory
 
 
 pytestmark = pytest.mark.django_db

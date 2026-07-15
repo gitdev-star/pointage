@@ -162,7 +162,6 @@ class TestPermissionGranularity:
 
         # approve perm NOT granted -> approve_reject must be denied regardless
         # of write access, proving it's a genuinely separate permission tier
-        from employees.models import Employee
         # any existing leave request id would do; if none exist, a 404 from
         # get_object() would fire AFTER the permission check, so a bogus pk
         # still proves the 403 comes from the permission layer, not lookup,

@@ -16,7 +16,6 @@ tests have no reason to know FastAPI depends on this table directly.
 Run against real infra:
     docker compose exec -T fastapi pytest tests/integration/test_late_report_hr_db_real.py -m real_cross_service
 """
-import os
 import pytest
 
 from app.services.late_report_service import (

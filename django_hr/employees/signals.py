@@ -45,5 +45,7 @@ def employee_termination_signal(sender, instance, created, **kwargs):
             print(f"[SIGNAL] Email sent for {instance}")
         except Exception as e:
             import traceback
+            import sentry_sdk
+            sentry_sdk.capture_exception(e)
             print(f"[SIGNAL ERROR] {e}")
             traceback.print_exc()

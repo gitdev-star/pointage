@@ -2,13 +2,16 @@
 # PATH: pointage/django_hr/documents/views.py
 # Fills real .docx templates with employee data
 # =====================================================
-import os, re, io, random, zipfile
+import os
+import re
+import io
+import random
+import zipfile
 from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
 from django.http import HttpResponse
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
-from rest_framework import status
 from employees.models import Employee
 from accounts.permissions import IsHRUser
 import copy 
@@ -61,7 +64,6 @@ def replace_in_paragraph(para, reps):
 
 def remove_underline(doc):
     """Remove underline formatting from all runs in the document."""
-    from docx.oxml.ns import qn
     for p in doc.paragraphs:
         for r in p.runs:
             if r.underline:
@@ -570,7 +572,8 @@ def generate_document_pdf(request, employee_id, doc_type):
         return Response({"detail": str(e), "trace": traceback.format_exc()}, status=500)
 
     # Write docx to temp file and convert to PDF via LibreOffice
-    import tempfile, subprocess
+    import tempfile
+    import subprocess
     with tempfile.TemporaryDirectory() as tmpdir:
         docx_path = os.path.join(tmpdir, "document.docx")
         with open(docx_path, "wb") as f:

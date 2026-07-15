@@ -1,8 +1,7 @@
 import os
 # app/auth/django_auth.py
-from fastapi import Header, HTTPException, Depends
+from fastapi import Header, HTTPException
 import jwt
-import requests
 
 #DJANGO_SECRET = os.environ.get("JWT_SECRET_KEY", "supersecretkey")  # Must match Django SIMPLE_JWT SIGNING_KEY
 DJANGO_SECRET = os.environ.get("JWT_SECRET_KEY")

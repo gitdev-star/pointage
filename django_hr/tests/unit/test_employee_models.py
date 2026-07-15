@@ -4,8 +4,8 @@ Tests employee CRUD operations and relationships.
 """
 
 import pytest
-from datetime import date, timedelta
-from employees.models import Factory, Department, Section, Employee
+from datetime import date
+from employees.models import Employee
 
 
 @pytest.mark.django_db

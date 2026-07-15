@@ -27,13 +27,19 @@ import httpx
 
 pytestmark = pytest.mark.real_cross_service
 
-DJANGO_HR_URL = os.environ["DJANGO_HR_URL"]  # e.g. http://django-hr:8002
-REAL_JWT_SECRET_KEY = os.environ["JWT_SECRET_KEY"]
+DJANGO_HR_URL = os.environ.get("DJANGO_HR_URL")  # e.g. http://django-hr:8002
+REAL_JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY")
+
+if not DJANGO_HR_URL or not REAL_JWT_SECRET_KEY:
+    pytest.skip(
+        "DJANGO_HR_URL/JWT_SECRET_KEY not set - this file only runs inside "
+        "the docker network via `docker compose exec fastapi pytest ...`",
+        allow_module_level=True,
+    )
+
 WRONG_JWT_SECRET_KEY = "not-the-real-key-" + REAL_JWT_SECRET_KEY[::-1]
 
 EMPLOYEES_ACTIVE_ENDPOINT = f"{DJANGO_HR_URL}/api/employees/active/"
-
-pytestmark = pytest.mark.real_cross_service
 
 
 def _make_token(secret: str, *, role: str = "ADMIN", username: str = "integration-test-user", user_id: int = 0) -> str:

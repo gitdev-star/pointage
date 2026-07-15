@@ -52,3 +52,4 @@ django-cors-headers
 ldap3
 whitenoise
 whitenoise
+sentry-sdk

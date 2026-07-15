@@ -1,6 +1,5 @@
 import os
 # main.py
-import os
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -10,8 +9,23 @@ from app.models.attendance import Base
 from app.routers import attendance_routes, hr_routes
 from app.routers.late_report import router as late_report_router
 from app.routers.devices import router as devices_router
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+
 
 logging.basicConfig(level=logging.INFO)
+
+GLITCHTIP_DSN = os.environ.get("GLITCHTIP_DSN")
+if GLITCHTIP_DSN:
+    sentry_sdk.init(
+        dsn=GLITCHTIP_DSN,
+        integrations=[FastApiIntegration()],
+        environment="fastapi",
+        traces_sample_rate=0.1,
+        send_default_pii=False,
+        ca_certs="/etc/ssl/glitchtip/fullchain.pem",
+    )
+
 logger = logging.getLogger(__name__)
 
 @asynccontextmanager

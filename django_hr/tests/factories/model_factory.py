@@ -5,9 +5,8 @@ Used to generate test data for HR models.
 
 import factory
 from datetime import date, timedelta
-from django.contrib.auth.models import User
 from employees.models import Factory, Department, Section, Employee, WorkSchedule
-from payroll.models import SalaryStructure, EmployeeSalary, Payslip
+from payroll.models import SalaryStructure, Payslip
 from leaves.models import LeaveType, LeaveBalance, LeaveRequest
 from accounts.models import HRProfile
 
