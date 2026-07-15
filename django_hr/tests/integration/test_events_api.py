@@ -1,7 +1,7 @@
 # tests/integration/test_events_api.py
 """QE gap: events/ (holidays, company events, shift scheduling) untested."""
 import pytest
-from datetime import date, datetime, timedelta
+from datetime import date
 
 pytestmark = pytest.mark.django_db
 

@@ -17,7 +17,7 @@ import pytest
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.test import APIClient
 
-from payroll.models import SalaryStructure, EmployeeSalary, Payslip
+from payroll.models import SalaryStructure
 
 
 def _client_with_role(user, role=""):

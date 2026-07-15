@@ -2,7 +2,7 @@ from django.utils import timezone
 from django.core.mail import EmailMultiAlternatives
 from django.conf import settings
 from django.db.models import Q
-from rest_framework import viewsets, status
+from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -10,8 +10,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from datetime import timedelta
 
 from employees.models import Employee
-from accounts.models import HRProfile
-from accounts.permissions import get_hr_profile, IsHRUser, require_perm
+from accounts.permissions import get_hr_profile, require_perm
 from .models import CDDAlert, CDDNotificationAssignment, InAppNotification
 from .serializers import (
     CDDAlertSerializer,

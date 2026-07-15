@@ -57,7 +57,6 @@ def require_perm(perm_key):
             return profile is not None and profile.has_perm(perm_key)
     return DynamicPerm
 from rest_framework.permissions import BasePermission
-from .models import HRProfile
 
 
 class HRPermission(BasePermission):

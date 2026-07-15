@@ -55,7 +55,6 @@ class LDAPUserImportAdmin(admin.ModelAdmin):
 
 
 # Custom admin view for LDAP import
-from django.urls import path
 from django.shortcuts import render, redirect
 from django.contrib.admin.views.decorators import staff_member_required
 from django.utils.decorators import method_decorator

@@ -32,7 +32,7 @@ import pytest
 from django.urls import reverse
 from rest_framework import status
 
-from employees.models import Employee, Factory, Department, Section, Classification
+from employees.models import Employee, Factory, Classification
 
 
 pytestmark = pytest.mark.django_db
