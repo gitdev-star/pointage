@@ -257,7 +257,9 @@ jobs:
           fastapi \
           django-hr \
           django-auth \
-          react
+          react \
+          cron \
+          sync
 
 
 
@@ -269,7 +271,9 @@ jobs:
           fastapi \
           django-hr \
           django-auth \
-          react
+          react \
+          cron \
+          sync
 
 
 
