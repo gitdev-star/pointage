@@ -318,6 +318,9 @@ jobs:
       run:
         working-directory: /home/github-runner/pointage/frontend
     steps:
+      - name: Clean previous test artifacts
+        run: rm -rf test-results playwright-report
+        
       - name: Install Playwright browsers
         run: npx playwright install chromium
 
