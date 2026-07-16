@@ -1,0 +1,15 @@
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F"]
+
+[tool.ruff.lint.per-file-ignores]
+"django_auth/config/test_settings.py" = ["E402", "F403"]
+"django_hr/config/test_settings.py" = ["E402"]
+"django_hr/config/settings.py" = ["E402"]
+"django_auth/accounts/admin.py" = ["E402"]
+"django_auth/accounts/serializers.py" = ["E402"]
+"django_hr/accounts/permissions.py" = ["E402"]
+"django_hr/employees/signals.py" = ["E402"]
+"django_hr/leaves/views.py" = ["E402"]
