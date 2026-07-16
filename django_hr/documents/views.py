@@ -30,7 +30,7 @@ def fmt_date(value):
     if not value: return "\u2014"
     if isinstance(value, str):
         try: value = datetime.strptime(value[:10], "%Y-%m-%d").date()
-        except: return value
+        except ValueError: return value
     return f"{value.day:02d} {MONTHS_FR[value.month]} {value.year}"
 
 def add_months(date_val, n):
