@@ -7,4 +7,4 @@ class EmployeesConfig(AppConfig):
     verbose_name = "Employees"
 
     def ready(self):
-        import employees.signals
+        pass
