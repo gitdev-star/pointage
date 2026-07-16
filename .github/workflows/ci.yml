@@ -346,7 +346,11 @@ jobs:
 
           docker exec django_hr python manage.py migrate --noinput
 
+      - name: Seed E2E test data
 
+        run: |
+
+          docker exec -e DJANGO_ENV=ci django_hr python manage.py seed_e2e_data
 
   #################################################
   # LOAD TESTING (k6)
