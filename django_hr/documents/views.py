@@ -579,7 +579,7 @@ def generate_document_pdf(request, employee_id, doc_type):
         with open(docx_path, "wb") as f:
             f.write(doc_bytes)
         try:
-            subprocess.run(
+            subprocess.run(  # nosec B603 B607 - docx_path built server-side from tempfile + fixed filename, not user input
                 ["libreoffice", "--headless", "--convert-to", "pdf",
                  "--outdir", tmpdir, docx_path],
                 timeout=30, check=True,
@@ -635,7 +635,7 @@ def bulk_documents_pdf(request):
                 docx_path = os.path.join(tmpdir, f"{emp.employee_id}.docx")
                 with open(docx_path, "wb") as f:
                     f.write(doc_bytes)
-                subprocess.run(
+                subprocess.run(  # nosec B603 B607 - docx_path built server-side from tempfile + validated employee_id, not raw user input
                     ["libreoffice", "--headless", "--convert-to", "pdf",
                      "--outdir", tmpdir, docx_path],
                     timeout=30, check=True,
