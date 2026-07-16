@@ -128,8 +128,8 @@ async def sync_device_loop(ip: str, port: int):
             # Always clean up device connection
             try:
                 await zk.force_reset()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"[{ip}] force_reset cleanup failed (non-fatal): {e}")
 
         # Smart sleep: slow down when idle to reduce DB pressure
         sleep_time = IDLE_INTERVAL if idle_cycles >= 3 else SYNC_INTERVAL
@@ -160,8 +160,8 @@ async def reset_device(ip: str, port: int):
         finally:
             try:
                 await zk.force_reset()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"[{ip}] force_reset cleanup failed (non-fatal): {e}")
 
 
 async def daily_reset_loop():
