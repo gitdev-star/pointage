@@ -1,0 +1,25 @@
+line-length = 120
+
+extend-exclude = ["*/migrations/*"]
+
+[lint]
+select = ["E", "F"]
+
+[lint.per-file-ignores]
+"django_auth/config/test_settings.py" = ["E402", "F403"]
+"django_hr/config/test_settings.py" = ["E402"]
+"django_hr/config/settings.py" = ["E402"]
+"django_auth/accounts/admin.py" = ["E402"]
+"django_auth/accounts/serializers.py" = ["E402"]
+"django_hr/accounts/permissions.py" = ["E402"]
+"django_hr/employees/signals.py" = ["E402"]
+"django_hr/leaves/views.py" = ["E402"]
+"django_auth/devices/admin.py" = ["E501"]
+"django_hr/alerts/email_utils.py" = ["E501"]
+"django_hr/alerts/views.py" = ["E501"]
+"django_hr/alerts/management/commands/send_maternity_alerts.py" = ["E501"]
+"django_hr/employees/models.py" = ["E501"]
+"django_hr/employees/serializers.py" = ["E501"]
+"django_hr/employees/views.py" = ["E501"]
+"django_hr/documents/views.py" = ["E501"]
+"django_hr/accounts/models.py" = ["E501"]
