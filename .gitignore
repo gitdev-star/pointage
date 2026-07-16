@@ -49,3 +49,7 @@ htmlcov/
 **/.coverage
 .env.local
 ssl/*.pem
+
+# Playwright
+frontend/playwright-report/
+frontend/test-results/

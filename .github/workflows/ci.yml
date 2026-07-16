@@ -309,6 +309,32 @@ jobs:
   # 4 - POST DEPLOY VALIDATION
   #################################################
 
+  e2e-tests:
+    name: E2E Tests (Playwright)
+    needs: deploy-test-217
+    runs-on: self-hosted
+    if: github.ref == 'refs/heads/develop'
+    defaults:
+      run:
+        working-directory: /home/github-runner/pointage/frontend
+    steps:
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        run: npx playwright test --reporter=list
+        env:
+          E2E_BASE_URL: https://192.168.8.217
+          E2E_USERNAME: e2e_test_user
+          E2E_PASSWORD: E2ePlaywright2026!
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: /home/github-runner/pointage/frontend/playwright-report/
+          retention-days: 7
 
   health-check:
 
@@ -394,6 +420,8 @@ jobs:
       - health-check
 
       - jwt-verification
+
+      - e2e-tests
 
 
     runs-on: ubuntu-latest
