@@ -116,17 +116,59 @@ jobs:
           DEBUG: "True"
 
 
-      - name: Frontend lint
-        working-directory: frontend
-        continue-on-error: true
-        run: |
-          npm ci
-          npm run lint
-
       - name: Frontend tests
         working-directory: frontend
         run: |
           npm test -- --watchAll=false
+
+
+
+
+#################################################
+  # LINT GATE
+  #################################################
+
+  lint:
+    name: Lint Gate (Python + Frontend)
+    runs-on: ubuntu-latest
+    continue-on-error: true   # TODO: remove once existing violations are cleaned up
+
+    steps:
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ruff
+        run: python -m pip install ruff
+
+      - name: Lint FastAPI + sync_service
+        run: ruff check main.py sync_service.py app/
+
+      - name: Lint django_auth
+        run: ruff check django_auth --exclude django_auth/venv,django_auth/tests
+
+      - name: Lint django_hr
+        run: ruff check django_hr --exclude django_hr/venv,django_hr/tests
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: ESLint (blocking)
+        working-directory: frontend
+        run: npm run lint
 
 
 
@@ -138,7 +180,7 @@ jobs:
 
     name: Cross Service Integration Tests
 
-    needs: test
+    needs: [test, lint]
 
     runs-on: self-hosted
 
@@ -305,6 +347,33 @@ jobs:
 
 
 
+#################################################
+  # LOAD TESTING (k6)
+  #################################################
+
+  load-test:
+    name: Load Testing (k6)
+    needs: deploy-test-217
+    runs-on: self-hosted
+    if: github.ref == 'refs/heads/develop'
+    continue-on-error: true
+
+    defaults:
+      run:
+        working-directory: /home/github-runner/pointage
+
+    steps:
+
+      - name: Run k6 load test
+        run: |
+          docker run --rm \
+            --network host \
+            -e BASE_URL=https://192.168.8.217 \
+            -v ${{ github.workspace }}/k6:/scripts \
+            grafana/k6 run /scripts/load-test.js --insecure-skip-tls-verify
+
+           
+
   #################################################
   # 4 - POST DEPLOY VALIDATION
   #################################################
@@ -320,7 +389,7 @@ jobs:
     steps:
       - name: Clean previous test artifacts
         run: rm -rf test-results playwright-report
-        
+
       - name: Install Playwright browsers
         run: npx playwright install chromium
 
