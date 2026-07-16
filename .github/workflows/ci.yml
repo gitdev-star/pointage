@@ -348,30 +348,30 @@ jobs:
 
 
 
-#################################################
+  #################################################
   # LOAD TESTING (k6)
   #################################################
 
   load-test:
-    name: Load Testing (k6)
-    needs: deploy-test-217
-    runs-on: self-hosted
-    if: github.ref == 'refs/heads/develop'
-    continue-on-error: true
+      name: Load Testing (k6)
+      needs: deploy-test-217
+      runs-on: self-hosted
+      if: github.ref == 'refs/heads/develop'
+      continue-on-error: true
 
-    defaults:
-      run:
-        working-directory: /home/github-runner/pointage
+      defaults:
+        run:
+          working-directory: /home/github-runner/pointage
 
-    steps:
+      steps:
 
-      - name: Run k6 load test
-        run: |
-          docker run --rm \
-            --network host \
-            -e BASE_URL=https://192.168.8.217 \
-            -v ${{ github.workspace }}/k6:/scripts \
-            grafana/k6 run /scripts/load-test.js --insecure-skip-tls-verify
+        - name: Run k6 load test
+          run: |
+            docker run --rm \
+              --network host \
+              -e BASE_URL=https://192.168.8.217 \
+              -v /home/github-runner/pointage/k6:/scripts \
+              grafana/k6 run /scripts/load-test.js --insecure-skip-tls-verify
 
            
 
