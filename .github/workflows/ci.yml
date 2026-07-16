@@ -319,7 +319,7 @@ jobs:
         working-directory: /home/github-runner/pointage/frontend
     steps:
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
 
       - name: Run E2E tests
         run: npx playwright test --reporter=list
