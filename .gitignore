@@ -53,3 +53,4 @@ ssl/*.pem
 # Playwright
 frontend/playwright-report/
 frontend/test-results/
+test-results/

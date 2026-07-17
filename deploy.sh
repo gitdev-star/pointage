@@ -4,26 +4,34 @@
 set -euo pipefail
 
 SERVICES=(fastapi django-hr django-auth react)
-TIMEOUT=60          # seconds to wait for each service to become healthy
+TIMEOUT=90          # seconds to wait for each service to become healthy (raised from 60 to give margin under load)
 INTERVAL=3
 
 log() { echo "[deploy] $*"; }
 
-# ── 0. Snapshot current image IDs so we can roll back to exactly this state ──
-log "Snapshotting current image IDs for rollback..."
-declare -A PREV_IMAGE
+# ── 0. Tag current images as ':previous' BEFORE building, so rollback has a
+#      stable, GC-safe reference even after the build overwrites ':latest' ──
+log "Preserving current images as rollback candidates..."
 for svc in "${SERVICES[@]}"; do
-  PREV_IMAGE[$svc]=$(docker compose images -q "$svc" || true)
+  CURRENT_ID=$(docker compose images -q "$svc" || true)
+  if [ -n "$CURRENT_ID" ]; then
+    docker tag "$CURRENT_ID" "pointage-${svc}:previous"
+    log "  Tagged ${svc} (${CURRENT_ID}) as pointage-${svc}:previous"
+  else
+    log "  WARNING: no current image found for ${svc}, nothing to back up"
+  fi
 done
 
 rollback() {
   log "!! Deploy failed — rolling back to previous images !!"
   for svc in "${SERVICES[@]}"; do
-    if [ -n "${PREV_IMAGE[$svc]:-}" ]; then
-      docker tag "${PREV_IMAGE[$svc]}" "pointage-${svc}:rollback" 2>/dev/null || true
+    if docker image inspect "pointage-${svc}:previous" >/dev/null 2>&1; then
+      log "  Restoring ${svc} from pointage-${svc}:previous..."
+      docker tag "pointage-${svc}:previous" "pointage-${svc}:latest"
+    else
+      log "  WARNING: no pointage-${svc}:previous backup available, cannot roll back this service!"
     fi
   done
-  # Re-run migrate-safe restart of previous containers.
   docker compose up -d "${SERVICES[@]}"
   docker compose restart nginx
   log "Rollback complete. Previous version restored."
@@ -61,7 +69,7 @@ check_health() {
 }
 
 log "Health-checking new containers before exposing them..."
-check_health fastapi    "http://localhost:8080/health"
+check_health fastapi     "http://localhost:8080/health"
 check_health django_auth "http://localhost:8000/health/"
 check_health django_hr   "http://localhost:8002/health/"
 
