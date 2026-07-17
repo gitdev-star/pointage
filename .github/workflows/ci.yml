@@ -259,7 +259,7 @@ jobs:
           docker compose exec -T fastapi \
           pytest tests/integration/test_django_hr_real.py \
           -v --tb=short \
-          -m real_cross_service\
+          -m real_cross_service \
           --no-cov
 
 
