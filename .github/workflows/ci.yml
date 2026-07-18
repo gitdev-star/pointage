@@ -226,7 +226,7 @@ jobs:
 
     needs: [test, lint]
 
-    runs-on: self-hosted
+    runs-on: [self-hosted, test-217]
 
     if: github.ref == 'refs/heads/develop'
 
@@ -320,7 +320,7 @@ jobs:
 
     needs: integration-tests
 
-    runs-on: self-hosted
+    runs-on: [self-hosted, test-217]
 
     if: github.ref == 'refs/heads/develop'
 
@@ -477,7 +477,7 @@ jobs:
   load-test:
       name: Load Testing (k6)
       needs: deploy-test-217
-      runs-on: self-hosted
+      runs-on: [self-hosted, test-217]
       if: github.ref == 'refs/heads/develop'
       continue-on-error: true
 
@@ -504,7 +504,7 @@ jobs:
   e2e-tests:
     name: E2E Tests (Playwright)
     needs: deploy-test-217
-    runs-on: self-hosted
+    runs-on: [self-hosted, test-217]
     if: github.ref == 'refs/heads/develop'
     defaults:
       run:
@@ -537,7 +537,7 @@ jobs:
 
     needs: deploy-test-217
 
-    runs-on: self-hosted
+    runs-on: [self-hosted, test-217]
 
 
     steps:
@@ -561,7 +561,7 @@ jobs:
 
     needs: deploy-test-217
 
-    runs-on: self-hosted
+    runs-on: [self-hosted, test-217]
 
 
     defaults:
