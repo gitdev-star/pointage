@@ -398,6 +398,8 @@ jobs:
 
           docker exec -e DJANGO_ENV=ci django_hr python manage.py seed_e2e_data
 
+          docker exec -e DJANGO_ENV=ci -e E2E_PASSWORD=${{ secrets.E2E_PASSWORD }} django_auth python manage.py seed_e2e_data
+
 
 
   #################################################
