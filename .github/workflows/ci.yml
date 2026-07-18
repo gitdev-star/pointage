@@ -419,7 +419,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: /root/pointage
+        working-directory: /home/ghrunner/pointage
 
     steps:
 
