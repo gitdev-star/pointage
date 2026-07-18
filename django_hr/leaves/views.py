@@ -9,10 +9,10 @@ from rest_framework import viewsets, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
+from accounts.permissions import require_perm
+
+
 from employees.models import WorkSchedule
-import csv
-import django_filters
-from django.http import HttpResponse
 from django.db.models import OuterRef, Subquery, CharField
 from django.db.models.functions import Cast
 from audit_log.models import AuditLog
@@ -42,8 +42,8 @@ BREASTFEEDING_OVERTIME_HOURS    = 8.5
 BREASTFEEDING_DURATION_WEEKS    = 15
 
 def get_hr_name(request):
-    """Get HR username from request — works with both middleware and HRPermission."""
-    # Try hr_profile first (set by HRPermission)
+    """Get HR username from request — works with both middleware and require_perm."""
+    # Try hr_profile first (set by require_perm)
     profile = getattr(request, 'hr_profile', None)
     if profile:
         return profile.username
@@ -81,6 +81,11 @@ class LeaveTypeViewSet(viewsets.ModelViewSet):
         "is_paid", "requires_document", "color", "is_active",
     )
     serializer_class = LeaveTypeSerializer
+    
+    def get_permissions(self):
+        write_actions = {"create", "update", "partial_update", "destroy"}
+        perm_key = "leaves_write" if self.action in write_actions else "leaves_read"
+        return [require_perm(perm_key)()]
 
 
 class LeaveBalanceViewSet(viewsets.ModelViewSet):
@@ -97,6 +102,11 @@ class LeaveBalanceViewSet(viewsets.ModelViewSet):
     serializer_class = LeaveBalanceSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["employee", "leave_type", "year"]
+    
+    def get_permissions(self):
+        write_actions = {"create", "update", "partial_update", "destroy"}
+        perm_key = "leaves_write" if self.action in write_actions else "leaves_read"
+        return [require_perm(perm_key)()]
 
 class LeaveRequestFilter(django_filters.FilterSet):
     date_from = django_filters.DateFilter(method="filter_date_from")
@@ -131,6 +141,18 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
         )
     )
     serializer_class = LeaveRequestSerializer
+
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ["employee", "leave_type", "status"]
+    ordering_fields = ["start_date", "created_at"]
+    
+    def get_permissions(self):
+        if self.action == "approve_reject":
+            return [require_perm("leaves_approve")()]
+        write_actions = {"create", "update", "partial_update", "destroy"}
+        perm_key = "leaves_write" if self.action in write_actions else "leaves_read"
+        return [require_perm(perm_key)()]
+
     filter_backends  = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     filterset_class  = LeaveRequestFilter
     search_fields    = ["employee__first_name", "employee__last_name", "employee__employee_id"]
@@ -148,7 +170,7 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
             last_action_by=Subquery(latest_log.values("username")[:1]),
         )
         return qs
-
+    
     def perform_create(self, serializer):
         leave = serializer.save()
         log_action(self.request, leave, "CREATE")
@@ -359,3 +381,8 @@ class MaternityLeaveViewSet(viewsets.ModelViewSet):
             except Exception as e:
                 print(f"[NOTIFY] maternity_ending_soon error: {e}")
         return Response(MaternityLeaveSerializer(qs, many=True).data)
+
+    def get_permissions(self):
+        write_actions = {"create", "update", "partial_update", "destroy", "mark_returned", "extend"}
+        perm_key = "leaves_write" if self.action in write_actions else "leaves_read"
+        return [require_perm(perm_key)()]

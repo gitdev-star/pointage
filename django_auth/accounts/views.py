@@ -1,12 +1,9 @@
-from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status, generics
+from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
-from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .serializers import UserSerializer, RegisterSerializer, CustomTokenObtainPairSerializer
+from .serializers import UserSerializer, RegisterSerializer
 from .models import User
 from .permissions import IsAdmin, IsHR, IsEmployee
 from .ldap_service import list_ldap_users, authenticate_ldap_user
@@ -138,8 +135,12 @@ class LDAPLoginView(APIView):
         if not username or not password:
             return Response({"detail": "username et password requis."}, status=400)
 
-        # Try AD authentication first
-        ldap_info = authenticate_ldap_user(username, password)
+        # Try AD authentication first — never let an LDAP failure crash
+        # the endpoint; fall through to local auth instead.
+        try:
+            ldap_info = authenticate_ldap_user(username, password)
+        except Exception:
+            ldap_info = None
 
         if ldap_info:
             # Only allow users already registered in Django (by admin or HR director)

@@ -5,7 +5,7 @@ from rest_framework import viewsets, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
-from accounts.permissions import HRPermission
+from accounts.permissions import require_perm
 
 from .models import SanctionType, Sanction
 from .serializers import SanctionTypeSerializer, SanctionSerializer
@@ -15,10 +15,14 @@ class SanctionTypeViewSet(viewsets.ModelViewSet):
     # LICENCIEMENT is always last — sort by level then name, LICENCIEMENT forced to end
     queryset           = SanctionType.objects.all().order_by('level', 'name')
     serializer_class   = SanctionTypeSerializer
-    permission_classes = [HRPermission]
     filter_backends    = [filters.SearchFilter, DjangoFilterBackend]
     filterset_fields   = ["is_active"]
     search_fields      = ["name", "code"]
+
+    def get_permissions(self):
+        write_actions = {"create", "update", "partial_update", "destroy"}
+        perm_key = "sanctions_write" if self.action in write_actions else "sanctions_read"
+        return [require_perm(perm_key)()]
 
 
 class SanctionViewSet(viewsets.ModelViewSet):
@@ -27,15 +31,18 @@ class SanctionViewSet(viewsets.ModelViewSet):
         "sanction_type"
     ).order_by("-date")
     serializer_class   = SanctionSerializer
-    permission_classes = [HRPermission]
     filter_backends    = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields   = ["employee", "sanction_type", "status"]
     search_fields      = ["employee__last_name", "employee__first_name", "employee__employee_id"]
     ordering_fields    = ["date", "created_at"]
 
+    def get_permissions(self):
+        write_actions = {"create", "update", "partial_update", "destroy"}
+        perm_key = "sanctions_write" if self.action in write_actions else "sanctions_read"
+        return [require_perm(perm_key)()]
+
     def perform_create(self, serializer):
-        user_id = getattr(self.request, "hr_user_id", 1)
-        sanction = serializer.save(created_by=user_id)
+        sanction = serializer.save(created_by=self.request.user.id)
 
         # Licenciement -> terminate employee
         if sanction.sanction_type.code == "LICENCIEMENT":
@@ -82,7 +89,7 @@ class SanctionViewSet(viewsets.ModelViewSet):
         )
         from .models import SanctionType
         if last is None:
-            next_type = SanctionType.objects.filter(code="RAO").first()
+            next_type = SanctionType.objects.filter(code="RAPPEL").first()
         else:
             current_level = last.sanction_type.level
             next_type = (

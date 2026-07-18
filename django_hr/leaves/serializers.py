@@ -68,6 +68,9 @@ class MaternityLeaveSerializer(serializers.ModelSerializer):
         fields = "__all__"
         read_only_fields = ["created_by", "created_at", "updated_at",
                             "alert_birth_sent", "alert_end_sent", "alert_return_sent"]
+        extra_kwargs = {
+            "leave_end_date": {"required": False},
+        }
 
     def validate(self, data):
         start = data.get("leave_start_date")
@@ -77,7 +80,7 @@ class MaternityLeaveSerializer(serializers.ModelSerializer):
         return data
 
     def create(self, validated_data):
-        validated_data["created_by"] = self.context["request"].hr_user_id or 0
+        validated_data["created_by"] = self.context["request"].user.id
         # Auto-calculate end date if not provided
         if "leave_start_date" in validated_data and "leave_end_date" not in validated_data:
             from datetime import timedelta
