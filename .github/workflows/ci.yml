@@ -398,6 +398,78 @@ jobs:
 
           docker exec -e DJANGO_ENV=ci django_hr python manage.py seed_e2e_data
 
+
+
+  #################################################
+  # 5 - DEPLOY PRODUCTION 210 (manual gate)
+  #################################################
+
+  deploy-prod-210:
+
+    name: Deploy to SRV-ATT-MANAGMENT-210
+
+    needs: [test, lint]
+
+    runs-on: [self-hosted, prod-210]
+
+    if: github.ref == 'refs/heads/main'
+    
+
+    defaults:
+      run:
+        working-directory: /root/pointage
+
+    steps:
+
+      - name: Update code
+        run: |
+          git fetch origin main
+          git checkout main
+          git reset --hard origin/main
+
+      - name: Build containers
+        run: |
+          docker compose build \
+          fastapi \
+          django-hr \
+          django-auth \
+          react \
+          cron \
+          sync
+
+      - name: Restart services
+        run: |
+          docker compose up -d \
+          fastapi \
+          django-hr \
+          django-auth \
+          react \
+          cron \
+          sync
+
+      - name: Restart nginx
+        run: |
+          docker compose restart nginx
+
+      - name: Database migrations
+        run: |
+          docker exec django_auth python manage.py migrate --noinput
+          docker exec django_hr python manage.py migrate --noinput
+
+      - name: Health check
+        run: |
+          sleep 5
+          curl -k -f https://localhost/api/fastapi/health
+
+      - name: JWT secret verification
+        run: |
+          AUTH_SECRET=$(docker exec django_auth printenv JWT_SECRET_KEY)
+          FASTAPI_SECRET=$(docker exec fastapi printenv JWT_SECRET_KEY)
+          if [ "$AUTH_SECRET" != "$FASTAPI_SECRET" ]; then
+            echo "JWT mismatch"
+            exit 1
+          fi
+          echo "JWT secrets OK"
   #################################################
   # LOAD TESTING (k6)
   #################################################
