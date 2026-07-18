@@ -9,8 +9,7 @@ from .models import Factory, Department, Employee, Section, WorkSchedule
 
 @admin.register(WorkSchedule)
 class WorkScheduleAdmin(admin.ModelAdmin):
-    list_display  = ["name", "employee", "section", "department",
-                     "early_leave_limit", "standard_start",
+    list_display  = ["name", "employee", "section", "department", "early_leave_limit", "standard_start",
                      "standard_end", "valid_from", "valid_until", "is_active"]
     list_filter   = ["is_active", "department", "section"]
     search_fields = ["name", "employee__first_name", "employee__last_name",
@@ -24,8 +23,7 @@ class WorkScheduleAdmin(admin.ModelAdmin):
             "description": "Priority: Employee > Section > Department. Leave all blank to use as a template only.",
         }),
         ("Schedule Times", {
-            "fields": (
-                "early_leave_limit",
+            "fields": ( "early_leave_limit",
                 "standard_start", "standard_end",
                 "standard_work_hours", "overtime_threshold_hours",
             ),

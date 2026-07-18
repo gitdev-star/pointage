@@ -10,7 +10,9 @@ import EvenementModal from "../components/EvenementModal"
 export default function LeaveRequestPage() {
   const { can } = useHRAuth();
 
-  const [filters, setFilters] = useState({ status: "", search: "" });
+  const [filters, setFilters] = useState({
+    status: "", search: "", leave_type: "", factory: "", date_from: "", date_to: "",
+  });
   const [approvalDialog, setApprovalDialog] = useState(null);
   const [createDialog, setCreateDialog] = useState(false);
 
@@ -29,6 +31,7 @@ export default function LeaveRequestPage() {
         onChange={handleFilterChange}
         onAdd={() => setCreateDialog(true)}
         onRefresh={fetchRequests}
+        leaveTypes={leaveTypes} 
       />
 
       <EventTable
@@ -53,16 +56,15 @@ export default function LeaveRequestPage() {
         }}
       />
 
-      {/* décommenter */}
-<EvenementModal
-  open={createDialog}
-  leaveTypes={leaveTypes}
-  onClose={() => setCreateDialog(false)}
-  onSave={async (data) => {
-    await createRequest(data);
-    setCreateDialog(false);
-  }}
-/>
+      <EvenementModal
+        open={createDialog}
+        leaveTypes={leaveTypes}
+        onClose={() => setCreateDialog(false)}
+        onSave={async (data) => {
+          await createRequest(data);
+          setCreateDialog(false);
+        }}
+      />
     </>
   );
 }

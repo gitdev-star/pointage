@@ -1,6 +1,3 @@
-# =====================================================
-# PATH: pointage/django_hr/documents/urls.py
-# =====================================================
 from django.urls import path
 from . import views
 

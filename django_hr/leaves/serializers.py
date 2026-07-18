@@ -21,18 +21,32 @@ class LeaveBalanceSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
+# leaves/serializers.py
 class LeaveRequestSerializer(serializers.ModelSerializer):
-    employee_name = serializers.CharField(source="employee.full_name", read_only=True)
-    leave_type_name = serializers.CharField(source="leave_type.name", read_only=True)
-
+    employee_name   = serializers.CharField(source="employee.full_name", read_only=True)
+    leave_type_name = serializers.CharField(source="leave_type.name",    read_only=True)
+    leave_type_code = serializers.CharField(source="leave_type.code",    read_only=True)
+    factory_name    = serializers.CharField(source="employee.factory.name", read_only=True, default=None)
+    last_action     = serializers.CharField(read_only=True, allow_null=True)
+    last_action_at  = serializers.DateTimeField(read_only=True, allow_null=True)
+    last_action_by  = serializers.CharField(read_only=True, allow_null=True)
+    
     class Meta:
         model = LeaveRequest
         fields = "__all__"
         read_only_fields = ["status", "approved_by", "approved_at", "rejection_reason"]
 
     def validate(self, data):
-        if data["start_date"] > data["end_date"]:
-            raise serializers.ValidationError("start_date must be before end_date.")
+        start = data.get("start_date")
+        end   = data.get("end_date")
+        if start and end and end < start:
+            raise serializers.ValidationError("La date de fin doit être après la date de début.")
+
+        leave_type = data.get("leave_type") or (self.instance and self.instance.leave_type)
+        if leave_type and leave_type.code == "PM" and not data.get("duration_hours"):  # <-- "PM"
+            raise serializers.ValidationError(
+                {"duration_hours": "La durée en heures est requise pour une permission en heure."}
+            )
         return data
 
 

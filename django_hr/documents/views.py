@@ -17,6 +17,7 @@ from accounts.permissions import IsHRUser
 import copy 
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
+from .badge import build_badge_pdf
 
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
 
@@ -318,7 +319,7 @@ def build_evaluation_cdd(emp, extra):
     name     = f"{emp.last_name} {emp.first_name}"
     civ      = civilite(emp)
     today    = today_fr()
-    return fill_template(os.path.join(TEMPLATES_DIR,"EVALUATION et RENOUVELLEMENT CDD .docx"), {
+    return fill_template(os.path.join(TEMPLATES_DIR,"contrat_de_travail.docx"), {
         # Header block
         "NOM ET PRENOMS\xa0: "                          : f"NOM ET PRENOMS\xa0: {name}",
         "MATRICULE\xa0: "                               : f"MATRICULE\xa0: {emp.employee_id or chr(8212)}",
@@ -427,6 +428,58 @@ def build_cdd_12(emp, extra):
         {},
         mergefields=mergefields,
     )
+
+def build_convocation_abandon(emp, extra, template_name):
+    """Commun aux versions CDD et CDI de la lettre de convocation."""
+    mergefields = {
+        "Nom": emp.last_name or "\u2014",
+        "Pr\u00e9nom": emp.first_name or "\u2014",
+        "Matricule": emp.employee_id or "\u2014",
+        "Emploi_occup\u00e9": emp.job_title.name if emp.job_title else "\u2014",
+        "ADRESSE": getattr(emp, "address", None) or "\u2014",
+    }
+    reps = {
+        "<date_now>"      : today_fr(),
+        "<date_embauche>" : fmt_date(emp.hire_date),
+        "<date_abandon>"  : fmt_date(extra.get("date_abandon")),
+        "<date_presence>" : fmt_date(extra.get("date_derniere_presence")),
+        "<chiffres>"      : extra.get("montant") or "\u2014",
+    }
+    return fill_template(
+        os.path.join(TEMPLATES_DIR, template_name),
+        reps, mergefields=mergefields,
+    )
+
+def build_convocation_cdd(emp, extra):
+    return build_convocation_abandon(
+        emp, extra, "LETTRE_DE_CONVOCATION_POUR_ABANDON_DE_POSTE_-_CDD.docx"
+    )
+
+def build_convocation_cdi(emp, extra):
+    return build_convocation_abandon(
+        emp, extra, "LETTRE_DE_CONVOCATION_POUR_ABANDON_DE_POSTE_-_CDI.docx"
+    )
+
+def build_suspension(emp, extra):
+    fonction = emp.job_title.name if emp.job_title else "\u2014"
+    reps = {
+        "<date_jour>"          : today_fr(),
+        "<nom_employe>"        : f"{emp.last_name} {emp.first_name}",
+        "<poste_employe>"      : fonction,
+        "<matricule>"          : emp.employee_id or "\u2014",
+        "<ref_suspension>"     : extra.get("ref") or ref_rh(),
+        "<date_certificat>"    : fmt_date(extra.get("date_certificat")),
+        "<texte_medecin>"      : extra.get("delivre_par") or "\u2014",
+        "<nombre_jours_arret>" : extra.get("jours_arret") or "\u2014",
+        "<date_suspension>"    : fmt_date(extra.get("date_suspension")),
+        "<nombre_preavis>"     : extra.get("duree_preavis") or "\u2014",
+        "<date_preavis_debut>" : fmt_date(extra.get("date_preavis_debut")),
+        "<date_preavis_fin>"   : fmt_date(extra.get("date_preavis_fin")),
+    }
+    return fill_template(
+        os.path.join(TEMPLATES_DIR, "Mod\u00e8le_suspension_du_contrat.docx"),
+        reps,
+    )
 # ── API ───────────────────────────────────────────────────────────────────────
 
 # BUILDERS = {
@@ -444,6 +497,10 @@ BUILDERS = {
     "cdd_12"          : (build_cdd_12,           "Evaluation_CDD_12mois"),
     "cdd_18"          : (build_cdd_18,           "Contrat_CDD_18mois"),     # ex build_confirmation_cdi, renommé
     "evaluation_cdd"  : (build_evaluation_cdd,   "Evaluation_CDD"),
+    "convocation_cdd"  : (build_convocation_cdd,   "Convocation_Abandon_Poste_CDD"),
+    "convocation_cdi"  : (build_convocation_cdi,   "Convocation_Abandon_Poste_CDI"),
+    "suspension"       : (build_suspension,        "Suspension_Contrat"),
+    "badge"           : (None,                   "Badge_employe"), 
 }
 
 @api_view(["POST"])
@@ -451,6 +508,8 @@ BUILDERS = {
 def generate_document(request, employee_id, doc_type):
     if doc_type not in BUILDERS:
         return Response({"detail": f"Type inconnu: {doc_type}"}, status=400)
+    if doc_type == "badge":
+        return Response({"detail": "Le badge n'est disponible qu'en PDF. Utilisez l'endpoint /pdf/."}, status=400)
     try:
         emp = Employee.objects.select_related(
             "factory",
@@ -484,57 +543,42 @@ def bulk_documents_zip(request):
 
     if doc_type not in BUILDERS:
         return Response({"detail": f"Type inconnu: {doc_type}"}, status=400)
-
     if not employee_ids:
         return Response({"detail": "Aucun employé sélectionné."}, status=400)
 
     employees = Employee.objects.select_related(
-        "factory",
-        "department",
-        "classification",
-        "job_title",
+        "factory", "department", "classification", "job_title",
     ).filter(employee_id__in=employee_ids)
 
     if not employees.exists():
         return Response({"detail": "Aucun employé trouvé."}, status=404)
 
-    fn, prefix = BUILDERS[doc_type]
-
     zip_buffer = io.BytesIO()
 
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-        for emp in employees:
-            try:
-                doc_bytes = fn(emp, extra)
-
-                filename = re.sub(
-                    r"[^\w\-.]",
-                    "_",
-                    f"{prefix}_{emp.employee_id}_{emp.last_name}_{emp.first_name}.docx"
-                )
-
-                zip_file.writestr(filename, doc_bytes)
-
-            except Exception as e:
-                error_filename = re.sub(
-                    r"[^\w\-.]",
-                    "_",
-                    f"ERREUR_{emp.employee_id}_{emp.last_name}_{emp.first_name}.txt"
-                )
-                zip_file.writestr(error_filename, str(e))
+        if doc_type == "badge":
+            for emp in employees:
+                try:
+                    pdf_bytes = build_badge_pdf(emp)
+                    filename = re.sub(r"[^\w\-.]", "_", f"Badge_{emp.employee_id}_{emp.last_name}_{emp.first_name}.pdf")
+                    zip_file.writestr(filename, pdf_bytes)
+                except Exception as e:
+                    error_filename = re.sub(r"[^\w\-.]", "_", f"ERREUR_{emp.employee_id}_{emp.last_name}_{emp.first_name}.txt")
+                    zip_file.writestr(error_filename, str(e))
+        else:
+            fn, prefix = BUILDERS[doc_type]
+            for emp in employees:
+                try:
+                    doc_bytes = fn(emp, extra)
+                    filename = re.sub(r"[^\w\-.]", "_", f"{prefix}_{emp.employee_id}_{emp.last_name}_{emp.first_name}.docx")
+                    zip_file.writestr(filename, doc_bytes)
+                except Exception as e:
+                    error_filename = re.sub(r"[^\w\-.]", "_", f"ERREUR_{emp.employee_id}_{emp.last_name}_{emp.first_name}.txt")
+                    zip_file.writestr(error_filename, str(e))
 
     zip_buffer.seek(0)
-
-    zip_name = re.sub(
-        r"[^\w\-.]",
-        "_",
-        f"documents_rh_{doc_type}.zip"
-    )
-
-    resp = HttpResponse(
-        zip_buffer.getvalue(),
-        content_type="application/zip"
-    )
+    zip_name = re.sub(r"[^\w\-.]", "_", f"documents_rh_{doc_type}.zip")
+    resp = HttpResponse(zip_buffer.getvalue(), content_type="application/zip")
     resp["Content-Disposition"] = f'attachment; filename="{zip_name}"'
     return resp
 
@@ -560,6 +604,7 @@ def list_templates(request):
         {"id":"cdd_12",          "title":"Contrat CDD 12 mois"},
         {"id":"cdd_18",          "title":"Contrat CDD 18 mois"},
         {"id":"evaluation_cdd",  "title":"\u00c9valuation & Renouvellement CDD"},
+        {"id":"badge",           "title":"Badge employé"},
     ]})
 
 @api_view(["POST"])
@@ -573,6 +618,18 @@ def generate_document_pdf(request, employee_id, doc_type):
         ).get(pk=employee_id)
     except Employee.DoesNotExist:
         return Response({"detail": "Employé introuvable."}, status=404)
+
+    # ── Cas spécial : badge (HTML → PDF direct, pas de docx/LibreOffice) ──
+    if doc_type == "badge":
+        try:
+            pdf_bytes = build_badge_pdf(emp)
+        except Exception as e:
+            import traceback
+            return Response({"detail": str(e), "trace": traceback.format_exc()}, status=500)
+        safe = re.sub(r"[^\w\-.]", "_", f"Badge_{emp.last_name}_{emp.first_name}.pdf")
+        resp = HttpResponse(pdf_bytes, content_type="application/pdf")
+        resp["Content-Disposition"] = f'inline; filename="{safe}"'
+        return resp
 
     fn, prefix = BUILDERS[doc_type]
     try:
@@ -637,33 +694,42 @@ def bulk_documents_pdf(request):
     if not emps.exists():
         return Response({"detail": "Aucun employe trouve."}, status=404)
 
-    fn, prefix = BUILDERS[doc_type]
     pdf_bytes_list = []
 
-    with tempfile.TemporaryDirectory() as tmpdir:
+    if doc_type == "badge":
         for emp in emps:
             try:
-                doc_bytes = fn(emp, extra)
-                docx_path = os.path.join(tmpdir, f"{emp.employee_id}.docx")
-                with open(docx_path, "wb") as f:
-                    f.write(doc_bytes)
-                subprocess.run(  # nosec B603 B607 - docx_path built server-side from tempfile + validated employee_id, not raw user input
-                    ["libreoffice", "--headless", "--convert-to", "pdf",
-                     "--outdir", tmpdir, docx_path],
-                    timeout=30, check=True,
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                )
-                pdf_path = os.path.join(tmpdir, f"{emp.employee_id}.pdf")
-                if os.path.exists(pdf_path):
-                    with open(pdf_path, "rb") as f:
-                        pdf_bytes_list.append(f.read())
+                pdf_bytes_list.append(build_badge_pdf(emp))
             except Exception:
                 continue
+    else:
+        fn, prefix = BUILDERS[doc_type]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            for emp in emps:
+                try:
+                    doc_bytes = fn(emp, extra)
+                    docx_path = os.path.join(tmpdir, f"{emp.employee_id}.docx")
+                    with open(docx_path, "wb") as f:
+                        f.write(doc_bytes)
+                    subprocess.run(
+                        ["libreoffice", "--headless", "--convert-to", "pdf",
+                         "--outdir", tmpdir, docx_path],
+                        timeout=30, check=True,
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    )
+                    pdf_path = os.path.join(tmpdir, f"{emp.employee_id}.pdf")
+                    if os.path.exists(pdf_path):
+                        with open(pdf_path, "rb") as f:
+                            pdf_bytes_list.append(f.read())
+                except Exception:
+                    continue
 
-        if not pdf_bytes_list:
-            return Response({"detail": "Aucun PDF genere."}, status=500)
+    if not pdf_bytes_list:
+        return Response({"detail": "Aucun PDF genere."}, status=500)
 
-        # Merge PDFs using pypdf
+    # Merge PDFs using pypdf (inchangé)
+    import tempfile as _tempfile
+    with _tempfile.TemporaryDirectory() as tmpdir:
         merged_path = os.path.join(tmpdir, "merged.pdf")
         try:
             from pypdf import PdfWriter
