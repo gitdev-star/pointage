@@ -75,6 +75,10 @@ class LeaveRequest(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    duration_hours = models.DecimalField(
+        max_digits=4, decimal_places=1, null=True, blank=True,
+        help_text="Durée en heures, utilisé uniquement pour les permissions en heure (type PERH)."
+    )
 
     class Meta:
         ordering = ["-created_at"]

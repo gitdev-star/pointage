@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 // ✅ Import hrClient for authenticated HR API calls
 import hrClient from '../../../api/hrClient';
-// import authClient from '../../../api/authClient';
+import cachet from '../../../assets/cachet.png'
 
 // ── Performance: debounce hook ──────────────────────────────────────
 function useDebounce(value, delay) {
@@ -60,6 +60,25 @@ const HRAttendanceDashboard = () => {
   const [filterMode, setFilterMode] = useState('range');
   const abortRef = useRef(null);
   const [classificationFilter, setClassificationFilter] = useState('');
+  const [scheduleMap, setScheduleMap] = useState({}); // { employeePkId: "HH:MM:SS" }
+  const [earlyDepartureFilter, setEarlyDepartureFilter] = useState(false);
+
+
+const fetchScheduleMap = useCallback(async () => {
+  try {
+    const res = await hrClient.get('employees/work-schedules/', {
+      params: { is_active: true, page_size: 5000 }
+    });
+    const schedules = res.data.results ?? res.data;
+    const map = {};
+    schedules.forEach(s => {
+      if (s.employee && s.standard_end) map[s.employee] = s.standard_end;
+    });
+    setScheduleMap(map);
+  } catch (err) {
+    console.warn('Could not load work schedules:', err.message);
+  }
+}, []);
 
   const API_BASE = process.env.REACT_APP_API_URL + '/attendance/';
   const debouncedUserId = useDebounce(filters.user_id, 400);
@@ -67,11 +86,11 @@ const HRAttendanceDashboard = () => {
 const fetchEmployeeMap = useCallback(async () => {
   const CACHE_KEY = 'empMap_v3'; // ⚠️ bump la clé de cache car on change la structure
   try {
-    const cached = sessionStorage.getItem(CACHE_KEY);
-    if (cached) {
-      setEmployeeMap(JSON.parse(cached));
-      return;
-    }
+    // const cached = sessionStorage.getItem(CACHE_KEY);
+    // if (cached) {
+    //   setEmployeeMap(JSON.parse(cached));
+    //   return;
+    // }
   } catch (_) {}
 
   setLoadingEmployees(true);
@@ -87,6 +106,7 @@ const fetchEmployeeMap = useCallback(async () => {
       const entry = {
         name: `${e.first_name} ${e.last_name}`.trim() || e.employee_id,
         empId: displayId,
+        pkId: e.id,
         classification: e.classification_name || null,  // ✅ adapte au nom réel du champ
         section: e.section_name || null,
       };
@@ -128,6 +148,7 @@ const getEmployeeSection = (userId) => {
       return Array.from(set).sort();
     }, [resolvedEmployees]);
 
+    console.log("availableClassifications:", availableClassifications)
 
   const getEmployeeName = (userId) => {
     if (!userId) return null;
@@ -185,12 +206,29 @@ const extractIPsFromData = async () => {
   }
 };
 
-  const filteredAttendanceData = useMemo(() => {
-  if (!classificationFilter) return attendanceData;
-  return attendanceData.filter(
-    r => getEmployeeClassification(r.user_id) === classificationFilter
-  );
-}, [attendanceData, classificationFilter, resolvedEmployees]);
+const GLOBAL_STANDARD_END = '16:30:00'; // fallback pour les employés sans WorkSchedule personnalisé
+
+const isEarlyDeparture = (record) => {
+  if (!record.departure) return false;
+  const emp = resolvedEmployees[Number(record.user_id)];
+  if (!emp?.pkId) return false;
+  // Utilise l'horaire personnalisé (employé/section/département) s'il existe,
+  // sinon retombe sur l'horaire standard global 7h30-16h30
+  const standardEnd = scheduleMap[emp.pkId] || GLOBAL_STANDARD_END;
+  const depTime = new Date(record.departure).toTimeString().slice(0, 8); // "HH:MM:SS"
+  return depTime < standardEnd;
+};
+
+const filteredAttendanceData = useMemo(() => {
+  let data = attendanceData;
+  if (classificationFilter) {
+    data = data.filter(r => getEmployeeClassification(r.user_id) === classificationFilter);
+  }
+  if (earlyDepartureFilter) {
+    data = data.filter(r => isEarlyDeparture(r));
+  }
+  return data;
+}, [attendanceData, classificationFilter, earlyDepartureFilter, resolvedEmployees, scheduleMap]);
 
   const fetchAttendance = useCallback(async () => {
     // ── Perf: cancel any in-flight request before firing a new one ──
@@ -349,6 +387,134 @@ setAnalysisData(res.data);
     window.URL.revokeObjectURL(url);
   };
 
+const generateJetonsCantine = () => {
+  const eligibleData = filteredAttendanceData.filter(
+    r => getEmployeeClassification(r.user_id) !== 'HC'
+  );
+  if (eligibleData.length === 0) { alert('Aucun employé éligible pour générer des jetons.'); return; }
+
+  const todayLabel = new Date().toLocaleDateString('fr-FR', {
+    day: '2-digit', month: '2-digit', year: '2-digit'
+  });
+
+  const cachetUrl = new URL(cachet, window.location.origin).href;
+
+  // ── Groupement par section ──────────────────────────────────────────
+  const bySection = {};
+  eligibleData.forEach(r => {
+    const sectionName = getEmployeeSection(r.user_id) || 'Section non renseignée';
+    if (!bySection[sectionName]) bySection[sectionName] = [];
+    bySection[sectionName].push(r);
+  });
+  const sortedSectionNames = Object.keys(bySection).sort();
+
+  const JETONS_PAR_PAGE = 25; // 5x5, réduit pour laisser place au titre de section
+
+  const jetonHtml = `
+    <div class="jeton">
+      <div class="jeton-cachet"><img src="${cachetUrl}" alt="cachet pbi" /></div>
+      <div class="jeton-date">${todayLabel}</div>
+    </div>
+  `;
+
+  // ── Construction des pages, section par section ─────────────────────
+  const pagesHtml = sortedSectionNames.map(sectionName => {
+    const employesSection = bySection[sectionName];
+    const totalPagesSection = Math.ceil(employesSection.length / JETONS_PAR_PAGE);
+
+    return Array.from({ length: totalPagesSection }, (_, pageIndex) => {
+      const remaining = employesSection.length - pageIndex * JETONS_PAR_PAGE;
+      const jetonsSurCettePage = Math.min(JETONS_PAR_PAGE, remaining);
+      const jetons = Array.from({ length: jetonsSurCettePage }, () => jetonHtml).join('');
+      const suffix = totalPagesSection > 1 ? ` (page ${pageIndex + 1}/${totalPagesSection})` : '';
+
+      return `
+        <div class="page">
+          <div class="section-title">${sectionName}${suffix}</div>
+          <div class="jetons-grid">${jetons}</div>
+        </div>
+      `;
+    }).join('');
+  }).join('');
+
+  const printWindow = window.open('', '_blank');
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8" />
+      <title>Jetons cantine - ${todayLabel}</title>
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        @page { size: A4 portrait; margin: 8mm; }
+        body { font-family: Arial, sans-serif; }
+
+        .page {
+          page-break-after: always;
+        }
+        .page:last-child { page-break-after: auto; }
+
+        .section-title {
+          font-size: 16px;
+          font-weight: 700;
+          text-align: center;
+          padding: 3mm 0;
+          margin-bottom: 3mm;
+          border-bottom: 2px solid #333;
+          text-transform: uppercase;
+        }
+
+        .jetons-grid {
+          display: grid;
+          grid-template-columns: repeat(5, 1fr);
+          grid-auto-rows: 44mm;
+          gap: 3mm;
+        }
+
+        .jeton {
+          border: 1.5px dashed #999;
+          border-radius: 4px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          position: relative;
+          overflow: hidden;
+          page-break-inside: avoid;
+        }
+
+        .jeton-date {
+          font-size: 28px;
+          font-weight: 700;
+          color: #111;
+          z-index: 1;
+        }
+
+        .jeton-cachet {
+          position: absolute;
+          bottom: 3mm;
+          right: 3mm;
+          width: 16mm;
+          height: 16mm;
+          opacity: 0.85;
+        }
+        .jeton-cachet img {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+        }
+      </style>
+    </head>
+    <body>
+      ${pagesHtml}
+      <script>
+        window.onload = () => { window.print(); };
+      </script>
+    </body>
+    </html>
+  `);
+  printWindow.document.close();
+};
+
   const handleFilterChange = (key, value) => setFilters(prev => ({ ...prev, [key]: value, skip: 0 }));
 
   const clearFilters = () => {
@@ -389,7 +555,8 @@ setAnalysisData(res.data);
     fetchAvailableIPs();
     fetchClockers();
     fetchEmployeeMap();
-    fetchKpi(); // ✅ Load employee names on mount
+    fetchScheduleMap();
+    fetchKpi(); 
   }, []);
 
   const RecordModal = ({ record, onClose }) => {
@@ -460,6 +627,10 @@ setAnalysisData(res.data);
               <Download className="icon" />
               Exporter
             </button>
+            <button onClick={generateJetonsCantine} className="btn btn-gray">
+              <FileDown className="icon" />
+              Générer jetons cantine
+            </button>
           </div>
         </header>
 
@@ -488,6 +659,16 @@ setAnalysisData(res.data);
                 <button onClick={() => setFilterMode('period')} className={`filter-mode-btn ${filterMode === 'period' ? 'active' : ''}`}>
                   <Clock className="icon" />Période prédéfinie
                 </button>
+                <div className="filter-group">
+                <button
+                  type="button"
+                  onClick={() => setEarlyDepartureFilter(prev => !prev)}
+                  className={`filter-mode-btn ${earlyDepartureFilter ? 'active' : ''}`}
+                >
+                  <Clock className="icon" />
+                  Départ anticipé
+                </button>
+              </div>
               </div>
             </div>
 
@@ -637,7 +818,7 @@ setAnalysisData(res.data);
         {/* Data Table */}
         <section className="attendance-table-section">
           <div className="table-header">
-            <h2>Enregistrements de pointage 111</h2>
+            <h2>Enregistrements de pointage</h2>
             <p>
               Affichage de {filteredAttendanceData.length} sur {totalRecords} enregistrements
               {/* ✅ Show employee map load status */}

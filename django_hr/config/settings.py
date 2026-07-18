@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     "sanctions",
     "accounts",
     "documents",
+    "audit_log",
 ]
 
 # ── Middleware ─────────────────────────────────────────

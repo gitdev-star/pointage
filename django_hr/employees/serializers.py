@@ -53,6 +53,9 @@ class EmployeeListSerializer(serializers.ModelSerializer):
     job_title_name  = serializers.CharField(source="job_title.name",  read_only=True, default=None)
     classification_name  = serializers.CharField(source="classification.classe", read_only=True, default=None)
     section_name    = serializers.CharField(source="section.name",    read_only=True, default=None)
+    last_action = serializers.CharField(read_only=True, allow_null=True)
+    last_action_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    last_action_by = serializers.CharField(read_only=True, allow_null=True)
 
     class Meta:
         model  = Employee
@@ -63,8 +66,16 @@ class EmployeeListSerializer(serializers.ModelSerializer):
             "department", "department_name",
             "classification", "classification_name",
             "section", "section_name",
-            "status", "device_user_id", "sexe", "contract_type", "hire_date"
+            "status", "device_user_id", "sexe", "contract_type", "hire_date",
+            "last_action", "last_action_at", "last_action_by",
         ]
+
+    def get_last_action_by(self, obj):
+        first = getattr(obj, "last_action_by_first", None)
+        last = getattr(obj, "last_action_by_last", None)
+        if not first and not last:
+            return None
+        return f"{first or ''} {last or ''}".strip()
 
 
 class EmployeeDetailSerializer(serializers.ModelSerializer):
@@ -121,34 +132,90 @@ class EmployeeDetailSerializer(serializers.ModelSerializer):
 
 class WorkScheduleSerializer(serializers.ModelSerializer):
     employee_name   = serializers.SerializerMethodField()
+    employee_matricule  = serializers.SerializerMethodField()
     department_name = serializers.SerializerMethodField()
     section_name    = serializers.SerializerMethodField()
+    target_label    = serializers.SerializerMethodField()
 
     class Meta:
         model  = WorkSchedule
         fields = [
             "id", "name", "description",
             "employee", "employee_name",
-            "department", "department_name",
+            "department", "department_name", "employee_matricule",
             "section", "section_name",
-            "work_start", "early_leave_limit",
-            "standard_start", "standard_end",
-            "lunch_start", "lunch_end",
+            "target_label",
+            "standard_start", "standard_end", "early_leave_limit",
             "standard_work_hours", "overtime_threshold_hours",
             "valid_from", "valid_until",
             "is_active", "created_at", "updated_at",
         ]
-        read_only_fields = ["id", "created_at", "updated_at",
-                            "employee_name", "department_name", "section_name"]
+        read_only_fields = ["id", "created_at", "updated_at"]
 
     def get_employee_name(self, obj):
         return f"{obj.employee.last_name} {obj.employee.first_name}" if obj.employee else None
+
+    def get_employee_matricule(self, obj):
+        return obj.employee.employee_id if obj.employee else None
 
     def get_department_name(self, obj):
         return obj.department.name if obj.department else None
 
     def get_section_name(self, obj):
         return obj.section.name if obj.section else None
+
+    def get_target_label(self, obj):
+        if obj.employee_id:
+            return f"Employé : {obj.employee.last_name} {obj.employee.first_name}"
+        if obj.section_id:
+            return f"Section : {obj.section.name}"
+        if obj.department_id:
+            return f"Département : {obj.department.name}"
+        return "Global"
+
+    def validate(self, data):
+        employee   = data.get("employee")   or (self.instance and self.instance.employee)
+        department = data.get("department") or (self.instance and self.instance.department)
+        section    = data.get("section")    or (self.instance and self.instance.section)
+        if not employee and not department and not section:
+            raise serializers.ValidationError(
+                "Vous devez assigner cet horaire à au moins un employé, une section ou un département."
+            )
+        return data
+
+
+class WorkScheduleAssignSerializer(serializers.Serializer):
+    """Assignation en masse : crée un WorkSchedule individuel par employé sélectionné."""
+    employee_ids = serializers.ListField(child=serializers.IntegerField(), allow_empty=False)
+    name                      = serializers.CharField(max_length=100)
+    description               = serializers.CharField(required=False, allow_blank=True)
+    standard_start            = serializers.TimeField()
+    standard_end              = serializers.TimeField()
+    early_leave_limit         = serializers.TimeField()
+    standard_work_hours       = serializers.FloatField(default=8.0)
+    overtime_threshold_hours  = serializers.FloatField(default=8.5)
+    valid_from                = serializers.DateField(required=False, allow_null=True)
+    valid_until               = serializers.DateField(required=False, allow_null=True)
+
+    def create(self, validated_data):
+        employee_ids = validated_data.pop("employee_ids")
+        employees = Employee.objects.filter(id__in=employee_ids)
+        schedules = [
+            WorkSchedule(
+                employee=emp,
+                name=f'{validated_data["name"]} - {emp.employee_id}',
+                description=validated_data.get("description", ""),
+                standard_start=validated_data["standard_start"],
+                standard_end=validated_data["standard_end"],
+                early_leave_limit=validated_data["early_leave_limit"],
+                standard_work_hours=validated_data["standard_work_hours"],
+                overtime_threshold_hours=validated_data["overtime_threshold_hours"],
+                valid_from=validated_data.get("valid_from"),
+                valid_until=validated_data.get("valid_until"),
+            )
+            for emp in employees
+        ]
+        return WorkSchedule.objects.bulk_create(schedules)
 
 class EmployeeTransportSerializer(serializers.ModelSerializer):
     full_name      = serializers.CharField(read_only=True)

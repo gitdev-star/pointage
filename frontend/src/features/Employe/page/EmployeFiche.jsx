@@ -7,6 +7,8 @@ import {
 } from "@mui/material";
 import ArrowBackIcon  from "@mui/icons-material/ArrowBack";
 import BarChartIcon   from "@mui/icons-material/BarChart";
+import DownloadIcon from "@mui/icons-material/Download";
+import VisibilityIcon from "@mui/icons-material/Visibility";
 
 import hrClient from "../../../api/hrClient";
 import DocumentsRH from "../../../components/hr/DocumentsRH";
@@ -113,6 +115,7 @@ function RegistreView() {
       .then((r) => setDepartments(r.data.results ?? r.data)).catch(() => {});
   }, []);
 
+  
   const fetchEmployees = useCallback(async (f, p) => {
     setLoading(true);
     try {
@@ -280,6 +283,10 @@ function FicheDetail() {
   const [maternity, setMaternity] = useState(null);
   const fetchedTabs = React.useRef(new Set());
   const [sanctions, setSanctions] = useState(null);
+  const [contractPdfUrl, setContractPdfUrl] = useState(null);
+  const [contractLoading, setContractLoading] = useState(false);
+  const [contractError, setContractError] = useState(null);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -288,6 +295,54 @@ function FicheDetail() {
       .catch(() => setError("Erreur chargement de la fiche employé."))
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (!employee) return;
+    if (tab !== 1) return;
+    if (fetchedTabs.current.has("contract-pdf")) return;
+
+    fetchedTabs.current.add("contract-pdf");
+    setContractLoading(true);
+    setContractError(null);
+
+    hrClient
+      .post(`documents/${employee.id}/cdd_6/pdf/`, {}, { responseType: "blob" })
+      .then((r) => {
+        const url = URL.createObjectURL(r.data);
+        setContractPdfUrl(url);
+      })
+      .catch(() => setContractError("Impossible de générer l'aperçu du contrat."))
+      .finally(() => setContractLoading(false));
+  }, [tab, employee]);
+
+  useEffect(() => {
+    return () => {
+      if (contractPdfUrl) URL.revokeObjectURL(contractPdfUrl);
+    };
+  }, [contractPdfUrl]);
+    
+  const downloadContract = async (format) => {
+  setDownloading(true);
+  try {
+    const url = format === "pdf"
+      ? `documents/${employee.id}/cdd_6/pdf/`
+      : `documents/${employee.id}/cdd_6/`;
+
+    const r = await hrClient.post(url, {}, { responseType: "blob" });
+    const blobUrl = URL.createObjectURL(r.data);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = `Contrat_de_travail_${employee.last_name}_${employee.first_name}.${format}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(blobUrl);
+  } catch {
+    setContractError("Échec du téléchargement.");
+  } finally {
+    setDownloading(false);
+  }
+};
 
   useEffect(() => {
     if (!employee) return;
@@ -335,8 +390,8 @@ function FicheDetail() {
   const goToAnalysis = () =>
     navigate(`/attendance/analysis?user_id=${attendanceId}&name=${encodeURIComponent(fullName)}`);
 
-    // console.log("employe fiche:", employee)
-    
+    // console.log("employe fiche:", employee
+
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-4">
@@ -423,17 +478,63 @@ function FicheDetail() {
       )}
 
       {tab === 1 && (
-        <Paper sx={{ p: 3 }} elevation={1}>
-          <p className="font-bold mb-3">Contrat & Poste</p>
-          <InfoRow label="Poste"           value={employee.job_title_name} />
-          <InfoRow label="Type de contrat" value={CONTRACT_LABELS[employee.contract_type]} />
-          <InfoRow label="Usine"           value={employee.factory_name} />
-          <InfoRow label="Département"     value={employee.department_name} />
-          <InfoRow label="Date d'embauche" value={employee.hire_date} />
-          <InfoRow label="Date de fin"     value={employee.termination_date || "En cours"} />
-          <InfoRow label="Statut"          value={STATUS_LABELS[employee.status]} />
-        </Paper>
+  <>
+    <Paper sx={{ p: 3, mb: 3 }} elevation={1}>
+      <p className="font-bold mb-3">Contrat & Poste</p>
+      <InfoRow label="Poste"           value={employee.job_title_name} />
+      <InfoRow label="Type de contrat" value={CONTRACT_LABELS[employee.contract_type]} />
+      <InfoRow label="Usine"           value={employee.factory_name} />
+      <InfoRow label="Département"     value={employee.department_name} />
+      <InfoRow label="Date d'embauche" value={employee.hire_date} />
+      <InfoRow label="Date de fin"     value={employee.termination_date || "En cours"} />
+      <InfoRow label="Statut"          value={STATUS_LABELS[employee.status]} />
+    </Paper>
+
+    <Paper sx={{ p: 3 }} elevation={1}>
+      <div className="flex justify-between items-center mb-3">
+        <p className="font-bold flex items-center gap-1.5">
+          <VisibilityIcon fontSize="small" /> Aperçu du contrat de travail
+        </p>
+        <div className="flex gap-2">
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<DownloadIcon />}
+            disabled={downloading}
+            onClick={() => downloadContract("pdf")}
+          >
+            PDF
+          </Button>
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<DownloadIcon />}
+            disabled={downloading}
+            onClick={() => downloadContract("docx")}
+          >
+            Word
+          </Button>
+        </div>
+      </div>
+
+      {contractLoading ? (
+        <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+          <CircularProgress size={28} />
+        </Box>
+      ) : contractError ? (
+        <Alert severity="error">{contractError}</Alert>
+      ) : contractPdfUrl ? (
+        <iframe
+          src={contractPdfUrl}
+          title="Aperçu contrat de travail"
+          style={{ width: "100%", height: "70vh", border: "1px solid #e0e0e0", borderRadius: 4 }}
+        />
+      ) : (
+        <p className="text-sm text-gray-500">Aucun aperçu disponible.</p>
       )}
+    </Paper>
+  </>
+)}
 
       {tab === 2 && (
         leaves === null ? <TabSpinner /> : (
