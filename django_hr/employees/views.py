@@ -1,7 +1,3 @@
-# =====================================================
-# PATH: pointage/django_hr/employees/views.py
-# =====================================================
-
 import csv
 import io
 import re
@@ -16,9 +12,14 @@ from datetime import date
 from django.core.exceptions import ValidationError as DjangoValidationError
 
 from django.core.cache import cache
+
+from audit_log.utils import diff_dict, log_action, snapshot
 from .models import (
     Classification, Poste, Factory, Department, Employee, Section, TransportList, WorkSchedule,
 )
+from django.db.models import OuterRef, Subquery, CharField
+from django.db.models.functions import Cast
+from audit_log.models import AuditLog
 from .serializers import (
     EmployeeTransportSerializer,
     SectionSerializer,
@@ -28,6 +29,7 @@ from .serializers import (
     EmployeeDetailSerializer,
     TransportListCreateSerializer,
     TransportListSerializer,
+    WorkScheduleAssignSerializer,
     WorkScheduleSerializer,
     ClassificationSerializer,
     PosteSerializer,
@@ -333,8 +335,8 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             else:
                 qs = qs.filter(sexe__icontains="masc")
 
-        ref_month = self.request.query_params.get("ref_month")          # "2026-07"
-        anciennete_months = self.request.query_params.get("anciennete_months")  # "6"
+        ref_month = self.request.query_params.get("ref_month")
+        anciennete_months = self.request.query_params.get("anciennete_months")
 
         if ref_month and anciennete_months:
             try:
@@ -343,7 +345,6 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             except (ValueError, TypeError):
                 raise ValidationError({"anciennete_months": "Doit être un entier (3, 6, 12 ou 18)."})
 
-            # mois cible = mois de référence - X mois d'ancienneté
             total = ref_year * 12 + (ref_m - 1) - months
             target_year = total // 12
             target_month = total % 12 + 1
@@ -352,6 +353,17 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 hire_date__year=target_year,
                 hire_date__month=target_month,
             )
+
+        # ── Annotation audit log : toujours appliquée, indépendamment des filtres ci-dessus ──
+        latest_log = AuditLog.objects.filter(
+            model_name="employee",
+            object_id=Cast(OuterRef("pk"), output_field=CharField()),
+        ).order_by("-timestamp")
+        qs = qs.annotate(
+            last_action=Subquery(latest_log.values("action")[:1]),
+            last_action_at=Subquery(latest_log.values("timestamp")[:1]),
+            last_action_by=Subquery(latest_log.values("username")[:1]),
+        )
 
         return qs
 
@@ -384,6 +396,24 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 import traceback
                 print(f"[NOTIFY ERROR] {exc}")
                 traceback.print_exc()
+    
+    def perform_create(self, serializer):
+        super().perform_create(serializer)
+        log_action(self.request, serializer.instance, "CREATE")
+
+    def perform_update(self, serializer):
+        old_data = snapshot(serializer.instance)
+        super().perform_update(serializer)
+        new_data = snapshot(serializer.instance)
+        changes = diff_dict(old_data, new_data)
+        if changes:
+            log_action(self.request, serializer.instance, "UPDATE", changes)
+
+    def perform_destroy(self, instance):
+        log_action(self.request, instance, "DELETE")
+        super().perform_destroy(instance)
+
+        
 
     @action(detail=False, methods=["get"], url_path="by-device/(?P<device_user_id>[0-9]+)")
     def by_device(self, request, device_user_id=None):
@@ -681,19 +711,31 @@ class SectionViewSet(viewsets.ModelViewSet):
 
 
 class WorkScheduleViewSet(viewsets.ModelViewSet):
-    queryset = WorkSchedule.objects.select_related(
-        "employee", "department", "section"
-    ).all()
+    queryset = WorkSchedule.objects.select_related("employee", "department", "section").all()
     serializer_class = WorkScheduleSerializer
-    filter_backends  = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ["employee", "department", "section", "is_active"]
-    search_fields    = [
-        "name", "description",
-        "employee__first_name", "employee__last_name", "employee__employee_id",
-        "department__name", "section__name",
-    ]
-    ordering_fields  = ["name", "created_at"]
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        params = self.request.query_params
+        if employee_id := params.get("employee"):
+            qs = qs.filter(employee_id=employee_id)
+        if department_id := params.get("department"):
+            qs = qs.filter(department_id=department_id)
+        if section_id := params.get("section"):
+            qs = qs.filter(section_id=section_id)
+        if (is_active := params.get("is_active")) is not None:
+            qs = qs.filter(is_active=is_active.lower() == "true")
+        return qs
+
+    @action(detail=False, methods=["post"])
+    def assign(self, request):
+        serializer = WorkScheduleAssignSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        created = serializer.save()
+        return Response(
+            WorkScheduleSerializer(created, many=True).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class PosteViewSet(viewsets.ModelViewSet):

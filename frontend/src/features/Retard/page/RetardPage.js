@@ -191,16 +191,6 @@ console.log("employeeMap sample PBI1:",
           </span>
         )}
       </div>
-            {/* ── Retards du jour ── */}
-        {/* <TodayLateList
-          lateRecords={paginatedRecords}
-          kpi={kpi}
-          getEmployeeName={getEmployeeName}
-          page={page}
-          setPage={setPage}
-          totalPages={totalPages}
-          countOverride={selectedFactory === "ALL" ? null : filteredLateRecords.length}
-        /> */}
 
         <TodayLateList
           lateRecords={filteredLateRecords}
@@ -211,6 +201,7 @@ console.log("employeeMap sample PBI1:",
               ? null
               : filteredLateRecords.length
           }
+          employeeMap={employeeMap} 
         />
     </div>
   );

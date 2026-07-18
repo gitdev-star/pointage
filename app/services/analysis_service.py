@@ -60,41 +60,46 @@ def _default_rules() -> ScheduleRules:
 def _rules_from_schedule(ws) -> ScheduleRules:
     """Convert a Django WorkSchedule ORM instance to ScheduleRules."""
     return ScheduleRules(
-        work_start               = ws.work_start,
+        work_start               = ws.standard_start,   # pas de champ séparé sur le model réel
         early_leave_limit        = ws.early_leave_limit,
-        standard_start           = ws.standard_start,
-        standard_end             = ws.standard_end,
-        lunch_start              = ws.lunch_start,
-        lunch_end                = ws.lunch_end,
+        standard_start            = ws.standard_start,
+        standard_end              = ws.standard_end,
+        lunch_start              = LUNCH_START,          # non utilisé dans le calcul, gardé pour compat dataclass
+        lunch_end                = LUNCH_END,            # idem
         standard_work_hours      = ws.standard_work_hours,
         overtime_threshold_hours = ws.overtime_threshold_hours,
         schedule_name            = ws.name,
     )
 
-
 def get_schedule_for_employee(employee_id: int, on_date: date) -> ScheduleRules:
     """
+    `employee_id` ici est le user_id de la table Attendance, qui correspond
+    au device_user_id de l'employé — PAS au pk Django (Employee.id).
+    Il faut donc d'abord résoudre l'Employee via device_user_id.
+
     Priority (highest -> lowest):
       1. Schedule assigned directly to this employee
       2. Schedule assigned to the employee's section
       3. Schedule assigned to the employee's department
       4. Global defaults (constants above)
-
-    Only schedules that are active and within their validity window are considered.
-    Imported here inside the function to avoid circular imports with Django.
     """
     try:
         from django_hr.employees.models import WorkSchedule, Employee
+        from django.db.models import Q as models_Q
 
         today = on_date
+
+        try:
+            emp = Employee.objects.only("id", "section_id", "department_id").get(
+                device_user_id=employee_id
+            )
+        except Employee.DoesNotExist:
+            return _default_rules()
 
         def _qs(schedule_filter):
             return (
                 WorkSchedule.objects
-                .filter(
-                    is_active=True,
-                    **schedule_filter,
-                )
+                .filter(is_active=True, **schedule_filter)
                 .filter(
                     models_Q(valid_from__isnull=True) | models_Q(valid_from__lte=today)
                 )
@@ -105,17 +110,10 @@ def get_schedule_for_employee(employee_id: int, on_date: date) -> ScheduleRules:
                 .first()
             )
 
-        from django.db.models import Q as models_Q
-
-        # 1. Employee-level
-        ws = _qs({"employee_id": employee_id})
+        # 1. Employee-level (utilise le pk Django résolu, pas device_user_id)
+        ws = _qs({"employee_id": emp.id})
         if ws:
             return _rules_from_schedule(ws)
-
-        try:
-            emp = Employee.objects.only("section_id", "department_id").get(pk=employee_id)
-        except Employee.DoesNotExist:
-            return _default_rules()
 
         # 2. Section-level
         if emp.section_id:
@@ -130,8 +128,10 @@ def get_schedule_for_employee(employee_id: int, on_date: date) -> ScheduleRules:
             if ws:
                 return _rules_from_schedule(ws)
 
-    except Exception:
-        pass
+    except Exception as e:
+        import traceback
+        print(f"[SCHEDULE DEBUG] Erreur résolution horaire pour user_id={employee_id}: {e}")
+        traceback.print_exc()
 
     return _default_rules()
 
@@ -218,10 +218,7 @@ def _analyze_day(row, rules: ScheduleRules) -> DayRecord:
     standard_start_dt = datetime.combine(day, rules.standard_start)   # e.g. 07:30
     standard_end_dt   = datetime.combine(day, rules.standard_end)     # e.g. 16:30
 
-    # ── Is the employee late? (UI flag only) ─────────────────────────────
-    # Displayed as late on the interface when arrival is strictly after 07:35.
-    # The overtime / hours_worked calc still uses standard_start (07:30).
-    late_threshold_dt = datetime.combine(day, LATE_THRESHOLD)   # 07:35
+    late_threshold_dt = datetime.combine(day, rules.standard_start) + timedelta(minutes=5)
     is_late = bool(arrival and arrival > late_threshold_dt)
 
     # ── Effective work start (for hours_worked calculation) ───────────────
@@ -309,9 +306,18 @@ def _analyze_day(row, rules: ScheduleRules) -> DayRecord:
     # ── Early-leave flag ──────────────────────────────────────────────────
     # Flagged when departure is before the employee's effective standard_end.
     # Weekend days are excluded (no expected departure time).
+    early_leave_limit_dt = datetime.combine(day, rules.early_leave_limit)
+
+    # Si l'employé est arrivé en retard, on décale la référence du même
+    # décalage que standard_end_dt ci-dessus, pour rester cohérent avec
+    # un début de journée retardé.
+    if arrival and arrival > standard_start_dt:
+        late_offset = arrival - standard_start_dt
+        early_leave_limit_dt = early_leave_limit_dt + late_offset
+
     is_early_leave = bool(
         departure and not is_weekend
-        and departure < standard_end_dt
+        and departure < early_leave_limit_dt
     )
 
     is_overtime = bool(overtime_hours > 0)
@@ -333,6 +339,85 @@ def _analyze_day(row, rules: ScheduleRules) -> DayRecord:
         schedule_name  = rules.schedule_name,
     )
 
+def get_schedules_bulk(user_ids: list[int], on_date: date) -> dict[int, ScheduleRules]:
+    """
+    Résout les règles d'horaire pour une liste d'employés en une seule fois.
+
+    `user_ids` correspond aux device_user_id (valeurs de Attendance.user_id),
+    PAS aux pk Django. Retourne un dict {device_user_id: ScheduleRules}.
+    """
+    result: dict[int, ScheduleRules] = {}
+    try:
+        from django_hr.employees.models import WorkSchedule, Employee
+        from django.db.models import Q as models_Q
+
+        base_qs = WorkSchedule.objects.filter(is_active=True).filter(
+            models_Q(valid_from__isnull=True) | models_Q(valid_from__lte=on_date)
+        ).filter(
+            models_Q(valid_until__isnull=True) | models_Q(valid_until__gte=on_date)
+        )
+
+        # Résoudre tous les Employee via device_user_id d'abord
+        employees = Employee.objects.filter(device_user_id__in=user_ids).only(
+            "id", "device_user_id", "section_id", "department_id"
+        )
+        pks = [e.id for e in employees]
+        device_id_by_pk = {e.id: e.device_user_id for e in employees}
+
+        pks = [e.id for e in employees]
+
+        # 1. Horaires assignés directement à un employé (par pk Django)
+        employee_schedules = {
+            ws.employee_id: ws
+            for ws in base_qs.filter(employee_id__in=pks).order_by("created_at")
+        }
+
+        # 2. Employés restants -> résoudre via section/département
+        remaining_pks = [pk for pk in pks if pk not in employee_schedules]
+        if remaining_pks:
+            emp_map = {e.id: e for e in employees if e.id in remaining_pks}
+
+            section_ids = {e.section_id for e in emp_map.values() if e.section_id}
+            dept_ids    = {e.department_id for e in emp_map.values() if e.department_id}
+
+            section_schedules = {
+                ws.section_id: ws
+                for ws in base_qs.filter(
+                    section_id__in=section_ids, employee__isnull=True
+                ).order_by("created_at")
+            } if section_ids else {}
+
+            dept_schedules = {
+                ws.department_id: ws
+                for ws in base_qs.filter(
+                    department_id__in=dept_ids, section__isnull=True, employee__isnull=True
+                ).order_by("created_at")
+            } if dept_ids else {}
+
+            for pk in remaining_pks:
+                emp = emp_map.get(pk)
+                if not emp:
+                    continue
+                ws = None
+                if emp.section_id and emp.section_id in section_schedules:
+                    ws = section_schedules[emp.section_id]
+                elif emp.department_id and emp.department_id in dept_schedules:
+                    ws = dept_schedules[emp.department_id]
+                if ws:
+                    employee_schedules[pk] = ws
+
+        # Retraduire pk Django -> device_user_id pour la clé du résultat final
+        for pk, ws in employee_schedules.items():
+            device_id = device_id_by_pk.get(pk)
+            if device_id is not None:
+                result[device_id] = _rules_from_schedule(ws)
+
+    except Exception as e:
+        import traceback
+        print(f"[SCHEDULE DEBUG] Erreur résolution horaire bulk: {e}")
+        traceback.print_exc()
+
+    return result
 
 async def compute_user_analysis(
     db: AsyncSession,

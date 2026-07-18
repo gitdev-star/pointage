@@ -64,7 +64,9 @@ export default function ApprovalDialog({
             variant="body2"
             color="text.secondary"
           >
-            {data.leave.days_requested} jour(s)
+            {data.leave.leave_type_code === "PM"
+              ? `${data.leave.duration_hours} heure(s)`
+              : `${data.leave.days_requested} jour(s)`}
           </Typography>
 
           {!isApprove && (

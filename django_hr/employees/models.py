@@ -44,6 +44,7 @@ class Factory(models.Model):
 
 class Department(models.Model):
     name    = models.CharField(max_length=100)
+    code_departement  = models.CharField(max_length=20, unique=True, blank=True, null=True)
     factory = models.ForeignKey(Factory, on_delete=models.PROTECT, related_name="departments")
     manager = models.ForeignKey(
         "Employee", on_delete=models.SET_NULL,
@@ -236,6 +237,7 @@ class WorkSchedule(models.Model):
             else "global-override"
         )
         return f"{self.name} [{target}]"
+    
 class TransportList(models.Model):
     transport_date = models.DateField()
     heure_fin      = models.CharField(max_length=20)
@@ -252,8 +254,11 @@ class TransportList(models.Model):
 class TransportListItem(models.Model):
     transport_list = models.ForeignKey(TransportList, on_delete=models.CASCADE, related_name="items")
     employee       = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, blank=True)
+    # Snapshot des infos au moment de la génération (si l'employé change d'adresse plus tard,
+    # l'historique reste fidèle à ce qui a été généré ce jour-là)
     matricule = models.CharField(max_length=100)
     nom       = models.CharField(max_length=255, blank=True)
     prenom    = models.CharField(max_length=255, blank=True)
     fonction  = models.CharField(max_length=255, blank=True, null=True)
     adresse   = models.TextField(blank=True, null=True)
+
