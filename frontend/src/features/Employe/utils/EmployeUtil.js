@@ -90,16 +90,15 @@
    */
   export function validateEmployeeForm(formData) {
     const errors = {};
-    if (!formData.employee_id?.trim()) errors.employee_id = "Requis";
-    if (!formData.first_name?.trim())  errors.first_name  = "Requis";
-    if (!formData.last_name?.trim())   errors.last_name   = "Requis";
-    if (!formData.factory)             errors.factory     = "Requis";
-    if (!formData.department)          errors.department  = "Requis";
-    if (!formData.job_title)   errors.job_title   = "Requis";
-    if (!formData.hire_date)           errors.hire_date   = "Requis";
-    if (formData.email && !EMAIL_REGEX.test(formData.email))
-      errors.email = "Email invalide";
-    return errors;
+      if (!formData.first_name?.trim())  errors.first_name  = "Requis";
+      if (!formData.last_name?.trim())   errors.last_name   = "Requis";
+      if (!formData.factory)             errors.factory     = "Requis";
+      if (!formData.department)          errors.department  = "Requis";
+      if (!formData.job_title)           errors.job_title   = "Requis";
+      if (!formData.hire_date)           errors.hire_date   = "Requis";
+      if (formData.email && !EMAIL_REGEX.test(formData.email))
+        errors.email = "Email invalide";
+      return errors;
   }
 
   // ── Filtres ───────────────────────────────────────────────────────────────────

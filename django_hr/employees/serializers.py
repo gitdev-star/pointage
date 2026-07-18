@@ -89,6 +89,7 @@ class EmployeeDetailSerializer(serializers.ModelSerializer):
         pk_field=serializers.IntegerField(),
         allow_null=True, required=False
     )
+    employee_id = serializers.CharField(read_only=True)
 
     class Meta:
         model  = Employee

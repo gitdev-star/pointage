@@ -374,9 +374,13 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         employee = serializer.save()
+        employee.refresh_from_db(fields=["employee_id"])  # récupère le matricule généré par le trigger
+
         profile = get_hr_profile(self.request)
         triggered_by = profile.username if profile else "Système"
         notify_employee_created(employee, triggered_by=triggered_by)
+
+        log_action(self.request, serializer.instance, "CREATE")
 
     def perform_update(self, serializer):
         old_status = serializer.instance.status
@@ -397,9 +401,6 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 print(f"[NOTIFY ERROR] {exc}")
                 traceback.print_exc()
     
-    def perform_create(self, serializer):
-        super().perform_create(serializer)
-        log_action(self.request, serializer.instance, "CREATE")
 
     def perform_update(self, serializer):
         old_data = snapshot(serializer.instance)
