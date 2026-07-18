@@ -176,7 +176,8 @@ def build_badge_html(emp):
                     {cachet_html}
                 </div>
                 <div class="info">
-                    <p><strong>N°</strong>&nbsp;&nbsp;{matricule}&nbsp;&nbsp;&nbsp;&nbsp;<strong>Site :</strong> {factory}</p>
+                    <p><strong>N°</strong>&nbsp;&nbsp;{matricule}&nbsp;&nbsp;&nbsp;&nbsp;
+                    <strong>Site :</strong> {factory}</p>
                     <p><strong>Nom et prénoms :</strong> {name}</p>
                     <p><strong>Fonction :</strong> {fonction}</p>
                     <p><strong>Service :</strong> {service}</p>
@@ -208,7 +209,8 @@ def build_badge_html(emp):
                     <span class="mg">(Hidio ny varavaran-kely sy varavarana ao aorianao ary aza miverin-dalana.)</span>
                 </div>
                 <div class="rule">
-                    <span class="fr">Rendez-vous au point de rassemblement. Assurez-vous que tous vos collègues sont bien présents.</span>
+                    <span class="fr">Rendez-vous au point de rassemblement.
+                    Assurez-vous que tous vos collègues sont bien présents.</span>
                     <span class="mg">(Mivondrona eo @ toerana voatokana ary manao fiantsoana sao misy tsy ao.)</span>
                 </div>
 
