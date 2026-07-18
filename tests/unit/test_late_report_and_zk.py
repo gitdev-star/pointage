@@ -8,11 +8,8 @@ Run with:
   pytest tests/unit/test_late_report_and_zk.py -v
 """
 
-import asyncio
-import logging
-from collections import namedtuple
 from datetime import date, datetime, time
-from unittest.mock import AsyncMock, MagicMock, Mock, patch, call
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -272,7 +269,6 @@ class TestComputeLateReport:
     async def test_employees_below_min_late_excluded(self):
         """Employee with 0 late days should not appear in results when min_late=1."""
         from app.services.late_report_service import compute_late_report
-        from app.services.analysis_service import ScheduleRules
 
         rules = _make_schedule(work_start=time(8, 0))
         day_rec = _make_day_rec(is_weekend=False, is_late=False, arrival=datetime(2025, 1, 6, 7, 55))

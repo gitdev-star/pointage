@@ -350,8 +350,6 @@ const filteredAttendanceData = useMemo(() => {
       const dateTo   = filters.date_to   || todayStr;
 const res = await hrClient.get(`${API_BASE}analysis/${uid}?date_from=${dateFrom}&date_to=${dateTo}`);
 setAnalysisData(res.data);
-      if (res.ok) setAnalysisData(await res.json());
-      else setAnalysisData(null);
     } catch { setAnalysisData(null); }
     finally { setAnalysisLoading(false); }
   };

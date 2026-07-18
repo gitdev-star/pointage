@@ -6,6 +6,8 @@ from pathlib import Path
 from datetime import timedelta
 import os
 import dj_database_url
+import sentry_sdk
+from sentry_sdk.integrations.django import DjangoIntegration
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -21,9 +23,23 @@ ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(","
 ALLOWED_HOSTS += ["*"] if os.environ.get("INTERNAL_SERVICE", "") == "1" else []
 # Underscore hostnames are RFC-invalid but used by Docker — bypass Django's strict check
 ALLOWED_HOSTS += ["django_hr", "django-hr"]
-from django.http.request import validate_host
 import django.http.request as _req
 _req.validate_host = lambda host, allowed: True  # allow underscore hostnames internally
+
+
+# ── GlitchTip / Sentry error tracking ──────────────────
+
+GLITCHTIP_DSN = os.environ.get("GLITCHTIP_DSN")
+if GLITCHTIP_DSN and not DEBUG:
+    sentry_sdk.init(
+        dsn=GLITCHTIP_DSN,
+        integrations=[DjangoIntegration()],
+        environment="django-hr",
+        traces_sample_rate=0.1,
+        send_default_pii=False,
+        ca_certs="/etc/ssl/glitchtip/fullchain.pem",
+    )
+
 
 # ── Apps ──────────────────────────────────────────────
 INSTALLED_APPS = [

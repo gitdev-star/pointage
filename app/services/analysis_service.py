@@ -10,6 +10,9 @@ from sqlalchemy import select, func, and_
 
 from app.models.attendance import Attendance
 
+import logging
+logger = logging.getLogger(__name__)
+
 # --------------------------------------------------
 # GLOBAL WORK RULES — fallback when no custom schedule found
 # --------------------------------------------------
@@ -129,10 +132,7 @@ def get_schedule_for_employee(employee_id: int, on_date: date) -> ScheduleRules:
                 return _rules_from_schedule(ws)
 
     except Exception as e:
-        import traceback
-        print(f"[SCHEDULE DEBUG] Erreur résolution horaire pour user_id={employee_id}: {e}")
-        traceback.print_exc()
-
+        logger.debug(f"Schedule rule lookup failed for employee {employee_id}, using defaults: {e}")
     return _default_rules()
 
 

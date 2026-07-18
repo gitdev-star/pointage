@@ -2,13 +2,16 @@
 # PATH: pointage/django_hr/documents/views.py
 # Fills real .docx templates with employee data
 # =====================================================
-import os, re, io, random, zipfile
+import os
+import re
+import io
+import random
+import zipfile
 from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
 from django.http import HttpResponse
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
-from rest_framework import status
 from employees.models import Employee
 from accounts.permissions import IsHRUser
 import copy 
@@ -25,10 +28,13 @@ MONTHS_FR = ["","janvier","f\u00e9vrier","mars","avril","mai","juin",
 
 
 def fmt_date(value):
-    if not value: return "\u2014"
+    if not value:
+        return "\u2014"
     if isinstance(value, str):
-        try: value = datetime.strptime(value[:10], "%Y-%m-%d").date()
-        except: return value
+        try:
+            value = datetime.strptime(value[:10], "%Y-%m-%d").date()
+        except ValueError:
+            return value
     return f"{value.day:02d} {MONTHS_FR[value.month]} {value.year}"
 
 def add_months(date_val, n):
@@ -55,14 +61,15 @@ def replace_in_paragraph(para, reps):
     new  = full
     for old, val in reps.items():
         new = new.replace(old, str(val) if val is not None else "\u2014")
-    if new == full: return
+    if new == full:
+        return
     if para.runs:
         para.runs[0].text = new
-        for r in para.runs[1:]: r.text = ""
+        for r in para.runs[1:]:
+            r.text = ""
 
 def remove_underline(doc):
     """Remove underline formatting from all runs in the document."""
-    from docx.oxml.ns import qn
     for p in doc.paragraphs:
         for r in p.runs:
             if r.underline:
@@ -145,14 +152,18 @@ def fill_template(tpl_path, reps, strip_underline=False, mergefields=None):
     if mergefields:
         replace_mergefields(doc, mergefields)
 
-    for p in doc.paragraphs: replace_in_paragraph(p, reps)
+    for p in doc.paragraphs:
+        replace_in_paragraph(p, reps)
     for tbl in doc.tables:
         for row in tbl.rows:
             for cell in row.cells:
-                for p in cell.paragraphs: replace_in_paragraph(p, reps)
+                for p in cell.paragraphs:
+                    replace_in_paragraph(p, reps)
     for sec in doc.sections:
-        for p in sec.header.paragraphs: replace_in_paragraph(p, reps)
-        for p in sec.footer.paragraphs: replace_in_paragraph(p, reps)
+        for p in sec.header.paragraphs:
+            replace_in_paragraph(p, reps)
+        for p in sec.footer.paragraphs:
+            replace_in_paragraph(p, reps)
     if strip_underline:
         remove_underline(doc)
     # Remove trailing blank paragraphs that cause extra blank pages
@@ -169,7 +180,9 @@ def fill_template(tpl_path, reps, strip_underline=False, mergefields=None):
                 body.remove(child)
                 continue
         break
-    buf = io.BytesIO(); doc.save(buf); buf.seek(0)
+    buf = io.BytesIO()
+    doc.save(buf)
+    buf.seek(0)
     return buf.read()
 
 # ── builders ──────────────────────────────────────────────────────────────────
@@ -290,7 +303,8 @@ def build_cdd_6(emp, extra):
             "Sakambahiny Bemasoandro": b_place,
             "Lot IT U 41 bis - Andranonahoatra": addr,
             "29 juillet 2013": cin_date,
-            "Lot IT U 41 bis - Andranonahoatra": f"Lot IT U 41 bis - {cin_plc}",
+            ", à  Andranonahoatra.": f", à  {cin_plc}.",
+            ", tao Andranonahoatra.": f", tao {cin_plc}.",
         },
         strip_underline=True,
     )
@@ -627,13 +641,14 @@ def generate_document_pdf(request, employee_id, doc_type):
         return Response({"detail": str(e), "trace": traceback.format_exc()}, status=500)
 
     # Write docx to temp file and convert to PDF via LibreOffice
-    import tempfile, subprocess
+    import tempfile
+    import subprocess
     with tempfile.TemporaryDirectory() as tmpdir:
         docx_path = os.path.join(tmpdir, "document.docx")
         with open(docx_path, "wb") as f:
             f.write(doc_bytes)
         try:
-            subprocess.run(
+            subprocess.run(  # nosec B603 B607 - docx_path built server-side from tempfile + fixed filename, not user input
                 ["libreoffice", "--headless", "--convert-to", "pdf",
                  "--outdir", tmpdir, docx_path],
                 timeout=30, check=True,

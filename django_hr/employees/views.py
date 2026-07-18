@@ -3,13 +3,12 @@ import io
 import re
 
 from rest_framework import viewsets, filters, status
+from rest_framework.exceptions import ValidationError
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
-from datetime import date
-from django.core.exceptions import ValidationError as DjangoValidationError
 
 from django.core.cache import cache
 
@@ -183,16 +182,22 @@ def _parse_row(row, row_num):
     if not contract_type:
         contract_type = "CDI"
 
-    if not employee_id:   errors.append("employee_id is required")
-    if not first_name:    first_name = last_name
-    if not last_name:     last_name = first_name
-    if not factory_name:  factory_name = None
+    if not employee_id:
+        errors.append("employee_id is required")
+    if not first_name:
+        first_name = last_name
+    if not last_name:
+        last_name = first_name
+    if not factory_name:
+        factory_name = None
     if not dept_name:
         errors.append("'Département' column is missing or empty (should be placed after 'Etablissement' in your Excel file)")
-    if not job_title:     job_title = ""
+    if not job_title:
+        job_title = ""
     if contract_type not in VALID_CONTRACT_TYPES:
         contract_type = "CDI"
-    if not hire_date:     hire_date = None
+    if not hire_date:
+        hire_date = None
     if status_val not in VALID_STATUSES:
         status_val = "ACTIVE"
 
@@ -374,16 +379,14 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         employee = serializer.save()
-        employee.refresh_from_db(fields=["employee_id"])  # récupère le matricule généré par le trigger
-
         profile = get_hr_profile(self.request)
         triggered_by = profile.username if profile else "Système"
         notify_employee_created(employee, triggered_by=triggered_by)
-
         log_action(self.request, serializer.instance, "CREATE")
 
     def perform_update(self, serializer):
         old_status = serializer.instance.status
+        old_data = snapshot(serializer.instance)
         employee = serializer.save()
         if old_status != "TERMINATED" and employee.status == "TERMINATED":
             try:
@@ -400,11 +403,6 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 import traceback
                 print(f"[NOTIFY ERROR] {exc}")
                 traceback.print_exc()
-    
-
-    def perform_update(self, serializer):
-        old_data = snapshot(serializer.instance)
-        super().perform_update(serializer)
         new_data = snapshot(serializer.instance)
         changes = diff_dict(old_data, new_data)
         if changes:
@@ -444,7 +442,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             return self.get_paginated_response(EmployeeListSerializer(page, many=True).data)
         return Response(EmployeeListSerializer(emps, many=True).data)
 
-    @action(detail=False, methods=["post"], url_path="import", parser_classes=[MultiPartParser])
+    @action(detail=False, methods=["post"], url_path="import", url_name="import", parser_classes=[MultiPartParser])
     def import_csv(self, request):
         import traceback as _tb
         try:
@@ -513,8 +511,6 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
         results = []
         to_create = []
-        new_factories = []
-        new_departments = []
         skipped = 0
         errors = 0
         factory_cache = {}
@@ -734,7 +730,10 @@ class WorkScheduleViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         created = serializer.save()
         return Response(
-            WorkScheduleSerializer(created, many=True).data,
+            {
+                "created_count": len(created),
+                "results": WorkScheduleSerializer(created, many=True).data,
+            },
             status=status.HTTP_201_CREATED,
         )
 
@@ -781,11 +780,16 @@ def employee_export(request):
     search        = request.query_params.get("search")
     sexe          = request.query_params.get("sexe")
 
-    if status_param:  qs = qs.filter(status=status_param)
-    if factory:       qs = qs.filter(factory_id=factory)
-    if department:    qs = qs.filter(department_id=department)
-    if contract_type: qs = qs.filter(contract_type=contract_type)
-    if sexe:          qs = qs.filter(sexe__iregex=r"^f[eé]minin$") if sexe.upper() == "F" else qs.filter(sexe__icontains="masc")
+    if status_param:
+        qs = qs.filter(status=status_param)
+    if factory:
+        qs = qs.filter(factory_id=factory)
+    if department:
+        qs = qs.filter(department_id=department)
+    if contract_type:
+        qs = qs.filter(contract_type=contract_type)
+    if sexe:
+        qs = qs.filter(sexe__iregex=r"^f[eé]minin$") if sexe.upper() == "F" else qs.filter(sexe__icontains="masc")
     if search:
         from django.db.models import Q
         qs = qs.filter(

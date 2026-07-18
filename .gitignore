@@ -47,4 +47,10 @@ htmlcov/
 **/htmlcov/
 .coverage
 **/.coverage
-nginx.conf
+.env.local
+ssl/*.pem
+
+# Playwright
+frontend/playwright-report/
+frontend/test-results/
+test-results/

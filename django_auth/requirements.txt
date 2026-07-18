@@ -12,3 +12,4 @@ dj-database-url==2.1.0
 pytest
 pytest-django
 pytest-cov
+sentry-sdk

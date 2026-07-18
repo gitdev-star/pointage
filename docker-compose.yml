@@ -18,6 +18,7 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      - "8443:8443"
     environment:
       - SERVER_IP=${SERVER_IP}
     volumes:
@@ -33,25 +34,6 @@ services:
       - react
     restart: unless-stopped
 
-  # ── PostgreSQL ───────────────────────────────────────────────────────────────
-  postgres:
-    image: postgres:15
-    container_name: postgres
-    environment:
-      POSTGRES_USER:     ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB:       ${POSTGRES_DB}
-    expose:
-      - "5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - pointage_net
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 5s
-      retries: 15
 
   # ── Redis ─────────────────────────────────────────────────────────────────────
   redis:
@@ -83,14 +65,14 @@ services:
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - LDAP_SERVER_URI=${LDAP_SERVER_URI} 
       - SERVICE_INTERNAL_KEY=${SERVICE_INTERNAL_KEY}
+      - GLITCHTIP_DSN=${GLITCHTIP_DSN_DJANGO_AUTH}
     volumes:
       - ./django_auth:/app
       - django_auth_static:/app/staticfiles
+      - ./ssl:/etc/ssl/glitchtip:ro
     networks:
       - pointage_net
     depends_on:
-      postgres:
-        condition: service_started
       redis:
         condition: service_started
     logging:
@@ -129,14 +111,14 @@ services:
       - DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL}
       - SERVICE_INTERNAL_KEY=${SERVICE_INTERNAL_KEY}
       - PYTHONUNBUFFERED=1
+      - GLITCHTIP_DSN=${GLITCHTIP_DSN_DJANGO_HR}
     volumes:
       - ./django_hr:/app
       - django_hr_media:/app/media
+      - ./ssl:/etc/ssl/glitchtip:ro
     networks:
       - pointage_net
     depends_on:
-      postgres:
-        condition: service_started
       django-auth:
         condition: service_started
       redis:
@@ -166,8 +148,10 @@ services:
       - HR_DB_NAME=${HR_DB_NAME}
       - HR_DB_USER=${POSTGRES_USER}
       - HR_DB_PASSWORD=${POSTGRES_PASSWORD}
+      - GLITCHTIP_DSN=${GLITCHTIP_DSN_FASTAPI}
     volumes:
       - ./:/app
+      - ./ssl:/etc/ssl/glitchtip:ro
     depends_on:
       django-auth:
         condition: service_started
@@ -222,10 +206,15 @@ services:
       - REACT_APP_FASTAPI_URL=https://${SERVER_IP}/api/fastapi
       - REACT_APP_API_URL=https://${SERVER_IP}/api/fastapi
       - REACT_APP_CLOCKERS_URL=https://${SERVER_IP}/api/clockers
-      - CHOKIDAR_USEPOLLING=false
+      - CHOKIDAR_USEPOLLING=true
       - FAST_REFRESH=false
       - WDS_SOCKET_PORT=0
-      - CI=true
+      - REACT_APP_GLITCHTIP_DSN=${GLITCHTIP_DSN_REACT}
+
+      #- WDS_SOCKET_PROTOCOL=wss
+      #- WDS_SOCKET_PORT=443
+      #- WDS_SOCKET_HOST=${SERVER_IP}
+      #- WDS_SOCKET_PATH=/ws
     volumes:
       - ./frontend:/app
     networks:
@@ -266,7 +255,65 @@ services:
       - ./django_hr:/app
     command: bash -c "echo '0 7 * * * cd /app && python3 manage.py send_cdd_alerts >> /var/log/cron.log 2>&1' > /etc/cron.d/hr-cron && echo '0 7 * * * cd /app && python3 manage.py send_maternity_alerts >> /var/log/cron.log 2>&1' >> /etc/cron.d/hr-cron && chmod 0644 /etc/cron.d/hr-cron && crontab /etc/cron.d/hr-cron && cron -f"
 
+  glitchtip-postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: glitchtip
+      POSTGRES_PASSWORD: ${GLITCHTIP_PG_PASSWORD}
+      POSTGRES_DB: glitchtip
+    volumes:
+      - glitchtip_pg_data:/var/lib/postgresql/data
+    networks:
+      - pointage_net
+
+  glitchtip-redis:
+    image: redis:7
+    networks:
+      - pointage_net
+
+  glitchtip-web:
+    image: glitchtip/glitchtip:latest
+    depends_on:
+      - glitchtip-postgres
+      - glitchtip-redis
+    expose:
+      - "8000"
+    environment:
+      DATABASE_URL: postgresql://glitchtip:${GLITCHTIP_PG_PASSWORD}@glitchtip-postgres:5432/glitchtip
+      SECRET_KEY: ${GLITCHTIP_SECRET_KEY}
+      PORT: 8000
+      EMAIL_URL: ${GLITCHTIP_EMAIL_URL}
+      GLITCHTIP_DOMAIN: https://${SERVER_IP}:8443
+      DEFAULT_FROM_EMAIL: noreply@pb-industries.mg
+      ALLOWED_HOSTS: ${SERVER_IP},localhost,127.0.0.1
+      CSRF_TRUSTED_ORIGINS: https://${SERVER_IP}:8443
+      ENABLE_USER_REGISTRATION: "false"
+      ENABLE_ORGANIZATION_CREATION: "false"
+    volumes:
+      - glitchtip_uploads:/code/uploads
+    networks:
+      - pointage_net
+
+  glitchtip-worker:
+    image: glitchtip/glitchtip:latest
+    command: ./bin/run-celery-with-beat.sh
+    depends_on:
+      - glitchtip-postgres
+      - glitchtip-redis
+    environment:
+      DATABASE_URL: postgresql://glitchtip:${GLITCHTIP_PG_PASSWORD}@glitchtip-postgres:5432/glitchtip
+      SECRET_KEY: ${GLITCHTIP_SECRET_KEY}
+      PORT: 8000
+      EMAIL_URL: ${GLITCHTIP_EMAIL_URL}
+      GLITCHTIP_DOMAIN: https://${SERVER_IP}:8443
+      DEFAULT_FROM_EMAIL: noreply@pb-industries.mg
+      ALLOWED_HOSTS: ${SERVER_IP},localhost,127.0.0.1
+      CSRF_TRUSTED_ORIGINS: https://${SERVER_IP}:8443
+    networks:
+      - pointage_net
+
 volumes:
-  postgres_data:
   django_hr_media:
   django_auth_static:
+  glitchtip_pg_data:
+  glitchtip_uploads:

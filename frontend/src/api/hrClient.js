@@ -2,7 +2,7 @@ import axios from "axios";
 
 const HR_BASE_URL = process.env.REACT_APP_HR_URL
   ? `${process.env.REACT_APP_HR_URL}/`
-  : `${window.location.origin}/api/hr/`;
+  : process.env.REACT_APP_HR_URL + "/";
 
 const hrClient = axios.create({
   baseURL: HR_BASE_URL,
@@ -30,7 +30,7 @@ hrClient.interceptors.response.use(
         const refresh = localStorage.getItem("refresh_token");
         if (!refresh) throw new Error("No refresh token");
         const res = await axios.post(
-          `${process.env.REACT_APP_AUTH_URL}/token/refresh/`,
+          `${process.env.REACT_APP_AUTH_URL || `${window.location.origin}/api/auth`}/token/refresh/`,
           { refresh }
         );
         localStorage.setItem("access_token", res.data.access);

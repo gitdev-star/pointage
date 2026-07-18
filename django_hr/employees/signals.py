@@ -2,8 +2,6 @@ from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from django.core.cache import cache
 from .models import Factory, Department, Section
-import os
-print(">>> employees.signals LOADED", os.getpid())
 
 @receiver([post_save, post_delete], sender=Factory)
 def clear_factory_cache(sender, **kwargs):
@@ -47,5 +45,7 @@ def employee_termination_signal(sender, instance, created, **kwargs):
             print(f"[SIGNAL] Email sent for {instance}")
         except Exception as e:
             import traceback
+            import sentry_sdk
+            sentry_sdk.capture_exception(e)
             print(f"[SIGNAL ERROR] {e}")
             traceback.print_exc()

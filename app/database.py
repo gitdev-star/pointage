@@ -10,22 +10,20 @@ DATABASE_URL = os.getenv(
     "postgresql+asyncpg://user:pass@postgres:5432/pointage_db"
 )
 
-engine = create_async_engine(
-    DATABASE_URL,
-    echo=False,          # was True — was logging every query to stdout
-    pool_size=20,        # up from default 5 — handles 100 concurrent users
-    max_overflow=40,     # allows burst up to 60 total connections
-    pool_timeout=30,     # wait max 30s for a free connection before error
-    pool_recycle=1800,   # recycle connections every 30min to avoid stale ones
-    pool_pre_ping=True,  # test connection before using it (avoids dead conn errors)
-    connect_args={
-        "server_settings": {
-            "statement_timeout": "300000",      # 5 min max per statement
-        },
-        "command_timeout": 300,                 # 5 min asyncpg command timeout
-       	"ssl": False,
-	},
-)
+_is_sqlite = DATABASE_URL.startswith("sqlite")
+_extra = {} if _is_sqlite else {
+    "pool_size": 20,
+    "max_overflow": 40,
+    "pool_timeout": 30,
+    "pool_recycle": 1800,
+    "pool_pre_ping": True,
+    "connect_args": {
+        "server_settings": {"statement_timeout": "300000"},
+        "command_timeout": 300,
+        "ssl": False,
+    },
+}
+engine = create_async_engine(DATABASE_URL, echo=False, **_extra)
 
 
 AsyncSessionLocal = sessionmaker(

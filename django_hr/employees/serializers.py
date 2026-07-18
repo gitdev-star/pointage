@@ -89,7 +89,6 @@ class EmployeeDetailSerializer(serializers.ModelSerializer):
         pk_field=serializers.IntegerField(),
         allow_null=True, required=False
     )
-    employee_id = serializers.CharField(read_only=True)
 
     class Meta:
         model  = Employee
@@ -197,6 +196,17 @@ class WorkScheduleAssignSerializer(serializers.Serializer):
     overtime_threshold_hours  = serializers.FloatField(default=8.5)
     valid_from                = serializers.DateField(required=False, allow_null=True)
     valid_until               = serializers.DateField(required=False, allow_null=True)
+
+    def validate_employee_ids(self, value):
+        existing = set(
+            Employee.objects.filter(id__in=value).values_list("id", flat=True)
+        )
+        missing = set(value) - existing
+        if missing:
+            raise serializers.ValidationError(
+                f"Unknown employee id(s): {sorted(missing)}"
+            )
+        return value
 
     def create(self, validated_data):
         employee_ids = validated_data.pop("employee_ids")

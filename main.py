@@ -1,5 +1,5 @@
-# main.py
 import os
+# main.py
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -9,16 +9,32 @@ from app.models.attendance import Base
 from app.routers import attendance_routes, hr_routes
 from app.routers.late_report import router as late_report_router
 from app.routers.devices import router as devices_router
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+
 
 logging.basicConfig(level=logging.INFO)
+
+GLITCHTIP_DSN = os.environ.get("GLITCHTIP_DSN")
+if GLITCHTIP_DSN:
+    sentry_sdk.init(
+        dsn=GLITCHTIP_DSN,
+        integrations=[FastApiIntegration()],
+        environment="fastapi",
+        traces_sample_rate=0.1,
+        send_default_pii=False,
+        ca_certs="/etc/ssl/glitchtip/fullchain.pem",
+    )
+
 logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("🚀 FastAPI starting...")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    logger.info("✅ Database ready")
+    if os.getenv("ENVIRONMENT") != "test":
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("✅ Database ready")
     logger.info("🎯 API is LIVE on :8080 — sync handled by sync_service.py")
     yield
     logger.info("🛑 API shutting down")
@@ -56,4 +72,4 @@ async def health():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8080, reload=False, log_level="info")
+    uvicorn.run("main:app", host="0.0.0.0", port=8080, reload=False, log_level="info")  # nosec B104 - binding to all interfaces is required inside Docker container

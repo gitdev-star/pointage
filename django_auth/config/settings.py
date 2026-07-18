@@ -4,6 +4,8 @@ Django settings for config project.
 import os
 from pathlib import Path
 from datetime import timedelta
+import sentry_sdk
+from sentry_sdk.integrations.django import DjangoIntegration
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -21,6 +23,19 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 CSRF_TRUSTED_ORIGINS = os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",")
 CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SECURE = True
+
+# ── GlitchTip / Sentry error tracking ──────────────────
+
+GLITCHTIP_DSN = os.environ.get("GLITCHTIP_DSN")
+if GLITCHTIP_DSN and not DEBUG:
+    sentry_sdk.init(
+        dsn=GLITCHTIP_DSN,
+        integrations=[DjangoIntegration()],
+        environment="django-auth",
+        traces_sample_rate=0.1,
+        send_default_pii=False,
+        ca_certs="/etc/ssl/glitchtip/fullchain.pem",
+    )
 
 # ── Apps ──────────────────────────────────────────────
 INSTALLED_APPS = [

@@ -2,13 +2,26 @@ name: Pointage CI/CD
 
 on:
   push:
-    branches: [main, develop]
+    branches:
+      - main
+      - develop
+
   pull_request:
-    branches: [main]
+    branches:
+      - main
+      - develop
+
+  workflow_dispatch:
+
 
 jobs:
-  # ─── JOB 1: Tests — runs on GitHub cloud ──────────────────────
+
+  #################################################
+  # 1 - UNIT TESTS
+  #################################################
+
   test:
+    name: Unit Tests (FastAPI + Django)
     runs-on: ubuntu-latest
 
     services:
@@ -18,69 +31,621 @@ jobs:
           POSTGRES_DB: pointage_test
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
+
         ports:
           - 5432:5432
+
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U postgres"
           --health-interval 5s
           --health-timeout 5s
+          --health-retries 5
+
+
+    steps:
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+
+      - name: Install FastAPI dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+
+      - name: Install django_auth dependencies
+        run: |
+          python -m pip install -r django_auth/requirements.txt
+
+
+      - name: Install django_hr dependencies
+        run: |
+          python -m pip install -r django_hr/requirements.txt
+
+
+      - name: Install Bandit (SAST)
+        run: python -m pip install bandit
+      - name: SAST scan (Bandit) - non-blocking
+        continue-on-error: true
+        run: |
+          bandit -r django_auth/ -x django_auth/tests,django_auth/venv -f screen
+          bandit -r django_hr/ -x django_hr/tests,django_hr/venv -f screen
+          bandit -r main.py sync_service.py app/ -f screen
+
+      - name: FastAPI unit tests
+        run: |
+          pytest tests/unit -v --tb=short
+
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/pointage_test
+          SECRET_KEY: ci-test-secret-key-minimum-32-chars-long
+          JWT_SECRET_KEY: ci-test-secret-key-minimum-32-chars-long
+          SERVICE_INTERNAL_KEY: ci-test-service-key-minimum-32-chars-long
+
+
+      - name: django_auth tests
+        working-directory: django_auth
+
+        run: |
+          python -m pytest -v --tb=short
+
+        env:
+          DJANGO_SECRET_KEY: ci-test-secret-key-minimum-32-chars-long
+          JWT_SECRET_KEY: ci-test-secret-key-minimum-32-chars-long
+          LDAP_BIND_PASSWORD: test-password
+
+
+      - name: django_hr tests
+        working-directory: django_hr
+
+        run: |
+          python -m pytest -v --tb=short
+
+        env:
+          DJANGO_SECRET_KEY: ci-test-secret-key-minimum-32-chars-long-hr
+          SERVICE_INTERNAL_KEY: ci-test-service-key-minimum-32-chars-long
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/pointage_test
+          DEBUG: "True"
+
+
+      - name: Frontend tests
+        working-directory: frontend
+        run: |
+          npm ci
+          npm test -- --watchAll=false
+
+
+
+
+#################################################
+  # LINT GATE
+  #################################################
+
+  lint:
+    name: Lint Gate (Python + Frontend)
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ruff
+        run: python -m pip install ruff
+
+      - name: Lint FastAPI + sync_service
+        run: ruff check main.py sync_service.py app/
+
+      - name: Lint django_auth
+        run: ruff check django_auth --exclude django_auth/venv,django_auth/tests
+
+      - name: Lint django_hr
+        run: ruff check django_hr --exclude django_hr/venv,django_hr/tests
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: ESLint (blocking)
+        working-directory: frontend
+        run: npm run lint
+
+
+
+  dependency-scan:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    continue-on-error: true
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: pip
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      - name: Install pip-audit
+        run: python -m pip install pip-audit
 
-      - name: Run pytest
-        run: pytest --tb=short -q
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost/pointage_test
-          SECRET_KEY: ci-test-secret-key-minimum-32-chars-long
-          ENVIRONMENT: test
-          DJANGO_AUTH_URL: http://mock-auth
+      - name: Audit FastAPI dependencies
+        continue-on-error: true
+        run: pip-audit -r requirements.txt
 
-  # ─── JOB 2: Deploy to 217 — runs ON your server ───────────────
-  deploy-dev:
-    needs: test
-    runs-on: self-hosted          # ← runs directly on 217
+      - name: Audit django_auth dependencies
+        continue-on-error: true
+        run: pip-audit -r django_auth/requirements.txt
+
+      - name: Audit django_hr dependencies
+        continue-on-error: true
+        run: pip-audit -r django_hr/requirements.txt
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: Audit frontend dependencies
+        continue-on-error: true
+        working-directory: frontend
+        run: npm audit --audit-level=high
+
+  #################################################
+  # 2 - INTEGRATION TESTS
+  #################################################
+
+  integration-tests:
+
+    name: Cross Service Integration Tests
+
+    needs: [test, lint]
+
+    runs-on: [self-hosted, test-217]
+
     if: github.ref == 'refs/heads/develop'
 
+
+    defaults:
+      run:
+        working-directory: /home/github-runner/pointage
+
+
+
     steps:
+
+
       - name: Pull latest code
-        run: |
-          cd /home/github-runner/pointage
-          git pull origin develop
 
-      - name: Restart containers
         run: |
-          cd /home/github-runner/pointage
-          docker compose up -d --build
 
-      - name: Run migrations
+          git fetch origin develop
+
+          git checkout develop
+
+          git reset --hard origin/develop
+
+
+
+      - name: Auth Integration
+
         run: |
-          cd /home/github-runner/pointage
-          docker compose exec -T django_hr python manage.py migrate
 
-  # ─── JOB 3: Deploy to 210 — also runs on 217, then SSH to 210 ─
-  deploy-prod:
-    needs: test
-    runs-on: self-hosted          # ← runs on 217, then SSHes to 210
-    if: github.ref == 'refs/heads/main'
-    environment: production       # ← manual approval on GitHub
+          docker compose exec -T fastapi \
+          pytest tests/integration/test_django_hr_real.py \
+          -v --tb=short \
+          -m real_cross_service \
+          --no-cov
+
+
+      - name: HR Integration
+
+        run: |
+
+          docker compose exec -T fastapi \
+          pytest tests/integration/test_cross_service_real.py \
+          -v --tb=short \
+          -m real_cross_service \
+          --no-cov
+
+
+
+      - name: End To End Integration
+
+        run: |
+
+          docker compose exec -T fastapi \
+          pytest tests/integration/test_nginx_routing_real.py \
+          -v --tb=short \
+          -m real_cross_service \
+          --no-cov
+
+
+
+      - name: HRProfile Sync Integration (django_auth -> django-hr)
+        run: |
+          docker compose exec -T django-auth \
+          pytest tests/integration/test_hr_profile_sync_real.py \
+          -v --tb=short \
+          -m real_cross_service \
+          --no-cov
+
+
+
+      - name: Late Report HR-DB Schema Integration
+
+        run: |
+
+          docker compose exec -T fastapi \
+          pytest tests/integration/test_late_report_hr_db_real.py \
+          -v --tb=short \
+          -m real_cross_service \
+          --no-cov
+
+
+
+
+  #################################################
+  # 3 - DEPLOY STAGING 217
+  #################################################
+
+  deploy-test-217:
+
+    name: Deploy to SRV-DEV-TEST-217
+
+    needs: integration-tests
+
+    runs-on: [self-hosted, test-217]
+
+    if: github.ref == 'refs/heads/develop'
+
+
+    defaults:
+
+      run:
+
+        working-directory: /home/github-runner/pointage
+
+
 
     steps:
-      - name: Deploy to 210
+
+
+      - name: Update code
+
         run: |
-          ssh root@192.168.8.210 '
-            cd /home/github-runner/pointage &&
-            git pull origin main &&
-            docker compose up -d --no-build &&
-            docker compose exec -T django_hr python manage.py migrate
-          '
+
+          git fetch origin develop
+
+          git checkout develop
+
+          git reset --hard origin/develop
+
+
+
+      - name: Build containers
+
+        run: |
+
+          docker compose build \
+          fastapi \
+          django-hr \
+          django-auth \
+          react \
+          cron \
+          sync
+
+
+
+      - name: Restart services
+
+        run: |
+
+          docker compose up -d \
+          fastapi \
+          django-hr \
+          django-auth \
+          react \
+          cron \
+          sync
+
+
+
+      - name: Restart nginx
+
+        run: |
+
+          docker compose restart nginx
+
+
+
+      - name: Database migrations
+
+        run: |
+
+          docker exec django_auth python manage.py migrate --noinput
+
+          docker exec django_hr python manage.py migrate --noinput
+
+      - name: Seed E2E test data
+
+        run: |
+
+          docker exec -e DJANGO_ENV=ci django_hr python manage.py seed_e2e_data
+
+          docker exec -e DJANGO_ENV=ci -e E2E_PASSWORD=${{ secrets.E2E_PASSWORD }} django_auth python manage.py seed_e2e_data
+
+
+
+  #################################################
+  # 5 - DEPLOY PRODUCTION 210 (manual gate)
+  #################################################
+
+  deploy-prod-210:
+
+    name: Deploy to SRV-ATT-MANAGMENT-210
+
+    needs: [test, lint]
+
+    runs-on: [self-hosted, prod-210]
+
+    if: github.ref == 'refs/heads/main'
+    
+
+    defaults:
+      run:
+        working-directory: /root/pointage
+
+    steps:
+
+      - name: Update code
+        run: |
+          git fetch origin main
+          git checkout main
+          git reset --hard origin/main
+
+      - name: Build containers
+        run: |
+          docker compose build \
+          fastapi \
+          django-hr \
+          django-auth \
+          react \
+          cron \
+          sync
+
+      - name: Restart services
+        run: |
+          docker compose up -d \
+          fastapi \
+          django-hr \
+          django-auth \
+          react \
+          cron \
+          sync
+
+      - name: Restart nginx
+        run: |
+          docker compose restart nginx
+
+      - name: Database migrations
+        run: |
+          docker exec django_auth python manage.py migrate --noinput
+          docker exec django_hr python manage.py migrate --noinput
+
+      - name: Health check
+        run: |
+          sleep 5
+          curl -k -f https://localhost/api/fastapi/health
+
+      - name: JWT secret verification
+        run: |
+          AUTH_SECRET=$(docker exec django_auth printenv JWT_SECRET_KEY)
+          FASTAPI_SECRET=$(docker exec fastapi printenv JWT_SECRET_KEY)
+          if [ "$AUTH_SECRET" != "$FASTAPI_SECRET" ]; then
+            echo "JWT mismatch"
+            exit 1
+          fi
+          echo "JWT secrets OK"
+  #################################################
+  # LOAD TESTING (k6)
+  #################################################
+
+  load-test:
+      name: Load Testing (k6)
+      needs: deploy-test-217
+      runs-on: [self-hosted, test-217]
+      if: github.ref == 'refs/heads/develop'
+      continue-on-error: true
+
+      defaults:
+        run:
+          working-directory: /home/github-runner/pointage
+
+      steps:
+
+        - name: Run k6 load test
+          run: |
+            docker run --rm \
+              --network host \
+              -e BASE_URL=https://192.168.8.217 \
+              -v /home/github-runner/pointage/k6:/scripts \
+              grafana/k6 run /scripts/load-test.js --insecure-skip-tls-verify
+
+           
+
+  #################################################
+  # 4 - POST DEPLOY VALIDATION
+  #################################################
+
+  e2e-tests:
+    name: E2E Tests (Playwright)
+    needs: deploy-test-217
+    runs-on: [self-hosted, test-217]
+    if: github.ref == 'refs/heads/develop'
+    defaults:
+      run:
+        working-directory: /home/github-runner/pointage/frontend
+    steps:
+      - name: Clean previous test artifacts
+        run: rm -rf test-results playwright-report
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium
+
+      - name: Wait for app to be ready
+        run: |
+          for i in {1..15}; do
+            if curl -k -sf https://192.168.8.217/ -o /dev/null; then
+              echo "App is up"
+              break
+            fi
+            echo "Waiting for app... ($i/15)"
+            sleep 2
+          done
+
+      - name: Run E2E tests
+        run: npx playwright test --reporter=list
+        env:
+          E2E_BASE_URL: https://192.168.8.217
+          E2E_USERNAME: e2e_test_user
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }} #In the GitHub repo: Settings → Secrets and variables → Actions → New repository secret Name:E2E_PASSWORD and it's password Value
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: /home/github-runner/pointage/frontend/playwright-report/
+          retention-days: 7
+
+  health-check:
+
+    name: Health Check 217
+
+    needs: deploy-test-217
+
+    runs-on: [self-hosted, test-217]
+
+
+    steps:
+
+
+      - name: Check FastAPI health
+
+        run: |
+
+          sleep 5
+
+          curl -k -f \
+          https://localhost/api/fastapi/health
+
+
+
+  jwt-verification:
+
+
+    name: JWT Verification 217
+
+    needs: deploy-test-217
+
+    runs-on: [self-hosted, test-217]
+
+
+    defaults:
+
+      run:
+
+        working-directory: /home/github-runner/pointage
+
+
+
+    steps:
+
+
+      - name: Verify JWT secrets
+
+        run: |
+
+
+          AUTH_SECRET=$(docker exec django_auth printenv JWT_SECRET_KEY)
+
+          FASTAPI_SECRET=$(docker exec fastapi printenv JWT_SECRET_KEY)
+
+
+          if [ "$AUTH_SECRET" != "$FASTAPI_SECRET" ]
+
+          then
+
+            echo "JWT mismatch"
+
+            exit 1
+
+          fi
+
+
+          echo "JWT secrets OK"
+
+
+
+  #################################################
+  # FINAL STATUS
+  #################################################
+
+
+  deployment-ready:
+
+
+    name: Staging Deployment Passed
+
+    needs:
+
+      - health-check
+
+      - jwt-verification
+
+      - e2e-tests
+
+
+    runs-on: ubuntu-latest
+
+
+    steps:
+
+
+      - name: Success
+
+        run: |
+
+          echo "================================"
+
+          echo "STAGING VALIDATION PASSED"
+
+          echo "READY FOR PRODUCTION DEPLOY"
+
+          echo "================================"

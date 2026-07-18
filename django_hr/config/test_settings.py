@@ -1,8 +1,24 @@
 # config/test_settings.py
-# Overrides for testing — uses SQLite in-memory, no external services needed
+# Overrides for testing.
+#
+# DATABASES now reads the real DATABASE_URL when it's set (CI's
+# ephemeral postgres:15 service container, or a real Postgres instance
+# for local runs) so tests exercise actual Postgres FK/type/constraint
+# behavior instead of SQLite's more permissive dialect -- this is what
+# catches real migration/FK bugs (e.g. the Classification id_classification
+# rename, missing TransportList/TransportListItem migrations) before
+# they hit production. Falls back to in-memory SQLite only when
+# DATABASE_URL is genuinely unset. CI's ci.yml already sets DATABASE_URL
+# for the django_hr test step, so CI always uses real Postgres.
 
 SECRET_KEY = "test-secret-key-not-for-production-django-hr"
 DEBUG = True
+
+EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+DEFAULT_FROM_EMAIL = "test@example.com"
+HELPDESK_EMAIL = "helpdesk@example.com"
+
+
 ALLOWED_HOSTS = ["*"]
 
 INSTALLED_APPS = [
@@ -26,13 +42,18 @@ INSTALLED_APPS = [
     "alerts",
     "events",
     "hr_events",
+    "audit_log",
+    "testsupport",
 ]
 
+import dj_database_url
+
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": ":memory:",
-    }
+    "default": dj_database_url.config(
+        env="DATABASE_URL",
+        default="sqlite:///:memory:",
+        conn_max_age=0,
+    )
 }
 
 CACHES = {
@@ -48,6 +69,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    "accounts.middleware.HRJWTMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
