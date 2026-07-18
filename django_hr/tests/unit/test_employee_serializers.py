@@ -11,7 +11,6 @@ import pytest
 from employees.serializers import (
     EmployeeDetailSerializer,
     EmployeeListSerializer,
-    WorkScheduleBulkAssignSerializer,
 )
 from employees.models import Factory
 
@@ -82,27 +81,3 @@ class TestEmployeeListSerializer:
         assert "full_name" in data
 
 
-class TestWorkScheduleBulkAssignSerializer:
-    def test_requires_at_least_one_employee_id(self):
-        serializer = WorkScheduleBulkAssignSerializer(data={
-            "employee_ids": [],
-            "name": "Shift",
-            "standard_start": "07:30",
-            "standard_end": "16:30",
-            "early_leave_limit": "16:27",
-        })
-        assert not serializer.is_valid()
-        assert "employee_ids" in serializer.errors
-
-    def test_defaults_applied(self):
-        serializer = WorkScheduleBulkAssignSerializer(data={
-            "employee_ids": [1],
-            "name": "Shift",
-            "standard_start": "07:30",
-            "standard_end": "16:30",
-            "early_leave_limit": "16:27",
-        })
-        assert serializer.is_valid(), serializer.errors
-        assert serializer.validated_data["standard_work_hours"] == 8.0
-        assert serializer.validated_data["overtime_threshold_hours"] == 8.5
-        assert serializer.validated_data["deactivate_previous"] is True

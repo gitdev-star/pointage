@@ -197,6 +197,17 @@ class WorkScheduleAssignSerializer(serializers.Serializer):
     valid_from                = serializers.DateField(required=False, allow_null=True)
     valid_until               = serializers.DateField(required=False, allow_null=True)
 
+    def validate_employee_ids(self, value):
+        existing = set(
+            Employee.objects.filter(id__in=value).values_list("id", flat=True)
+        )
+        missing = set(value) - existing
+        if missing:
+            raise serializers.ValidationError(
+                f"Unknown employee id(s): {sorted(missing)}"
+            )
+        return value
+
     def create(self, validated_data):
         employee_ids = validated_data.pop("employee_ids")
         employees = Employee.objects.filter(id__in=employee_ids)

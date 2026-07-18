@@ -36,7 +36,7 @@ sub_router.register(r"sections",        SectionViewSet,        basename="section
 sub_router.register(r"classifications", ClassificationViewSet, basename="classification")  # ← ajouter
 sub_router.register(r"postes",          PosteViewSet,          basename="poste")
 sub_router.register(r"transport-lists", TransportListViewSet,  basename="transport-lists")
-sub_router.register(r"work-schedules", WorkScheduleViewSet, basename="work-schedule")
+sub_router.register(r"work-schedules", WorkScheduleViewSet, basename="work-schedules")
 sub_router.register(r"",                EmployeeViewSet,       basename="employee")
 
 
