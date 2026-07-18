@@ -285,25 +285,16 @@ const handleFormChange = (field, value) => {
 
  
 const handleSave = async () => {
-    // // console.log("=== handleSave appelé ===");
-  // // console.log("formData:", formData);
- 
-
-
   const errors = validateEmployeeForm(formData);
-   // // console.log("errors:", errors);
-  if (Object.keys(errors).length) { 
-     // // console.log("❌ Validation échouée:", errors);
-    setFormErrors(errors); 
-    return; 
+  if (Object.keys(errors).length) {
+    setFormErrors(errors);
+    return;
   }
-    // // console.log("✅ Validation OK, envoi...");
 
   setSaving(true);
   try {
     const payload = new FormData();
 
-    // ✅ Champs texte simples
     const textFields = [
       "employee_id", "first_name", "last_name", "sexe", "birth_date", "birth_place",
       "email", "phone", "address", "cin", "cin_date", "cin_place", "cnaps",
@@ -313,38 +304,31 @@ const handleSave = async () => {
     ];
 
     textFields.forEach((f) => {
-      if (formData[f] !== "" && formData[f] != null) 
+      if (formData[f] !== "" && formData[f] != null)
         payload.append(f, formData[f]);
     });
 
-    // ✅ classification → classification_id (séparé)
     if (formData.classification !== "" && formData.classification != null) {
       payload.append("classification", formData.classification);
     }
-
     if (formData.job_title) {
       payload.append("job_title", formData.job_title);
     }
-
-    // ✅ Champs numériques
     if (formData.nbre_enfants !== "" && formData.nbre_enfants != null)
       payload.append("nbre_enfants", parseInt(formData.nbre_enfants, 10));
-
     if (formData.device_user_id != null && formData.device_user_id !== "")
       payload.append("device_user_id", formData.device_user_id);
-
     if (formData.auth_user_id != null && formData.auth_user_id !== "")
       payload.append("auth_user_id", formData.auth_user_id);
-
     if (photoFile) payload.append("photo", photoFile);
 
     const headers = { "Content-Type": "multipart/form-data" };
 
-    try{
-      // // console.log("📦 payload entries:");
-    for (let [k, v] of payload.entries()) // // console.log(" ", k, "=", v);
+    console.log("📦 payload entries:");
+    for (let [k, v] of payload.entries()) console.log(" ", k, "=", v);
+    console.log("🚀 envoi vers:", modalMode === "add" ? "POST employees/" : `PATCH employees/${formData._id}/`);
 
-    // // console.log("🚀 envoi vers:", modalMode === "add" ? "POST employees/" : `PATCH employees/${formData._id}/`);
+    // ✅ plus de try/catch interne : laisse l'erreur remonter au catch ci-dessous
     if (modalMode === "add") {
       await hrClient.post("employees/", payload, { headers });
       setAlert({ type: "success", msg: "Employé créé avec succès." });
@@ -353,29 +337,28 @@ const handleSave = async () => {
       await hrClient.patch(`employees/${formData._id}/`, payload, { headers });
       setAlert({ type: "success", msg: "Employé mis à jour avec succès." });
     }
-    } catch(err){
-          // // console.error("❌ erreur complète:", err);
-    // // console.error("❌ response data:", err.response?.data);
-    // // console.error("❌ status:", err.response?.status);
-    }   
-
 
     closeModal();
     fetchEmployees();
 
   } catch (err) {
+    console.error("❌ erreur complète:", err);
+    console.error("❌ response data:", err.response?.data);
+    console.error("❌ status:", err.response?.status);
+
     const data = err.response?.data;
     if (data && typeof data === "object") {
       const be = {};
-      Object.entries(data).forEach(([k, v]) => { 
-        be[k] = Array.isArray(v) ? v.join(" ") : v; 
+      Object.entries(data).forEach(([k, v]) => {
+        be[k] = Array.isArray(v) ? v.join(" ") : v;
       });
       setFormErrors(be);
+      setAlert({ type: "error", msg: "Erreur de validation : voir les champs en rouge." });
     } else {
       setAlert({ type: "error", msg: "Erreur lors de la sauvegarde." });
     }
-  } finally { 
-    setSaving(false); 
+  } finally {
+    setSaving(false);
   }
 };
 
