@@ -382,9 +382,11 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         profile = get_hr_profile(self.request)
         triggered_by = profile.username if profile else "Système"
         notify_employee_created(employee, triggered_by=triggered_by)
+        log_action(self.request, serializer.instance, "CREATE")
 
     def perform_update(self, serializer):
         old_status = serializer.instance.status
+        old_data = snapshot(serializer.instance)
         employee = serializer.save()
         if old_status != "TERMINATED" and employee.status == "TERMINATED":
             try:
@@ -401,14 +403,6 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 import traceback
                 print(f"[NOTIFY ERROR] {exc}")
                 traceback.print_exc()
-    
-    def perform_create(self, serializer):
-        super().perform_create(serializer)
-        log_action(self.request, serializer.instance, "CREATE")
-
-    def perform_update(self, serializer):
-        old_data = snapshot(serializer.instance)
-        super().perform_update(serializer)
         new_data = snapshot(serializer.instance)
         changes = diff_dict(old_data, new_data)
         if changes:
@@ -736,7 +730,10 @@ class WorkScheduleViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         created = serializer.save()
         return Response(
-            WorkScheduleSerializer(created, many=True).data,
+            {
+                "created_count": len(created),
+                "results": WorkScheduleSerializer(created, many=True).data,
+            },
             status=status.HTTP_201_CREATED,
         )
 

@@ -332,7 +332,6 @@ class TestDepartmentActions:
 
 
 # ── WorkSchedule bulk-assign ─────────────────────────────────────────────
-
 class TestWorkScheduleBulkAssign:
     def test_bulk_assign_success(self, authenticated_client, test_employee):
         payload = {
@@ -343,7 +342,7 @@ class TestWorkScheduleBulkAssign:
             "early_leave_limit": "16:27",
         }
         response = authenticated_client.post(
-            reverse("work-schedules-bulk-assign"), payload, format="json"
+            reverse("work-schedules-assign"), payload, format="json"
         )
         assert response.status_code == status.HTTP_201_CREATED
         assert response.data["created_count"] == 1
@@ -357,7 +356,7 @@ class TestWorkScheduleBulkAssign:
             "early_leave_limit": "16:27",
         }
         response = authenticated_client.post(
-            reverse("work-schedules-bulk-assign"), payload, format="json"
+            reverse("work-schedules-assign"), payload, format="json"
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
@@ -370,12 +369,10 @@ class TestWorkScheduleBulkAssign:
             "early_leave_limit": "16:27",
         }
         response = authenticated_client.post(
-            reverse("work-schedules-bulk-assign"), payload, format="json"
+            reverse("work-schedules-assign"), payload, format="json"
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
-
-# ── Function-based views ─────────────────────────────────────────────────
 
 class TestCachedEndpoints:
     def test_cached_factories(self, authenticated_client, test_factory):

@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     "alerts",
     "events",
     "hr_events",
+    "audit_log",
     "testsupport",
 ]
 

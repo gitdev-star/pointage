@@ -88,7 +88,8 @@ class TestListTemplates:
         resp = authenticated_client.get(f"{API_PREFIX}/templates/")
         assert resp.status_code == 200
         ids = {row["id"] for row in resp.data["templates"]}
-        assert ids == set(REAL_DOC_TYPES)
+        # badge is PDF-only (not a docx template), returned separately from REAL_DOC_TYPES
+        assert ids == set(REAL_DOC_TYPES) | {"badge"}
 
 
 class TestGenerateDocumentValidation:
