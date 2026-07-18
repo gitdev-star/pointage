@@ -35,6 +35,8 @@ import DocumentsRH from "./features/DocumentRH/page/DocumentPage";
 import HRAttendanceDashboard from "./features/Presence/page/PresencePage";
 import SanctionPage from "./features/Sanction/page/SanctionPage";
 import TransportPage from "./features/Transport/page/TransportPage";
+import WorkSchedulePage from "./features/Horaire/page/HorairePage";
+import AuditLogPage from "./features/AuditLog/page/auditLogPage";
 
 function App() {
   return (
@@ -50,9 +52,11 @@ function App() {
           <Route path="secure"              element={<SecurePage />} />
           <Route path="hr/employees"        element={< EmployeeList />} />
           <Route path="hr/employees/:id"    element={<EmployeeFiche />} />
+          <Route path="/hr/audit-logs"    element={<AuditLogPage />} />
           {/* <Route path="hr/events"           element={<LeaveRequests />} /> */}
           <Route path="/hr/document" element={<DocumentsRH />} />
           <Route path="/hr/transport" element={<TransportPage />} />
+          <Route path="/hr/horaire" element={<WorkSchedulePage />} />
           <Route path="hr/sanctions"        element={<SanctionPage />} />
           <Route path="hr/import"           element={<EmployeeImport />} />
           <Route path="hr/leaves"           element={<EventsPage />} />

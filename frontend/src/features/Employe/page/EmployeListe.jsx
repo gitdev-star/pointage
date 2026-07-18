@@ -393,7 +393,26 @@ const handleSave = async () => {
     } finally { setDeleting(false); }
   };
 
-  // ─── Render ───────────────────────────────────────────────────────────────────
+const ACTION_LABELS = {
+  CREATE: { label: "Créé", color: "#2e7d32" },
+  UPDATE: { label: "Modifié", color: "#1565c0" },
+  DELETE: { label: "Supprimé", color: "#c62828" },
+};
+
+function LastActionCell({ action, at, by }) {
+  if (!action) return <span style={{ fontSize: 12, color: "#999" }}>—</span>;
+  const meta = ACTION_LABELS[action] || { label: action, color: "#666" };
+  const date = at ? new Date(at) : null;
+  const formatted = date
+    ? date.toLocaleDateString("fr-FR") + " à " + date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+    : "";
+  return (
+      <div style={{ fontSize: 12 }}>
+        <span style={{ color: meta.color, fontWeight: 600 }}>{meta.label} {by ? `par ${by}` : "Système"}</span>
+        <div style={{ color: "#777", fontSize: 11 }}>{formatted}</div>
+      </div>
+  );
+}
 
   // // // console.log("formData:", formData)
   return (
@@ -490,20 +509,17 @@ const handleSave = async () => {
             <Table size="small" stickyHeader>
               <TableHead>
                 <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
-                  <TableCell className="no-print"><strong>Photo</strong></TableCell>
                   <TableCell><strong>Matricule</strong></TableCell>
                   <TableCell><strong>Nom</strong></TableCell>
-                  <TableCell><strong>Prénom</strong></TableCell>
                   <TableCell><strong>Sexe</strong></TableCell>
                   <TableCell><strong>Poste</strong></TableCell>
                   <TableCell><strong>Usine</strong></TableCell>
-                  <TableCell><strong>Département</strong></TableCell>
                   <TableCell><strong>Contrat</strong></TableCell>
-                  <TableCell><strong>Embauche</strong></TableCell>
                   <TableCell><strong>Statut</strong></TableCell>
                   {(can("employees_write") || can("employees_delete")) && (
                     <TableCell className="no-print"><strong>Actions</strong></TableCell>
                   )}
+                  <TableCell className="no-print"><strong>Dernière action</strong></TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -525,20 +541,12 @@ const handleSave = async () => {
                     sx={{ cursor: "pointer", bgcolor: i % 2 === 0 ? "#fff" : "#fafafa" }}
                     onClick={() => navigate(`/hr/employees/${emp.id}`)}
                   >
-                    <TableCell className="no-print">
-                      <Avatar src={emp.photo} sx={{ width: 34, height: 34 }}>
-                        {emp.first_name?.[0]}{emp.last_name?.[0]}
-                      </Avatar>
-                    </TableCell>
                     <TableCell sx={{ fontFamily: "monospace", fontSize: 12, color: "#1565c0" }}>{emp.employee_id}</TableCell>
-                    <TableCell sx={{ fontWeight: 600, fontSize: 13 }}>{emp.last_name}</TableCell>
-                    <TableCell sx={{ fontSize: 13 }}>{emp.first_name}</TableCell>
+                    <TableCell sx={{ fontWeight: 600, fontSize: 13 }}>{emp.last_name} {emp.first_name}</TableCell>
                     <TableCell sx={{ fontSize: 12 }}>{emp.sexe || "—"}</TableCell>
                     <TableCell sx={{ fontSize: 12 }}>{emp.job_title_name || "—"}</TableCell>
                     <TableCell sx={{ fontSize: 12 }}>{emp.factory_name}</TableCell>
-                    <TableCell sx={{ fontSize: 12 }}>{emp.department_name}</TableCell>
                     <TableCell><ContractBadge value={emp.contract_type} /></TableCell>
-                    <TableCell sx={{ fontSize: 12 }}>{emp.hire_date}</TableCell>
                     <TableCell><StatusBadge value={emp.status} /></TableCell>
                     {(can("employees_write") || can("employees_delete")) && (
                       <TableCell className="no-print">
@@ -565,6 +573,13 @@ const handleSave = async () => {
                         </div>
                       </TableCell>
                     )}
+                      <TableCell className="no-print">
+                        <LastActionCell
+                          action={emp.last_action}
+                          at={emp.last_action_at}
+                          by={emp.last_action_by}
+                        />
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

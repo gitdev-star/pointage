@@ -23,6 +23,29 @@ import {
   STATUS_LABELS,
 } from "../constant/EventConstant";
 
+const LAST_ACTION_LABELS = {
+  CREATE:  { label: "Créé",      color: "#2e7d32" },
+  UPDATE:  { label: "Modifié",   color: "#1565c0" },
+  DELETE:  { label: "Supprimé",  color: "#c62828" },
+  APPROVE: { label: "Approuvé",  color: "#2e7d32" },
+  REJECT:  { label: "Rejeté",    color: "#c62828" },
+};
+
+function LastActionCell({ action, at, by }) {
+  if (!action) return <span style={{ fontSize: 12, color: "#999" }}>—</span>;
+  const meta = LAST_ACTION_LABELS[action] || { label: action, color: "#666" };
+  const date = at ? new Date(at) : null;
+  const formatted = date
+    ? date.toLocaleDateString("fr-FR") + " à " + date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+    : "";
+  return (
+      <div style={{ fontSize: 12 }}>
+        <span style={{ color: meta.color, fontWeight: 600 }}>{meta.label} {by ? `par ${by}` : "Système"}</span>
+        <div style={{ color: "#777", fontSize: 11 }}>{formatted}</div>
+      </div>
+  );
+}
+
 export default function EventTable({
   requests = [],
   loading = false,
@@ -43,6 +66,8 @@ export default function EventTable({
       </Paper>
     );
   }
+
+  const colSpan = canApprove ? 9 : 8;
 
   return (
     <TableContainer
@@ -74,7 +99,7 @@ export default function EventTable({
             </TableCell>
 
             <TableCell>
-              <strong>Jours</strong>
+              <strong>Durée</strong>
             </TableCell>
 
             <TableCell>
@@ -83,6 +108,10 @@ export default function EventTable({
 
             <TableCell>
               <strong>Statut</strong>
+            </TableCell>
+
+            <TableCell>
+              <strong>Dernière action</strong>
             </TableCell>
 
             {canApprove && (
@@ -98,7 +127,7 @@ export default function EventTable({
           {requests.length === 0 ? (
             <TableRow>
               <TableCell
-                colSpan={canApprove ? 8 : 7}
+                colSpan={colSpan}
                 align="center"
                 sx={{
                   py: 5,
@@ -159,7 +188,9 @@ export default function EventTable({
                 {/* Jours */}
                 <TableCell>
                   <strong>
-                    {request.days_requested}j
+                    {request.leave_type_code === "PM"
+                      ? `${request.duration_hours}h`
+                      : `${request.days_requested}j`}
                   </strong>
                 </TableCell>
 
@@ -189,6 +220,15 @@ export default function EventTable({
                         request.status
                       ]
                     }
+                  />
+                </TableCell>
+
+                {/* Dernière action */}
+                <TableCell>
+                  <LastActionCell
+                    action={request.last_action}
+                    at={request.last_action_at}
+                    by={request.last_action_by}
                   />
                 </TableCell>
 

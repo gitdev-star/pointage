@@ -23,6 +23,8 @@ async function loadEmployeeMap() {
         name: `${e.first_name} ${e.last_name}`,
         factoryId: e.factory,
         factoryName: e.factory_name || "Non assigné",
+        empId: e.employee_id || "",                          // <-- ajouté
+        departmentName: e.department_name || "Non assigné",  // <-- ajouté
       };
     }
   });

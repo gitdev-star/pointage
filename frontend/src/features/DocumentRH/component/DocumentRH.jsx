@@ -70,6 +70,12 @@ const DOCS = [
       { key: "date_fin",   label: "Date de confirmation CDI", default: todayISO(), type: "date" },
     ],
   },
+   {
+    id: "badge", title: "Badge employé",
+    subtitle: "Badge d'identification avec consignes d'évacuation",
+    icon: <VerifiedIcon sx={{ fontSize: 36, color: "info.main" }} />, color: "#e1f5fe",
+    extraFields: [],   // pas de paramètre supplémentaire nécessaire
+  },
 ];
 
 async function renderDocxToHtml(blob) {
@@ -95,6 +101,8 @@ export default function DocumentsRH({ employee }) {
   const [previewTitle, setPreviewTitle] = useState("");
   const [previewing, setPreviewing]     = useState(false);
   const [printing, setPrinting]         = useState(false);
+  const [previewIsPdf, setPreviewIsPdf] = useState(false);
+  const [previewUrl, setPreviewUrl]     = useState(null);
 
   const docDef = DOCS.find(d => d.id === open);
 
@@ -105,9 +113,10 @@ export default function DocumentsRH({ employee }) {
   };
 
   const fetchBlob = async () => {
-    const res = await hrClient.post(
-      `documents/${employee.id}/${open}/`, extra, { responseType: "blob" }
-    );
+    const route = open === "badge"
+      ? `documents/${employee.id}/badge/pdf/`
+      : `documents/${employee.id}/${open}/`;
+    const res = await hrClient.post(route, extra, { responseType: "blob" });
     return res.data;
   };
 
@@ -115,10 +124,18 @@ export default function DocumentsRH({ employee }) {
     setPreviewing(true); setError(null);
     try {
       const blob = await fetchBlob();
-      const container = await renderDocxToHtml(blob);
-      setPreviewHtml(container.innerHTML);
       setPreviewBlob(blob);
       setPreviewTitle(docDef.title);
+
+      if (open === "badge") {
+        setPreviewIsPdf(true);
+        setPreviewUrl(URL.createObjectURL(blob));
+      } else {
+        const container = await renderDocxToHtml(blob);
+        setPreviewHtml(container.innerHTML);
+        setPreviewIsPdf(false);
+      }
+
       setOpen(null);
       setPreviewOpen(true);
     } catch (e) {
@@ -131,9 +148,10 @@ export default function DocumentsRH({ employee }) {
     try {
       const blob = previewBlob || await fetchBlob();
       const url = URL.createObjectURL(blob);
+      const ext = previewIsPdf ? "pdf" : "docx";
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${(previewTitle || docDef?.title || "document").replace(/\s+/g,"_")}_${employee.last_name}_${employee.first_name}.docx`;
+      a.download = `${(previewTitle || docDef?.title || "document").replace(/\s+/g,"_")}_${employee.last_name}_${employee.first_name}.${ext}`;
       a.click();
       URL.revokeObjectURL(url);
       setPreviewOpen(false);
@@ -141,21 +159,28 @@ export default function DocumentsRH({ employee }) {
     finally { setLoading(false); }
   };
 
-  const handlePrint = async () => {
-    setPrinting(true); setError(null);
-    try {
+const handlePrint = async () => {
+  setPrinting(true); setError(null);
+  try {
+    if (previewIsPdf) {
       const blob = previewBlob || await fetchBlob();
-      const container = await renderDocxToHtml(blob);
-      const win = window.open("","_blank");
-      win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${previewTitle}</title>
+      const url = URL.createObjectURL(blob);
+      const win = window.open(url, "_blank");
+      if (win) win.onload = () => { win.focus(); win.print(); };
+      return;
+    }
+    const blob = previewBlob || await fetchBlob();
+    const container = await renderDocxToHtml(blob);
+    const win = window.open("","_blank");
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${previewTitle}</title>
 <style>*{box-sizing:border-box;margin:0;padding:0}body{background:#fff;font-family:Arial,sans-serif}
 .docx-preview section{padding:2cm}@media print{@page{size:A4;margin:0}}</style>
 </head><body>${container.innerHTML}</body></html>`);
-      win.document.close();
-      win.onload = () => { win.focus(); win.print(); };
-    } catch (e) { await readError(e); }
-    finally { setPrinting(false); }
-  };
+    win.document.close();
+    win.onload = () => { win.focus(); win.print(); };
+  } catch (e) { await readError(e); }
+  finally { setPrinting(false); }
+};
 
   const readError = async (e) => {
     try {
@@ -249,17 +274,27 @@ export default function DocumentsRH({ employee }) {
         </DialogTitle>
 
         <DialogContent dividers sx={{ p: 0, overflow: "auto", backgroundColor: "#e0e0e0" }}>
-          <Box sx={{ maxWidth: 820, mx: "auto", my: 2, backgroundColor: "#fff",
-            boxShadow: "0 2px 12px rgba(0,0,0,0.2)", borderRadius: 1 }}>
-            <style>{`
-              .docx-render-zone { padding: 40px 60px; font-family: Arial, sans-serif; }
-              .docx-render-zone p { margin: 4px 0; line-height: 1.5; }
-              .docx-render-zone table { border-collapse: collapse; width: 100%; margin: 8px 0; }
-              .docx-render-zone td, .docx-render-zone th { border: 1px solid #ccc; padding: 6px 8px; }
-            `}</style>
-            <Box className="docx-render-zone"
-              dangerouslySetInnerHTML={{ __html: previewHtml }} />
-          </Box>
+         {previewIsPdf ? (
+  <Box sx={{ width: "100%", height: "100%" }}>
+    <iframe
+      src={previewUrl}
+      title="preview-pdf"
+      style={{ width: "100%", height: "80vh", border: "none" }}
+    />
+  </Box>
+) : (
+  <Box sx={{ maxWidth: 820, mx: "auto", my: 2, backgroundColor: "#fff",
+    boxShadow: "0 2px 12px rgba(0,0,0,0.2)", borderRadius: 1 }}>
+    <style>{`
+      .docx-render-zone { padding: 40px 60px; font-family: Arial, sans-serif; }
+      .docx-render-zone p { margin: 4px 0; line-height: 1.5; }
+      .docx-render-zone table { border-collapse: collapse; width: 100%; margin: 8px 0; }
+      .docx-render-zone td, .docx-render-zone th { border: 1px solid #ccc; padding: 6px 8px; }
+    `}</style>
+    <Box className="docx-render-zone"
+      dangerouslySetInnerHTML={{ __html: previewHtml }} />
+  </Box>
+)}
         </DialogContent>
 
         <DialogActions sx={{ gap: 1, px: 3, py: 1.5 }}>

@@ -13,7 +13,7 @@ import hrClient from "../../api/hrClient";
 import { useHRAuth } from "../../contexts/HRAuthContext";
 
 const EMPTY_FACTORY        = { name: "", location: "", is_active: true };
-const EMPTY_DEPARTMENT     = { name: "", factory: "", is_active: true };
+const EMPTY_DEPARTMENT     = { name: "", code_departement: "", factory: "", is_active: true };
 const EMPTY_SECTION        = { name: "", department: "", is_active: true };
 const EMPTY_CLASSIFICATION = { classe: "", salaire: "" };
 const EMPTY_POSTE          = { name: "", description: "", is_active: true };
@@ -302,6 +302,7 @@ export default function OrganisationManager() {
   ];
   const deptColumns = [
     { key: "name",         label: "Nom" },
+    { key: "code_departement", label: "Code" },
     { key: "factory_name", label: "Usine" },
     { key: "is_active",    label: "Statut", chip: true },
   ];
@@ -328,12 +329,16 @@ export default function OrganisationManager() {
     return (f.name || "").toLowerCase().includes(q) || (f.location || "").toLowerCase().includes(q);
   });
 
-  const filteredDepts = departments.filter(d => {
-    if (filterFactory && d.factory !== filterFactory.id) return false;
-    if (!query) return true;
-    const q = query.toLowerCase();
-    return (d.name || "").toLowerCase().includes(q) || (d.factory_name || "").toLowerCase().includes(q);
-  });
+const filteredDepts = departments.filter(d => {
+  if (filterFactory && d.factory !== filterFactory.id) return false;
+  if (!query) return true;
+  const q = query.toLowerCase();
+  return (
+    (d.name || "").toLowerCase().includes(q) ||
+    (d.code_departement || "").toLowerCase().includes(q) ||
+    (d.factory_name || "").toLowerCase().includes(q)
+  );
+});
 
   const filteredSections = sections.filter(s => {
     if (filterFactory && s.factory !== filterFactory.id) return false;
@@ -498,6 +503,15 @@ const filteredPostes = postes.filter(p => {
                 size="small" label="Nom *" value={form.name || ""}
                 onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
                 error={!!formErrors.name} helperText={formErrors.name}
+              />
+            )}
+            {dialog?.type === "department" && (
+              <TextField
+                size="small" label="Code département"
+                value={form.code_departement || ""}
+                onChange={e => setForm(p => ({ ...p, code_departement: e.target.value }))}
+                error={!!formErrors.code_departement}
+                helperText={formErrors.code_departement}
               />
             )}
             {dialog?.type === "factory" && (

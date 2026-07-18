@@ -17,7 +17,8 @@ from pydantic import BaseModel, Field
 from app.database import get_async_db
 from app.models.attendance import Attendance
 from app.auth.django_auth import get_current_user
-from app.services.analysis_service import compute_user_analysis
+# from app.services.analysis_service import compute_user_analysis
+from app.services.analysis_service import _default_rules, compute_user_analysis, get_schedules_bulk
 
 router = APIRouter()
 
@@ -509,10 +510,7 @@ async def get_daily_kpi(
     target_date: Optional[date] = Query(None),
     db: AsyncSession = Depends(get_async_db),
 ):
-    """présents and late count for a given day (default: today)."""
-    import datetime as dt_module
     kpi_date = target_date or date.today()
-    late_cutoff = dt_module.datetime.combine(kpi_date, dt_module.time(7, 40, 0))
 
     r1 = await db.execute(
         select(func.count(distinct(Attendance.user_id)))
@@ -521,28 +519,30 @@ async def get_daily_kpi(
     presents = r1.scalar() or 0
 
     subq = (
-        select(
-            Attendance.user_id,
-            func.min(Attendance.timestamp).label("first_punch"),
-        )
+        select(Attendance.user_id, func.min(Attendance.timestamp).label("first_punch"))
         .where(Attendance.date == kpi_date)
         .group_by(Attendance.user_id)
         .subquery()
     )
-    r2 = await db.execute(
-        select(func.count())
-        .select_from(subq)
-        .where(subq.c.first_punch > late_cutoff)
-    )
-    late = r2.scalar() or 0
+    r2 = await db.execute(select(subq.c.user_id, subq.c.first_punch))
+    rows = r2.all()
+
+    schedules = get_schedules_bulk([row.user_id for row in rows], kpi_date)
+    default_rules = _default_rules()
+
+    late = 0
+    for row in rows:
+        rules = schedules.get(row.user_id, default_rules)
+        threshold = datetime.combine(kpi_date, rules.standard_start) + timedelta(minutes=5)
+        if row.first_punch > threshold:
+            late += 1
 
     return KpiResponse(
         date=kpi_date,
         presents=presents,
         late=late,
-        late_threshold="07:40",
+        late_threshold="Standard : 07:36 (variable selon horaire personnalisé)",
     )
-
 # --------------------------------------------------
 # LATE TODAY — list of employees late today (same logic as /kpi)
 # --------------------------------------------------
@@ -563,48 +563,41 @@ async def get_late_today(
     limit: int = Query(50, ge=1, le=1000),
     db: AsyncSession = Depends(get_async_db),
 ):
-    """Returns the paginated list of employees whose first punch was after the
-    late cutoff. Uses the exact same logic as /kpi so counts always match."""
-    import datetime as dt_module
     kpi_date = target_date or date.today()
-    late_cutoff = dt_module.datetime.combine(kpi_date, dt_module.time(7, 40, 0))
 
     subq = (
-        select(
-            Attendance.user_id,
-            func.min(Attendance.timestamp).label("first_punch"),
-        )
+        select(Attendance.user_id, func.min(Attendance.timestamp).label("first_punch"))
         .where(Attendance.date == kpi_date)
         .group_by(Attendance.user_id)
         .subquery()
     )
+    result = await db.execute(select(subq.c.user_id, subq.c.first_punch))
+    all_rows = result.all()
 
-    late_filter = subq.c.first_punch > late_cutoff
+    schedules = get_schedules_bulk([row.user_id for row in all_rows], kpi_date)
+    default_rules = _default_rules()
 
-    count_result = await db.execute(
-        select(func.count()).select_from(subq).where(late_filter)
-    )
-    total = count_result.scalar() or 0
+    late_rows = []
+    for row in all_rows:
+        rules = schedules.get(row.user_id, default_rules)
+        threshold = datetime.combine(kpi_date, rules.standard_start) + timedelta(minutes=5)
+        if row.first_punch > threshold:
+            late_rows.append((row.user_id, row.first_punch, threshold))
+
+    late_rows.sort(key=lambda r: r[1])
+
+    total = len(late_rows)
     response.headers["X-Total-Count"] = str(total)
-
-    result = await db.execute(
-        select(subq.c.user_id, subq.c.first_punch)
-        .where(late_filter)
-        .order_by(subq.c.first_punch)
-        .offset(skip)
-        .limit(limit)
-    )
-    rows = result.all()
+    page = late_rows[skip: skip + limit]
 
     return [
         LateEmployeeResponse(
-            user_id=row.user_id,
-            arrival=row.first_punch,
-            minutes_late=int((row.first_punch - late_cutoff).total_seconds() // 60),
+            user_id=uid,
+            arrival=arrival,
+            minutes_late=int((arrival - threshold).total_seconds() // 60),
         )
-        for row in rows
+        for uid, arrival, threshold in page
     ]
-
 # --------------------------------------------------
 # PRESENT TODAY — lightweight list of user_ids present (for factory aggregation)
 # --------------------------------------------------
@@ -656,32 +649,19 @@ async def get_grouped_attendance(
     period: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_async_db),
 ):
-    """Returns one row per user per day with first punch (arrival) and last punch (departure).
-    When device_ip is specified, only users who punched on that device are shown,
-    but arrival/departure use ALL punches for that user/day across all devices.
-    """
-    # Filters WITHOUT device_ip — used for full-day arrival/departure grouping
-    filters_no_device = build_filters(
-        period=period, user_id=user_id, device_ip=None,
-        date_from=date_from, date_to=date_to,
-        time_from=time_from, time_to=time_to,
-        target_date=target_date,
-    )
-    # Filters WITH device_ip — used to find which users punched on selected device
-    filters_with_device = build_filters(
+    """Returns one row per user per day with first punch (arrival) and last punch (departure)."""
+    filters = build_filters(
         period=period, user_id=user_id, device_ip=device_ip,
         date_from=date_from, date_to=date_to,
         time_from=time_from, time_to=time_to,
         target_date=target_date,
     )
+    filter_clause = and_(*filters) if filters else text("1=1")
 
-    filter_clause_no_device   = and_(*filters_no_device)   if filters_no_device   else text("1=1")
-    filter_clause_with_device = and_(*filters_with_device) if filters_with_device else text("1=1")
-
-    # Count: users who punched on the selected device (or all if no device filter)
+    # Subquery-based count — works on both SQLite and PostgreSQL (no concat needed)
     count_subq = (
         select(Attendance.user_id, Attendance.date)
-        .where(filter_clause_with_device)
+        .where(filter_clause)
         .group_by(Attendance.user_id, Attendance.date)
         .subquery()
     )
@@ -689,18 +669,6 @@ async def get_grouped_attendance(
     total = count_result.scalar() or 0
     response.headers["X-Total-Count"] = str(total)
 
-    # Get user+date pairs that match the device filter (paginated)
-    device_subq = (
-        select(Attendance.user_id, Attendance.date)
-        .where(filter_clause_with_device)
-        .group_by(Attendance.user_id, Attendance.date)
-        .order_by(desc(Attendance.date), Attendance.user_id)
-        .offset(skip)
-        .limit(limit)
-        .subquery()
-    )
-
-    # Get full arrival/departure across ALL devices for those user+date pairs
     query = (
         select(
             Attendance.user_id,
@@ -710,15 +678,11 @@ async def get_grouped_attendance(
             func.count(Attendance.id).label("punch_count"),
             func.max(Attendance.device_ip).label("device_ip"),
         )
-        .where(
-            and_(
-                filter_clause_no_device,
-                Attendance.user_id == device_subq.c.user_id,
-                Attendance.date == device_subq.c.date,
-            )
-        )
+        .where(filter_clause)
         .group_by(Attendance.user_id, Attendance.date)
         .order_by(desc(Attendance.date), Attendance.user_id)
+        .offset(skip)
+        .limit(limit)
     )
     result = await db.execute(query)
     rows = result.all()
