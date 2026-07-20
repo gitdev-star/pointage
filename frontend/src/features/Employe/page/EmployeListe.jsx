@@ -162,14 +162,13 @@ export default function EmployeeList() {
 const filteredSections = sections.filter(
   (s) => String(s.department) === String(formData.department)
 );
-  const fetchEmployees = useCallback(async () => {
+const fetchEmployees = useCallback(async () => {
   setLoading(true);
   try {
     const r = await hrClient.get("employees/", { 
-      params: buildApiParams(filters, page, pageSize) 
+      params: { ...buildApiParams(filters, page, pageSize), ordering: "-employee_id" }  // ✅ tri décroissant
     });
     
-    // ✅ Toujours s'assurer que c'est un tableau
     const data = r.data;
     if (Array.isArray(data)) {
       setEmployees(data);
@@ -178,13 +177,11 @@ const filteredSections = sections.filter(
       setEmployees(data.results);
       setTotal(data.count || data.results.length);
     } else {
-      // // console.error("Format inattendu:", data);
       setEmployees([]);
       setTotal(0);
     }
   } catch (err) {
-    // // console.error("Erreur fetch employees:", err);
-    setEmployees([]); // ✅ évite le crash map
+    setEmployees([]);
   } finally { 
     setLoading(false); 
   }
