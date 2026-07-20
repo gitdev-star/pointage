@@ -447,7 +447,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             return self.get_paginated_response(EmployeeListSerializer(page, many=True).data)
         return Response(EmployeeListSerializer(emps, many=True).data)
 
-    @action(detail=False, methods=["post"], url_path="import", parser_classes=[MultiPartParser])
+    @action(detail=False, methods=["post"], url_path="import", url_name="import", parser_classes=[MultiPartParser])
     def import_csv(self, request):
         import traceback as _tb
         try:
@@ -735,7 +735,10 @@ class WorkScheduleViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         created = serializer.save()
         return Response(
-            WorkScheduleSerializer(created, many=True).data,
+            {
+                "created_count": len(created),
+                "schedules": WorkScheduleSerializer(created, many=True).data,
+            },
             status=status.HTTP_201_CREATED,
         )
 
