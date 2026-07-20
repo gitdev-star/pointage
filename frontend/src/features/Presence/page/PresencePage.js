@@ -361,10 +361,8 @@ const filteredAttendanceData = useMemo(() => {
     try {
       const dateFrom = filters.date_from || sevenDaysAgoStr;
       const dateTo   = filters.date_to   || todayStr;
-const res = await hrClient.get(`${API_BASE}analysis/${uid}?date_from=${dateFrom}&date_to=${dateTo}`);
-setAnalysisData(res.data);
-      if (res.ok) setAnalysisData(await res.json());
-      else setAnalysisData(null);
+      const res = await hrClient.get(`${API_BASE}analysis/${uid}?date_from=${dateFrom}&date_to=${dateTo}`);
+      setAnalysisData(res.data);
     } catch { setAnalysisData(null); }
     finally { setAnalysisLoading(false); }
   };
@@ -1011,25 +1009,19 @@ const generateJetonsCantine = (design) => {
           <p>Système de pointage HR - Version 2.0 avec filtrage temporel avancé</p>
         </footer>
       </div>
-
       {showModal && (
         <RecordModal record={selectedRecord} onClose={() => { setSelectedRecord(null); setShowModal(false); }} />
       )}
-
-      {showModal && (
-  <RecordModal record={selectedRecord} onClose={() => { setSelectedRecord(null); setShowModal(false); }} />
-)}
-
-  {showDesignModal && (
-    <DesignPickerModal
-      onClose={() => setShowDesignModal(false)}
-      onConfirm={(design) => {
-        setSelectedDesign(design);
-        setShowDesignModal(false);
-        generateJetonsCantine(design);
-      }}
-    />
-  )}
+      {showDesignModal && (
+        <DesignPickerModal
+          onClose={() => setShowDesignModal(false)}
+          onConfirm={(design) => {
+            setSelectedDesign(design);
+            setShowDesignModal(false);
+            generateJetonsCantine(design);
+          }}
+        />
+      )}
     </div>
   );
 };
