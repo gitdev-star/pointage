@@ -208,10 +208,13 @@
             <Row>
               <TextField
                 {...sm}
-                label="ID employé *"
-                value={formData.employee_id || ""}
-                onChange={(e) => handleFormChange("employee_id", e.target.value)}
-                disabled={modalMode === "edit"}
+                label="ID employé"
+                value={
+                  modalMode === "add"
+                    ? "Généré automatiquement"
+                    : formData.employee_id || ""
+                }
+                disabled
                 InputProps={{ sx: inputSx }}
               />
               <TextField
