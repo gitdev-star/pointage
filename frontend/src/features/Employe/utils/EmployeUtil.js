@@ -90,6 +90,7 @@
    */
   export function validateEmployeeForm(formData) {
     const errors = {};
+      if (!formData.employee_id?.trim()) errors.employee_id = "Requis";
       if (!formData.first_name?.trim())  errors.first_name  = "Requis";
       if (!formData.last_name?.trim())   errors.last_name   = "Requis";
       if (!formData.factory)             errors.factory     = "Requis";
