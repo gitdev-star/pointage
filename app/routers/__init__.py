@@ -1,1 +1,1 @@
-from app.routers import attendance_routes
+from app.routers import attendance_routes as attendance_routes

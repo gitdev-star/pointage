@@ -1,1 +1,1 @@
-from .attendance import Base  # Or wherever your Base class is defined
+from .attendance import Base as Base

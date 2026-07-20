@@ -1,4 +1,3 @@
-import pytest
 from datetime import date, datetime, time
 from types import SimpleNamespace
 

@@ -13,13 +13,24 @@ router = APIRouter(prefix="/api/hr", tags=["HR Bridge"])
 
 DJANGO_HR_URL = os.environ.get("DJANGO_HR_URL", "http://127.0.0.1:8002")
 
+SERVICE_INTERNAL_KEY = os.environ.get("SERVICE_INTERNAL_KEY", "")
+if not SERVICE_INTERNAL_KEY:
+    import logging
+    logging.getLogger(__name__).warning(
+        "SERVICE_INTERNAL_KEY is not set — calls to django_hr will be "
+        "rejected with 403 by ServiceAuthentication."
+    )
+
+_HR_SERVICE_HEADERS = {"X-Service-Key": SERVICE_INTERNAL_KEY}
+
 
 async def fetch_employee_by_device_id(device_user_id: int) -> dict | None:
     """Call django_hr to resolve one device user_id → employee profile."""
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             r = await client.get(
-                f"{DJANGO_HR_URL}/api/employees/by-device/{device_user_id}/"
+                f"{DJANGO_HR_URL}/api/employees/by-device/{device_user_id}/",
+                headers=_HR_SERVICE_HEADERS,
             )
             return r.json() if r.status_code == 200 else None
     except httpx.RequestError:
@@ -30,7 +41,10 @@ async def fetch_all_active_employees() -> list[dict]:
     """Fetch all active employees from django_hr to build a lookup map."""
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            r = await client.get(f"{DJANGO_HR_URL}/api/employees/active/")
+            r = await client.get(
+                f"{DJANGO_HR_URL}/api/employees/active/",
+                headers=_HR_SERVICE_HEADERS,
+            )
             if r.status_code == 200:
                 return r.json().get("results", [])
             return []

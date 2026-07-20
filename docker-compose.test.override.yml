@@ -1,0 +1,4 @@
+services:
+  django-hr:
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${HR_DB_NAME}
