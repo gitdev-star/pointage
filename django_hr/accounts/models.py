@@ -49,6 +49,12 @@ class HRProfile(models.Model):
     perm_hr_events_read    = models.BooleanField(default=False)
     perm_hr_events_write   = models.BooleanField(default=False)
     perm_hr_users_manage   = models.BooleanField(default=False)
+    perm_transport_read    = models.BooleanField(default=False)
+    perm_transport_write   = models.BooleanField(default=False)
+    perm_horaire_read      = models.BooleanField(default=False)
+    perm_horaire_write     = models.BooleanField(default=False)
+    perm_audit_logs_read   = models.BooleanField(default=False)
+    last_seen = models.DateTimeField(null=True, blank=True) 
 
     class Meta:
         ordering = ["username"]
@@ -83,6 +89,7 @@ class HRProfile(models.Model):
                 "employees", "payroll", "leaves", "reports", "shifts",
                 "recruitment", "contracts", "sanctions", "retraite",
                 "pay_events", "alerts", "organisation", "hr_users",
+                "transport", "horaire", "audit_logs",   # ✅ ajoutés
             ]
         modules = []
         if self.perm_employees_read:    modules.append("employees")
@@ -99,5 +106,8 @@ class HRProfile(models.Model):
         if self.perm_organisation_read: modules.append("organisation")
         if self.perm_hr_events_read:    modules.append("hr_events")
         if self.perm_hr_users_manage:   modules.append("hr_users")
+        if self.perm_transport_read:    modules.append("transport")   # ✅ ajouté
+        if self.perm_horaire_read:      modules.append("horaire")     # ✅ ajouté
+        if self.perm_audit_logs_read:   modules.append("audit_logs")  # ✅ ajouté
         return modules
 # this won't work on an existing file — use sed instead
