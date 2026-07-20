@@ -47,8 +47,18 @@ def _get_hr_profile(auth_user_id):
 @pytest.fixture(autouse=True)
 def mock_external_services():
     """Override conftest.py's autouse mock -- this suite needs real
-    network calls to a live django-hr, not mocked requests."""
+    network calls to a live django-hr, not mocked requests.
+    Also reconnect post_save/post_delete, since test_settings.py
+    disconnects them globally for test isolation, but this suite
+    specifically needs the real signal to fire."""
+    from django.db.models.signals import post_save, post_delete
+    from accounts.signals import sync_hr_profile, delete_hr_profile
+    from accounts.models import User
+    post_save.connect(sync_hr_profile, sender=User)
+    post_delete.connect(delete_hr_profile, sender=User)
     yield
+    post_save.disconnect(sync_hr_profile, sender=User)
+    post_delete.disconnect(delete_hr_profile, sender=User)
 
 
 @pytest.mark.django_db
