@@ -54,6 +54,7 @@ class HRProfile(models.Model):
     perm_horaire_read      = models.BooleanField(default=False)
     perm_horaire_write     = models.BooleanField(default=False)
     perm_audit_logs_read   = models.BooleanField(default=False)
+    last_seen = models.DateTimeField(null=True, blank=True) 
 
     class Meta:
         ordering = ["username"]
@@ -91,38 +92,22 @@ class HRProfile(models.Model):
                 "transport", "horaire", "audit_logs",   # ✅ ajoutés
             ]
         modules = []
-        if self.perm_employees_read:
-            modules.append("employees")
-        if self.perm_payroll_read:
-            modules.append("payroll")
-        if self.perm_leaves_read:
-            modules.append("leaves")
-        if self.perm_reports_read:
-            modules.append("reports")
-        if self.perm_shifts_read:
-            modules.append("shifts")
-        if self.perm_recruitment_read:
-            modules.append("recruitment")
-        if self.perm_contracts_read:
-            modules.append("contracts")
-        if self.perm_sanctions_read:
-            modules.append("sanctions")
-        if self.perm_retraite_read:
-            modules.append("retraite")
-        if self.perm_pay_events_read:
-            modules.append("pay_events")
-        if self.perm_alerts_read:
-            modules.append("alerts")
-        if self.perm_organisation_read:
-            modules.append("organisation")
-        if self.perm_hr_events_read:
-            modules.append("hr_events")
-        if self.perm_hr_users_manage:
-            modules.append("hr_users")
-        if self.perm_transport_read:
-            modules.append("transport")
-        if self.perm_horaire_read:
-            modules.append("horaire")
-        if self.perm_audit_logs_read:
-            modules.append("audit_logs")
+        if self.perm_employees_read:    modules.append("employees")
+        if self.perm_payroll_read:      modules.append("payroll")
+        if self.perm_leaves_read:       modules.append("leaves")
+        if self.perm_reports_read:      modules.append("reports")
+        if self.perm_shifts_read:       modules.append("shifts")
+        if self.perm_recruitment_read:  modules.append("recruitment")
+        if self.perm_contracts_read:    modules.append("contracts")
+        if self.perm_sanctions_read:    modules.append("sanctions")
+        if self.perm_retraite_read:     modules.append("retraite")
+        if self.perm_pay_events_read:   modules.append("pay_events")
+        if self.perm_alerts_read:       modules.append("alerts")
+        if self.perm_organisation_read: modules.append("organisation")
+        if self.perm_hr_events_read:    modules.append("hr_events")
+        if self.perm_hr_users_manage:   modules.append("hr_users")
+        if self.perm_transport_read:    modules.append("transport")   # ✅ ajouté
+        if self.perm_horaire_read:      modules.append("horaire")     # ✅ ajouté
+        if self.perm_audit_logs_read:   modules.append("audit_logs")  # ✅ ajouté
         return modules
+# this won't work on an existing file — use sed instead
