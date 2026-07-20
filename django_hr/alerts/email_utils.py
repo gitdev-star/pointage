@@ -6,6 +6,7 @@ from django.conf import settings
 from django.utils import timezone
 
 
+
 HELPDESK_EMAIL = getattr(settings, "HELPDESK_EMAIL", "helpdesk@pb-industries.mg")
 
 
@@ -225,6 +226,7 @@ def notify_resiliation(employee, motif: str = "", triggered_by: str = "Inconnu",
 
 def notify_employee_created(employee, triggered_by: str = "Inconnu"):
     """Fired when a new employee is created."""
+    from accounts.models import HRProfile
     emp = employee
     subject = f"[RH] Nouvel employé créé — {emp.full_name}"
     text = "\n".join([
@@ -238,25 +240,36 @@ def notify_employee_created(employee, triggered_by: str = "Inconnu"):
     body_html = "".join([
         "<p>Un nouvel employé a été <strong style='color:#1565c0;'>créé</strong> dans le système.</p>",
         "<table style='border-collapse:collapse;width:100%;'>",
-        f"<tr><td style='padding:8px;background:#f9f9f9;font-weight:bold;width:200px;'>Employé</td>",
+        "<tr><td style='padding:8px;background:#f9f9f9;font-weight:bold;width:200px;'>Employé</td>",
         f"<td style='padding:8px;border-bottom:1px solid #eee;'>{emp.full_name} ({emp.employee_id})</td></tr>",
-        f"<tr><td style='padding:8px;background:#f9f9f9;font-weight:bold;'>Poste</td>",
+        "<tr><td style='padding:8px;background:#f9f9f9;font-weight:bold;'>Poste</td>",
         f"<td style='padding:8px;border-bottom:1px solid #eee;'>{emp.job_title}</td></tr>",
-        f"<tr><td style='padding:8px;background:#f9f9f9;font-weight:bold;'>Usine / Dépt</td>",
+        "<tr><td style='padding:8px;background:#f9f9f9;font-weight:bold;'>Usine / Dépt</td>",
         f"<td style='padding:8px;border-bottom:1px solid #eee;'>{emp.factory.name} / {emp.department.name}</td></tr>",
-        f"<tr><td style='padding:8px;background:#f9f9f9;font-weight:bold;'>Type contrat</td>",
+        "<tr><td style='padding:8px;background:#f9f9f9;font-weight:bold;'>Type contrat</td>",
         f"<td style='padding:8px;border-bottom:1px solid #eee;'>{emp.contract_type}</td></tr>",
-        f"<tr><td style='padding:8px;background:#f9f9f9;font-weight:bold;'>Date embauche</td>",
+        "<tr><td style='padding:8px;background:#f9f9f9;font-weight:bold;'>Date embauche</td>",
         f"<td style='padding:8px;border-bottom:1px solid #eee;'>{emp.hire_date}</td></tr>",
-        f"<tr><td style='padding:8px;background:#f9f9f9;font-weight:bold;'>Créé par</td>",
+        "<tr><td style='padding:8px;background:#f9f9f9;font-weight:bold;'>Créé par</td>",
         f"<td style='padding:8px;'>{triggered_by}</td></tr>",
         "</table>",
     ])
+
+    hr_emails = list(
+        HRProfile.objects.filter(is_active=True)
+        .exclude(email="")
+        .filter(email__iendswith="@pb-industries.mg")  # exclude test/junk domains (test.com, blanks, etc.)
+        .values_list("email", flat=True)
+    )
+    recipients = list({HELPDESK_EMAIL} | set(hr_emails))
+    print(f"[EMAIL DEBUG] notify_employee_created recipients ({len(recipients)}): {recipients}")
+
     html = _base_html("Nouvel employé créé", body_html)
-    _send(subject, html, text, [HELPDESK_EMAIL])
+    _send(subject, html, text, recipients)
     _notify_inapp(subject, f"Employe: {emp.full_name} | Contrat: {emp.contract_type}", level="success", category="employee")
-
-
+    
+    
+    
 def notify_bulk_resiliation(employees: list, triggered_by: str = "Système"):
     """Fired after a CSV import that terminated one or more employees.
     employees is a list of dicts with keys:
