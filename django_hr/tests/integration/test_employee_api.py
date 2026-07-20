@@ -80,7 +80,9 @@ class TestEmployeeCreate:
         }
         response = authenticated_client.post(reverse("employee-list"), payload, format="json")
         assert response.status_code == status.HTTP_201_CREATED
-        assert Employee.objects.filter(employee_id="EMP999").exists()
+        generated_employee_id = response.data["employee_id"]
+        assert generated_employee_id  # trigger-generated, not client-supplied
+        assert Employee.objects.filter(employee_id=generated_employee_id).exists()
         mock_notify.assert_called_once()
 
     @patch("employees.views.notify_employee_created")
