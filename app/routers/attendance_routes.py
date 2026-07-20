@@ -34,7 +34,7 @@ IP_CACHE_TTL    = 300   # 5 minutes
 
 def _cache_key(**kwargs) -> str:
     params = {k: str(v) for k, v in sorted(kwargs.items()) if v is not None}
-    return hashlib.md5(json.dumps(params).encode()).hexdigest()
+    return hashlib.md5(json.dumps(params).encode(), usedforsecurity=False).hexdigest()
 
 
 def _get_cache(cache: dict, key: str, ttl: int):

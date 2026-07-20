@@ -5,9 +5,8 @@ Used to generate test data for HR models.
 
 import factory
 from datetime import date, timedelta
-from django.contrib.auth.models import User
 from employees.models import Factory, Department, Section, Employee, WorkSchedule
-from payroll.models import SalaryStructure, EmployeeSalary, Payslip
+from payroll.models import SalaryStructure, Payslip
 from leaves.models import LeaveType, LeaveBalance, LeaveRequest
 from accounts.models import HRProfile
 
@@ -71,7 +70,6 @@ class WorkScheduleFactory(factory.django.DjangoModelFactory):
 
     name = factory.Faker("word")
     employee = factory.SubFactory(EmployeeFactory)
-    work_start = factory.LazyAttribute(lambda o: factory.datetime.time(7, 40))
     standard_start = factory.LazyAttribute(lambda o: factory.datetime.time(7, 30))
     standard_end = factory.LazyAttribute(lambda o: factory.datetime.time(16, 30))
     early_leave_limit = factory.LazyAttribute(lambda o: factory.datetime.time(16, 27))

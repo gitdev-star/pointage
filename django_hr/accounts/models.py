@@ -110,4 +110,3 @@ class HRProfile(models.Model):
         if self.perm_horaire_read:      modules.append("horaire")     # ✅ ajouté
         if self.perm_audit_logs_read:   modules.append("audit_logs")  # ✅ ajouté
         return modules
-# this won't work on an existing file — use sed instead

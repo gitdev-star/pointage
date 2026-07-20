@@ -64,7 +64,7 @@ const fetchEmployees = useCallback(async () => {
   // ───────────────────────── CLOCKERS ─────────────────────────
   const fetchClockers = useCallback(async () => {
     try {
-      const res = await fetch(`${process.env.REACT_APP_FASTAPI_URL || `${window.location.origin}/api/fastapi`}/clockers/`);
+      const res = await fetch(`${process.env.REACT_APP_CLOCKERS_URL || `${window.location.origin}/api/clockers`}/`);
       if (!res.ok) return;
       const data = await res.json();
       setClockers(Array.isArray(data) ? data : []);

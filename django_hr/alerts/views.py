@@ -2,7 +2,7 @@ from django.utils import timezone
 from django.core.mail import EmailMultiAlternatives
 from django.conf import settings
 from django.db.models import Q
-from rest_framework import viewsets, status
+from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -10,8 +10,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from datetime import timedelta
 
 from employees.models import Employee
-from accounts.models import HRProfile
-from accounts.permissions import get_hr_profile, IsHRUser
+from accounts.permissions import get_hr_profile, require_perm
 from .models import CDDAlert, CDDNotificationAssignment, InAppNotification
 from .serializers import (
     CDDAlertSerializer,
@@ -113,7 +112,7 @@ class ExpiringCDDView(APIView):
                 "id":               emp.id,
                 "employee_id":      emp.employee_id,
                 "full_name":        emp.full_name,
-                "job_title":        emp.job_title,
+                "job_title":        emp.job_title.name if emp.job_title else None,
                 "factory_name":     emp.factory.name,
                 "department_name":  emp.department.name,
                 "email":            emp.email or "",
@@ -334,9 +333,9 @@ def _send_alert_email(alert, profile):
 
 class InAppNotificationViewSet(viewsets.ModelViewSet):
     serializer_class   = InAppNotificationSerializer
-    http_method_names  = ["get", "patch", "delete"]
-    permission_classes = [IsHRUser]
-
+    http_method_names  = ["get", "post", "patch", "delete"]
+    permission_classes = [require_perm("alerts_read")]
+    
     def get_queryset(self):
         profile = get_hr_profile(self.request)
         user_id = profile.auth_user_id if profile else None
