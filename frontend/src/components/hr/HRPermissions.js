@@ -69,6 +69,17 @@ const MODULES = [
   { key: "hr_users", label: "Utilisateurs RH", perms: [
     { key: "hr_users_manage", label: "Gérer" },
   ]},
+    { key: "transport", label: "Transport", perms: [
+    { key: "transport_read",  label: "Voir" },
+    { key: "transport_write", label: "Modifier" },
+  ]},
+  { key: "horaire", label: "Assignation horaire", perms: [
+    { key: "horaire_read",  label: "Voir" },
+    { key: "horaire_write", label: "Modifier" },
+  ]},
+  { key: "audit_logs", label: "Journal d'audit", perms: [
+    { key: "audit_logs_read", label: "Voir" },
+  ]},
 ];
 
 export default function HRPermissions() {

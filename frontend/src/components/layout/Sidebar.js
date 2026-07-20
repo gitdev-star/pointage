@@ -21,23 +21,21 @@ export default function Sidebar({isOpen, onClose}) {
   const navigate  = useNavigate();
   const { hrProfile, canSee } = useHRAuth();
 
-  const hrMenuItems = [
-    { to: "/hr/employees",           label: "Employés",              module: "employees"    },
-    { to: "/hr/leaves",              label: "Événements",            module: "leaves"       },
-    // { to: "/hr/payroll",             label: "Fiches de paie",        module: "payroll"      },
-    { to: "/hr/document", label: "Document RH",  module: "document RH"    },
-    { to: "/hr/transport", label: "Transport",  module: <TransportPage/>    },
-    { to: "/hr/horaire", label: "Assignation horaire",  module: <WorkSchedulePage/>    },
+const hrMenuItems = [
+  { to: "/hr/employees",           label: "Employés",              module: "employees"    },
+  { to: "/hr/leaves",              label: "Événements",            module: "leaves"       },
+  { to: "/hr/document", label: "Document RH",  module: "contracts"    },   // ✅ corrigé
+  { to: "/hr/transport", label: "Transport",  module: "transport"    },     // ✅ corrigé
+  { to: "/hr/horaire", label: "Assignation horaire",  module: "horaire"    }, // ✅ corrigé
+].filter(item => canSee(item.module));
 
-  ].filter(item => canSee(item.module));
-
-  const hrAdminItems = [
-    { to: "/hr/organisation",  label: "Organisation",     module: "organisation" },
-    { to: "/hr/audit-logs",   label: "Journal d'audit",      module: "hr_users"     },
-    { to: "/hr/notifications", label: "Notifications RH", module: "alerts"       },
-    { to: "/hr/users",         label: "Utilisateurs RH",  module: "hr_users"     },
-    { to: "/hr/permissions",   label: "Permissions",      module: "hr_users"     },
-  ].filter(item => canSee(item.module));
+const hrAdminItems = [
+  { to: "/hr/organisation",  label: "Organisation",     module: "organisation" },
+  { to: "/hr/audit-logs",   label: "Journal d'audit",      module: "audit_logs"     },  // ✅ dissocié de hr_users
+  { to: "/hr/notifications", label: "Notifications RH", module: "alerts"       },
+  { to: "/hr/users",         label: "Utilisateurs RH",  module: "hr_users"     },
+  { to: "/hr/permissions",   label: "Permissions",      module: "hr_users"     },
+].filter(item => canSee(item.module));
 
   const handleLogout = () => { logout(); navigate("/login"); };
 
