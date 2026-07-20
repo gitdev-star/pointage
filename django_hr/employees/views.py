@@ -8,8 +8,7 @@ from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
-from datetime import date
-from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.exceptions import ValidationError
 
 from django.core.cache import cache
 
@@ -183,16 +182,22 @@ def _parse_row(row, row_num):
     if not contract_type:
         contract_type = "CDI"
 
-    if not employee_id:   errors.append("employee_id is required")
-    if not first_name:    first_name = last_name
-    if not last_name:     last_name = first_name
-    if not factory_name:  factory_name = None
+    if not employee_id:
+        errors.append("employee_id is required")
+    if not first_name:
+        first_name = last_name
+    if not last_name:
+        last_name = first_name
+    if not factory_name:
+        factory_name = None
     if not dept_name:
         errors.append("'Département' column is missing or empty (should be placed after 'Etablissement' in your Excel file)")
-    if not job_title:     job_title = ""
+    if not job_title:
+        job_title = ""
     if contract_type not in VALID_CONTRACT_TYPES:
         contract_type = "CDI"
-    if not hire_date:     hire_date = None
+    if not hire_date:
+        hire_date = None
     if status_val not in VALID_STATUSES:
         status_val = "ACTIVE"
 
@@ -383,8 +388,16 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         log_action(self.request, serializer.instance, "CREATE")
 
     def perform_update(self, serializer):
+        old_data = snapshot(serializer.instance)
         old_status = serializer.instance.status
+
         employee = serializer.save()
+
+        new_data = snapshot(employee)
+        changes = diff_dict(old_data, new_data)
+        if changes:
+            log_action(self.request, employee, "UPDATE", changes)
+
         if old_status != "TERMINATED" and employee.status == "TERMINATED":
             try:
                 profile = get_hr_profile(self.request)
@@ -396,19 +409,9 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                     triggered_by=triggered_by,
                     hr_manager_email=hr_manager_email,
                 )
-            except Exception as exc:
+            except Exception:
                 import traceback
-                print(f"[NOTIFY ERROR] {exc}")
                 traceback.print_exc()
-    
-
-    def perform_update(self, serializer):
-        old_data = snapshot(serializer.instance)
-        super().perform_update(serializer)
-        new_data = snapshot(serializer.instance)
-        changes = diff_dict(old_data, new_data)
-        if changes:
-            log_action(self.request, serializer.instance, "UPDATE", changes)
 
     def perform_destroy(self, instance):
         log_action(self.request, instance, "DELETE")
@@ -513,8 +516,6 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
         results = []
         to_create = []
-        new_factories = []
-        new_departments = []
         skipped = 0
         errors = 0
         factory_cache = {}
@@ -781,11 +782,16 @@ def employee_export(request):
     search        = request.query_params.get("search")
     sexe          = request.query_params.get("sexe")
 
-    if status_param:  qs = qs.filter(status=status_param)
-    if factory:       qs = qs.filter(factory_id=factory)
-    if department:    qs = qs.filter(department_id=department)
-    if contract_type: qs = qs.filter(contract_type=contract_type)
-    if sexe:          qs = qs.filter(sexe__iregex=r"^f[eé]minin$") if sexe.upper() == "F" else qs.filter(sexe__icontains="masc")
+    if status_param:
+        qs = qs.filter(status=status_param)
+    if factory:
+        qs = qs.filter(factory_id=factory)
+    if department:
+        qs = qs.filter(department_id=department)
+    if contract_type:
+        qs = qs.filter(contract_type=contract_type)
+    if sexe:
+        qs = qs.filter(sexe__iregex=r"^f[eé]minin$") if sexe.upper() == "F" else qs.filter(sexe__icontains="masc")
     if search:
         from django.db.models import Q
         qs = qs.filter(
