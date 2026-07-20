@@ -9,6 +9,17 @@ import {
 import hrClient from '../../../api/hrClient';
 import cachet from '../../../assets/cachet.png'
 
+const JETON_DESIGNS = [
+  { id: 'classic',  emoji: '🍽️', label: 'Classique',   color: '#333' },
+  { id: 'pizza',    emoji: '🍕', label: 'Pizza',        color: '#e63946' },
+  { id: 'salad',    emoji: '🥗', label: 'Salade',       color: '#2a9d8f' },
+  { id: 'rice',     emoji: '🍱', label: 'Bento',        color: '#e76f51' },
+  { id: 'coffee',   emoji: '☕', label: 'Café',          color: '#6f4e37' },
+  { id: 'fruit',    emoji: '🍎', label: 'Fruit',        color: '#d62828' },
+  { id: 'star',     emoji: '⭐', label: 'Étoile',        color: '#f4a261' },
+  { id: 'birthday', emoji: '🎉', label: 'Fête',         color: '#9c27b0' },
+];
+
 // ── Performance: debounce hook ──────────────────────────────────────
 function useDebounce(value, delay) {
   const [debounced, setDebounced] = React.useState(value);
@@ -39,6 +50,8 @@ const HRAttendanceDashboard = () => {
   // ✅ Employee map: { device_user_id (int) → full_name (string) }
   const [employeeMap, setEmployeeMap] = useState({});
   const [loadingEmployees, setLoadingEmployees] = useState(false);
+  const [showDesignModal, setShowDesignModal] = useState(false);
+  const [selectedDesign, setSelectedDesign] = useState(JETON_DESIGNS[0]);
 
   const [filters, setFilters] = useState({
     user_id: '',
@@ -350,6 +363,8 @@ const filteredAttendanceData = useMemo(() => {
       const dateTo   = filters.date_to   || todayStr;
 const res = await hrClient.get(`${API_BASE}analysis/${uid}?date_from=${dateFrom}&date_to=${dateTo}`);
 setAnalysisData(res.data);
+      if (res.ok) setAnalysisData(await res.json());
+      else setAnalysisData(null);
     } catch { setAnalysisData(null); }
     finally { setAnalysisLoading(false); }
   };
@@ -378,14 +393,14 @@ setAnalysisData(res.data);
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `attendance_${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `Synthese_presence_mensuelle_${new Date().toISOString().split('T')[0]}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
   };
 
-const generateJetonsCantine = () => {
+const generateJetonsCantine = (design) => {
   const eligibleData = filteredAttendanceData.filter(
     r => getEmployeeClassification(r.user_id) !== 'HC'
   );
@@ -397,7 +412,6 @@ const generateJetonsCantine = () => {
 
   const cachetUrl = new URL(cachet, window.location.origin).href;
 
-  // ── Groupement par section ──────────────────────────────────────────
   const bySection = {};
   eligibleData.forEach(r => {
     const sectionName = getEmployeeSection(r.user_id) || 'Section non renseignée';
@@ -406,16 +420,17 @@ const generateJetonsCantine = () => {
   });
   const sortedSectionNames = Object.keys(bySection).sort();
 
-  const JETONS_PAR_PAGE = 25; // 5x5, réduit pour laisser place au titre de section
+  const JETONS_PAR_PAGE = 25;
 
+  // ✅ le design choisi remplace/complète le cachet
   const jetonHtml = `
-    <div class="jeton">
+    <div class="jeton" style="border-color: ${design.color}66;">
+      <div class="jeton-icon" style="color: ${design.color};">${design.emoji}</div>
       <div class="jeton-cachet"><img src="${cachetUrl}" alt="cachet pbi" /></div>
-      <div class="jeton-date">${todayLabel}</div>
+      <div class="jeton-date" style="color: ${design.color};">${todayLabel}</div>
     </div>
   `;
 
-  // ── Construction des pages, section par section ─────────────────────
   const pagesHtml = sortedSectionNames.map(sectionName => {
     const employesSection = bySection[sectionName];
     const totalPagesSection = Math.ceil(employesSection.length / JETONS_PAR_PAGE);
@@ -446,60 +461,38 @@ const generateJetonsCantine = () => {
         * { box-sizing: border-box; margin: 0; padding: 0; }
         @page { size: A4 portrait; margin: 8mm; }
         body { font-family: Arial, sans-serif; }
-
-        .page {
-          page-break-after: always;
-        }
+        .page { page-break-after: always; }
         .page:last-child { page-break-after: auto; }
-
         .section-title {
-          font-size: 16px;
-          font-weight: 700;
-          text-align: center;
-          padding: 3mm 0;
-          margin-bottom: 3mm;
-          border-bottom: 2px solid #333;
-          text-transform: uppercase;
+          font-size: 16px; font-weight: 700; text-align: center;
+          padding: 3mm 0; margin-bottom: 3mm;
+          border-bottom: 2px solid #333; text-transform: uppercase;
         }
-
         .jetons-grid {
-          display: grid;
-          grid-template-columns: repeat(5, 1fr);
-          grid-auto-rows: 44mm;
-          gap: 3mm;
+          display: grid; grid-template-columns: repeat(5, 1fr);
+          grid-auto-rows: 44mm; gap: 3mm;
         }
-
         .jeton {
           border: 1.5px dashed #999;
           border-radius: 4px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          position: relative;
-          overflow: hidden;
+          display: flex; flex-direction: column;
+          align-items: center; justify-content: center;
+          position: relative; overflow: hidden;
           page-break-inside: avoid;
+          gap: 2mm;
         }
-
+        .jeton-icon {
+          font-size: 22px;
+          line-height: 1;
+        }
         .jeton-date {
-          font-size: 28px;
-          font-weight: 700;
-          color: #111;
-          z-index: 1;
+          font-size: 24px; font-weight: 700; z-index: 1;
         }
-
         .jeton-cachet {
-          position: absolute;
-          bottom: 3mm;
-          right: 3mm;
-          width: 16mm;
-          height: 16mm;
-          opacity: 0.85;
+          position: absolute; bottom: 3mm; right: 3mm;
+          width: 16mm; height: 16mm; opacity: 0.85;
         }
-        .jeton-cachet img {
-          width: 100%;
-          height: 100%;
-          object-fit: contain;
-        }
+        .jeton-cachet img { width: 100%; height: 100%; object-fit: contain; }
       </style>
     </head>
     <body>
@@ -606,6 +599,45 @@ const generateJetonsCantine = () => {
     );
   };
 
+  const DesignPickerModal = ({ onClose, onConfirm }) => {
+  const [choice, setChoice] = useState(selectedDesign);
+  return (
+    <div className="attendance-modal-backdrop">
+      <div className="attendance-modal" style={{ maxWidth: 480 }}>
+        <div className="modal-header">
+          <h3>Choisir le design du jeton</h3>
+          <button onClick={onClose} className="modal-close-btn"><X /></button>
+        </div>
+        <div className="modal-content">
+          <div style={{
+            display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, padding: '8px 0'
+          }}>
+            {JETON_DESIGNS.map(d => (
+              <button
+                key={d.id}
+                onClick={() => setChoice(d)}
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                  padding: '12px 8px', borderRadius: 8, cursor: 'pointer',
+                  border: choice.id === d.id ? `2px solid ${d.color}` : '1px solid #ddd',
+                  background: choice.id === d.id ? `${d.color}11` : '#fff',
+                }}
+              >
+                <span style={{ fontSize: 26 }}>{d.emoji}</span>
+                <span style={{ fontSize: 11, color: '#555' }}>{d.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="modal-actions">
+          <button onClick={onClose} className="btn btn-gray">Annuler</button>
+          <button onClick={() => onConfirm(choice)} className="btn btn-blue">Générer</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
   return (
     <div className="attendance-dashboard">
       <div className="container">
@@ -625,7 +657,7 @@ const generateJetonsCantine = () => {
               <Download className="icon" />
               Exporter
             </button>
-            <button onClick={generateJetonsCantine} className="btn btn-gray">
+            <button onClick={() => setShowDesignModal(true)} className="btn btn-gray">
               <FileDown className="icon" />
               Générer jetons cantine
             </button>
@@ -983,6 +1015,21 @@ const generateJetonsCantine = () => {
       {showModal && (
         <RecordModal record={selectedRecord} onClose={() => { setSelectedRecord(null); setShowModal(false); }} />
       )}
+
+      {showModal && (
+  <RecordModal record={selectedRecord} onClose={() => { setSelectedRecord(null); setShowModal(false); }} />
+)}
+
+  {showDesignModal && (
+    <DesignPickerModal
+      onClose={() => setShowDesignModal(false)}
+      onConfirm={(design) => {
+        setSelectedDesign(design);
+        setShowDesignModal(false);
+        generateJetonsCantine(design);
+      }}
+    />
+  )}
     </div>
   );
 };
