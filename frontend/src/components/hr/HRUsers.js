@@ -420,6 +420,9 @@ const MODULES = [
   { key: "alerts",       label: "Alertes",        perms: ["read", "write"] },
   { key: "organisation", label: "Organisation",   perms: ["read", "write"] },
   { key: "hr_events",    label: "Événements RH",  perms: ["read", "write"] },
+  { key: "transport",    label: "Transport",           perms: ["read", "write"] },
+  { key: "horaire",      label: "Assignation horaire", perms: ["read", "write"] },
+  { key: "audit_logs",   label: "Journal d'audit",     perms: ["read"] },
 ];
 // Single standalone permission (no read/write split)
 const STANDALONE_PERMS = [

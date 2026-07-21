@@ -182,11 +182,11 @@ const handleBulkPrint = async (documentType) => {
   const DOC_TYPES = [
   { type: "attestation",      label: "Attestation d'emploi",           color: "primary",   always: true },
   { type: "certificat",       label: "Certificat de travail",           color: "success",   always: true },
-  { type: "evaluation_cdd",   label: "Evaluation & Renouvellement CDD", color: "secondary", always: true },
+  { type: "evaluation_cdd",   label: "Evaluation - Contrat CDD 6 mois", color: "secondary", always: true },
   { type: "cdd_18",           label: "Evaluation & Confirmation CDI - CDD 18 mois",   color: "info",      always: true },
   { type: "cdd_12",           label: "Evaluation - Contrat CDD 12 mois",   color: "secondary",      always: true },
   { type: "cdd_3",           label: "Fiche d' evaluation essai",   color: "secondary",      always: true },
-  { type: "cdd_6",            label: "Evaluation - Contrat CDD 6 mois",       color: "warning",   always: true },
+  { type: "cdd_6",            label: "Contrat de travail",       color: "warning",   always: true },
   { type: "convocation_cdd",  label: "Convocation abandon de poste (CDD)",  color: "error",     always: true },
   { type: "convocation_cdi",  label: "Convocation abandon de poste (CDI)",  color: "error",     always: true },
   { type: "suspension",       label: "Suspension de contrat (maladie)",     color: "warning",   always: true },
