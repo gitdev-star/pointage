@@ -217,11 +217,13 @@ services:
       #- WDS_SOCKET_PATH=/ws
     volumes:
       - ./frontend:/app
+      - react_node_modules:/app/node_modules
     networks:
       - pointage_net
     depends_on:
       - fastapi
       - django-hr
+    restart: unless-stopped     
 
   # ── Cron ─────────────────────────────────────────────────────────────────────
   cron:
@@ -317,3 +319,4 @@ volumes:
   django_auth_static:
   glitchtip_pg_data:
   glitchtip_uploads:
+  react_node_modules:
