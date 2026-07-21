@@ -480,7 +480,7 @@ const generateJetonsCantine = (design) => {
           gap: 2mm;
         }
         .jeton-icon {
-          font-size: 22px;
+          font-size: 35px;
           line-height: 1;
         }
         .jeton-date {
@@ -729,7 +729,7 @@ const generateJetonsCantine = (design) => {
               </div>
 
               <div className="filter-group">
-                <label className="filter-label">Groupe de clockers</label>
+                <label className="filter-label">Sites</label>
                 <select value={selectedGroup}
                   onChange={(e) => { setSelectedGroup(e.target.value); handleFilterChange('device_ip', ''); }}
                   className="filter-input">
@@ -1012,16 +1012,21 @@ const generateJetonsCantine = (design) => {
       {showModal && (
         <RecordModal record={selectedRecord} onClose={() => { setSelectedRecord(null); setShowModal(false); }} />
       )}
-      {showDesignModal && (
-        <DesignPickerModal
-          onClose={() => setShowDesignModal(false)}
-          onConfirm={(design) => {
-            setSelectedDesign(design);
-            setShowDesignModal(false);
-            generateJetonsCantine(design);
-          }}
-        />
-      )}
+
+      {showModal && (
+  <RecordModal record={selectedRecord} onClose={() => { setSelectedRecord(null); setShowModal(false); }} />
+)}
+
+  {showDesignModal && (
+    <DesignPickerModal
+      onClose={() => setShowDesignModal(false)}
+      onConfirm={(design) => {
+        setSelectedDesign(design);
+        setShowDesignModal(false);
+        generateJetonsCantine(design);
+      }}
+    />
+  )}
     </div>
   );
 };

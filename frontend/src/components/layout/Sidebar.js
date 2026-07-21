@@ -34,7 +34,7 @@ const hrAdminItems = [
   { to: "/hr/audit-logs",   label: "Journal d'audit",      module: "audit_logs"     },  // ✅ dissocié de hr_users
   { to: "/hr/notifications", label: "Notifications RH", module: "alerts"       },
   { to: "/hr/users",         label: "Utilisateurs RH",  module: "hr_users"     },
-  { to: "/hr/permissions",   label: "Permissions",      module: "hr_users"     },
+  // { to: "/hr/permissions",   label: "Permissions",      module: "hr_users"     },
 ].filter(item => canSee(item.module));
 
   const handleLogout = () => { logout(); navigate("/login"); };

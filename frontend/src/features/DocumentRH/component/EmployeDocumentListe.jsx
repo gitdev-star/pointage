@@ -23,6 +23,7 @@ export default function EmployeeDocumentTable({
     <Paper elevation={2}>
       <TableContainer>
         <Table size="small">
+          
           <TableHead>
             <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
               <TableCell padding="checkbox">
