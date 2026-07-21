@@ -34,7 +34,7 @@ IP_CACHE_TTL    = 300   # 5 minutes
 
 def _cache_key(**kwargs) -> str:
     params = {k: str(v) for k, v in sorted(kwargs.items()) if v is not None}
-    return hashlib.md5(json.dumps(params).encode(), usedforsecurity=False).hexdigest()
+    return hashlib.md5(json.dumps(params).encode()).hexdigest()
 
 
 def _get_cache(cache: dict, key: str, ttl: int):
@@ -533,8 +533,8 @@ async def get_daily_kpi(
     late = 0
     for row in rows:
         rules = schedules.get(row.user_id, default_rules)
-        threshold = datetime.combine(kpi_date, rules.standard_start) + timedelta(minutes=5)
-        if row.first_punch > threshold:
+        threshold = datetime.combine(kpi_date, rules.standard_start) + timedelta(minutes=7)
+        if row.first_punch >= threshold:
             late += 1
 
     return KpiResponse(
@@ -580,8 +580,8 @@ async def get_late_today(
     late_rows = []
     for row in all_rows:
         rules = schedules.get(row.user_id, default_rules)
-        threshold = datetime.combine(kpi_date, rules.standard_start) + timedelta(minutes=5)
-        if row.first_punch > threshold:
+        threshold = datetime.combine(kpi_date, rules.standard_start) + timedelta(minutes=7)
+        if row.first_punch >= threshold:
             late_rows.append((row.user_id, row.first_punch, threshold))
 
     late_rows.sort(key=lambda r: r[1])
