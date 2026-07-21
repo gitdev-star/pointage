@@ -28,13 +28,25 @@ SESSION_COOKIE_SECURE = True
 
 GLITCHTIP_DSN = os.environ.get("GLITCHTIP_DSN")
 if GLITCHTIP_DSN and not DEBUG:
+    import ssl
+    from sentry_sdk.transport import HttpTransport
+
+    class _InsecureGlitchTipTransport(HttpTransport):
+        """Self-signed GlitchTip cert has no SAN entry; bypass hostname/cert
+        verification for this internal-only Docker-network traffic."""
+        def _get_pool_options(self, *args, **kwargs):
+            options = super()._get_pool_options(*args, **kwargs)
+            options["cert_reqs"] = ssl.CERT_NONE
+            options["assert_hostname"] = False
+            return options
+
     sentry_sdk.init(
         dsn=GLITCHTIP_DSN,
         integrations=[DjangoIntegration()],
         environment="django-auth",
         traces_sample_rate=0.1,
         send_default_pii=False,
-        ca_certs="/etc/ssl/glitchtip/fullchain.pem",
+        transport=_InsecureGlitchTipTransport,
     )
 
 # ── Apps ──────────────────────────────────────────────
