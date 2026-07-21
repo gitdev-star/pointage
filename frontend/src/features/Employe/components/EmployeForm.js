@@ -322,6 +322,28 @@
                 helperText={formErrors.cin}
                 required
               />
+              <Row cols="1fr 1fr">
+                <TextField
+                  {...sm}
+                  label="Date de délivrance CIN"
+                  type="date"
+                  InputLabelProps={{ shrink: true }}
+                  value={formData.cin_date || ""}
+                  onChange={(e) => handleFormChange("cin_date", e.target.value)}
+                  error={!!formErrors.cin_date}
+                  helperText={formErrors.cin_date}
+                  InputProps={{ sx: inputSx }}
+                />
+                <TextField
+                  {...sm}
+                  label="Lieu de délivrance CIN"
+                  value={formData.cin_place || ""}
+                  onChange={(e) => handleFormChange("cin_place", e.target.value)}
+                  error={!!formErrors.cin_place}
+                  helperText={formErrors.cin_place}
+                  InputProps={{ sx: inputSx }}
+                />
+              </Row>
           </Section>
 
           {/* ── Organisation & Emploi ── */}
@@ -404,7 +426,17 @@
               <Select
                 value={formData.classification || ""}
                 label="Classification"
-  onChange={(e) => handleFormChange("classification", e.target.value)}              sx={inputSx}
+                onChange={(e) => {
+                  const selectedId = e.target.value;
+                  handleFormChange("classification", selectedId);
+                  const match = (classifications || []).find(
+                    (c) => c.id_classification === selectedId
+                  );
+                  if (match) {
+                    handleFormChange("salaire", match.salaire);
+                  }
+                }}
+                sx={inputSx}
               >
                 {/* <MenuItem value="">— Aucune —</MenuItem> */}
                 {(classifications || []).map((c) => (
@@ -418,13 +450,12 @@
               )}
             </FormControl>
             <TextField
-    {...sm}
-    label="Salaire"
-    value={formData.salaire || ""}
-    onChange={(e) => handleFormChange("salaire", e.target.value)}
-    InputProps={{ sx: inputSx }}
-    disabled  // ← optionnel : si salaire = classification uniquement
-  />
+              {...sm}
+              label="Salaire"
+              value={formData.salaire || ""}
+              onChange={(e) => handleFormChange("salaire", e.target.value)}
+              InputProps={{ sx: inputSx }}
+            />
               <FormControl {...sm}>
                 <InputLabel>Type de contrat</InputLabel>
                 <Select

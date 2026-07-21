@@ -26,7 +26,7 @@ STANDARD_WORK_HOURS     = 9.0          # 07:30-16:30 = 9h
 OVERTIME_THRESHOLD      = time(17, 0)
 OVERTIME_MIN_MINUTES    = 29           # minimum minutes past standard_end to count as overtime
 OVERTIME_THRESHOLD_HOURS = 9.0        # kept for schedule compat but not used in core calc
-LATE_THRESHOLD          = time(7, 35)  # UI late flag: arrival strictly after this time
+LATE_THRESHOLD          = time(7, 37)  # UI late flag: arrival strictly after this time (07:30 start + 7min grace)
 
 
 # --------------------------------------------------
@@ -132,7 +132,8 @@ def get_schedule_for_employee(employee_id: int, on_date: date) -> ScheduleRules:
                 return _rules_from_schedule(ws)
 
     except Exception as e:
-        logger.debug(f"Schedule rule lookup failed for employee {employee_id}, using defaults: {e}")
+        logger.exception(f"Schedule rule lookup failed for employee {employee_id}, using defaults: {e}")
+
     return _default_rules()
 
 
@@ -218,8 +219,8 @@ def _analyze_day(row, rules: ScheduleRules) -> DayRecord:
     standard_start_dt = datetime.combine(day, rules.standard_start)   # e.g. 07:30
     standard_end_dt   = datetime.combine(day, rules.standard_end)     # e.g. 16:30
 
-    late_threshold_dt = datetime.combine(day, rules.standard_start) + timedelta(minutes=5)
-    is_late = bool(arrival and arrival > late_threshold_dt)
+    late_threshold_dt = datetime.combine(day, rules.standard_start) + timedelta(minutes=7)
+    is_late = bool(arrival and arrival >= late_threshold_dt)
 
     # ── Effective work start (for hours_worked calculation) ───────────────
     #
