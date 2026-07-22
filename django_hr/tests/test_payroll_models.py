@@ -67,13 +67,13 @@ class TestEmployeeSalaryModel:
             base_salary=Decimal("50000.00")
         )
         
-        emp_sal1 = EmployeeSalary.objects.create(
+        EmployeeSalary.objects.create(
             employee=test_employee,
             structure=struct1,
             effective_date=date(2023, 1, 1),
             end_date=date(2023, 12, 31)
         )
-        emp_sal2 = EmployeeSalary.objects.create(
+        EmployeeSalary.objects.create(
             employee=test_employee,
             structure=struct2,
             effective_date=date(2024, 1, 1)
