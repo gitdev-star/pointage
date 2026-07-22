@@ -1,5 +1,3 @@
-import logging
-logger = logging.getLogger(__name__)
 # =====================================================
 # PATH: pointage/django_hr/documents/views.py
 # Fills real .docx templates with employee data
