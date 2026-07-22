@@ -21,3 +21,4 @@ pytest-django
 pytest-cov
 pypdf
 sentry-sdk
+weasyprint>=62.0

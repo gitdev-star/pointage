@@ -38,6 +38,7 @@ if GLITCHTIP_DSN and not DEBUG:
         traces_sample_rate=0.1,
         send_default_pii=False,
         ca_certs="/etc/ssl/glitchtip/fullchain.pem",
+        auto_session_tracking=False,
     )
 
 
