@@ -1,11 +1,13 @@
 """
 Django settings for config project.
 """
+import logging
 import os
 from pathlib import Path
 from datetime import timedelta
 import sentry_sdk
 from sentry_sdk.integrations.django import DjangoIntegration
+from sentry_sdk.integrations.logging import LoggingIntegration
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -30,7 +32,10 @@ GLITCHTIP_DSN = os.environ.get("GLITCHTIP_DSN")
 if GLITCHTIP_DSN and not DEBUG:
     sentry_sdk.init(
         dsn=GLITCHTIP_DSN,
-        integrations=[DjangoIntegration()],
+        integrations=[
+            DjangoIntegration(),
+            LoggingIntegration(level=logging.INFO, event_level=logging.ERROR),
+        ],
         environment="django-auth",
         traces_sample_rate=0.1,
         send_default_pii=False,
