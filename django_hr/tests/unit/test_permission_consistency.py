@@ -152,7 +152,7 @@ class TestPermissionGranularity:
         self, test_user, hr_profile_leaves_full
     ):
         from leaves.models import LeaveType
-        leave_type = LeaveType.objects.filter(is_active=True).first()
+        LeaveType.objects.filter(is_active=True).first()
         client = _client_with_role(test_user)
 
         # write perm granted -> list/create should succeed at the permission layer
