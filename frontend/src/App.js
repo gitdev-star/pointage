@@ -37,6 +37,7 @@ import SanctionPage from "./features/Sanction/page/SanctionPage";
 import TransportPage from "./features/Transport/page/TransportPage";
 import WorkSchedulePage from "./features/Horaire/page/HorairePage";
 import AuditLogPage from "./features/AuditLog/page/auditLogPage";
+import CantineDashboard from "./features/Cantine/cantinePage";
 
 function App() {
   return (
@@ -53,6 +54,7 @@ function App() {
           <Route path="hr/employees"        element={< EmployeeList />} />
           <Route path="hr/employees/:id"    element={<EmployeeFiche />} />
           <Route path="/hr/audit-logs"    element={<AuditLogPage />} />
+          <Route path="/hr/cantine"    element={<CantineDashboard />} />
           {/* <Route path="hr/events"           element={<LeaveRequests />} /> */}
           <Route path="/hr/document" element={<DocumentsRH />} />
           <Route path="/hr/transport" element={<TransportPage />} />

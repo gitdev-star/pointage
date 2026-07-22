@@ -262,3 +262,31 @@ class TransportListItem(models.Model):
     fonction  = models.CharField(max_length=255, blank=True, null=True)
     adresse   = models.TextField(blank=True, null=True)
 
+class CantineList(models.Model):
+    cantine_date = models.DateField(unique=True)
+    created_by   = models.CharField(max_length=150, blank=True, null=True)
+    created_at   = models.DateTimeField(auto_now_add=True)
+    updated_at   = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-cantine_date"]
+
+    def __str__(self):
+        return f"Cantine {self.cantine_date}"
+
+
+class CantineListItem(models.Model):
+    cantine_list = models.ForeignKey(CantineList, on_delete=models.CASCADE, related_name="items")
+    employee     = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, blank=True)
+    matricule    = models.CharField(max_length=100, blank=True)
+    nom          = models.CharField(max_length=255, blank=True)
+    prenom       = models.CharField(max_length=255, blank=True)
+    arrival      = models.DateTimeField(null=True, blank=True)
+    added_at     = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("cantine_list", "employee")]
+        ordering = ["nom", "prenom"]
+
+    def __str__(self):
+        return f"{self.nom} {self.prenom} ({self.matricule})"

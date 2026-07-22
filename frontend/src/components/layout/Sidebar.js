@@ -26,6 +26,7 @@ const hrMenuItems = [
   { to: "/hr/leaves",              label: "Événements",            module: "leaves"       },
   { to: "/hr/document", label: "Document RH",  module: "contracts"    },   // ✅ corrigé
   { to: "/hr/transport", label: "Transport",  module: "transport"    },     // ✅ corrigé
+  { to: "/hr/cantine", label: "Cantine",  module: "cantine"    }, 
   { to: "/hr/horaire", label: "Assignation horaire",  module: "horaire"    }, // ✅ corrigé
 ].filter(item => canSee(item.module));
 
