@@ -375,10 +375,52 @@ const filteredAttendanceData = useMemo(() => {
     } catch { return '—'; }
   };
 
-  const exportToExcel = () => {
-    if (filteredAttendanceData.length === 0) { alert('Aucune donnée à exporter.'); return; }
+const exportToExcel = async () => {
+  try {
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (filterMode === 'period' && filters.period) {
+      params.append('period', filters.period);
+    } else if (filterMode === 'specific' && filters.target_date) {
+      params.append('target_date', filters.target_date);
+      if (filters.time_from) params.append('time_from', filters.time_from);
+      if (filters.time_to) params.append('time_to', filters.time_to);
+    } else {
+      const dateFrom = filters.date_from?.trim() || sevenDaysAgoStr;
+      const dateTo = filters.date_to?.trim() || todayStr;
+      params.append('date_from', dateFrom);
+      params.append('date_to', dateTo);
+      if (filters.time_from) params.append('time_from', filters.time_from);
+      if (filters.time_to) params.append('time_to', filters.time_to);
+    }
+    if (filters.user_id) {
+      const userIdNum = Number(filters.user_id);
+      if (!isNaN(userIdNum) && userIdNum > 0) params.append('user_id', userIdNum);
+    }
+    let deviceIPs = [];
+    if (filters.device_ip) {
+      deviceIPs = [filters.device_ip];
+    } else if (selectedGroup) {
+      deviceIPs = clockers.filter(c => c.group_name === selectedGroup).map(c => c.ip_address);
+    }
+    if (deviceIPs.length > 0) params.append('device_ip', deviceIPs.join(','));
+    params.append('skip', 0);
+    params.append('limit', 50000); // couvre tout l'ensemble filtré, pas juste la page affichée
+
+    const response = await hrClient.get(`${API_BASE}grouped?${params.toString()}`);
+    let allData = Array.isArray(response.data) ? response.data : [];
+
+    if (classificationFilter) {
+      allData = allData.filter(r => getEmployeeClassification(r.user_id) === classificationFilter);
+    }
+    if (earlyDepartureFilter) {
+      allData = allData.filter(r => isEarlyDeparture(r));
+    }
+
+    if (allData.length === 0) { alert('Aucune donnée à exporter.'); return; }
+
     const headers = ['User ID', 'Nom', 'Date', 'Arrivée', 'Départ', 'Pointages'];
-    const csvData = filteredAttendanceData.map(r => [
+    const csvData = allData.map(r => [
       formatEmployeeId(r.user_id) ? `="${formatEmployeeId(r.user_id)}"` : '—',
       getEmployeeName(r.user_id) || `ID:${r.user_id}`,
       r.attendance_date || r.date,
@@ -396,7 +438,12 @@ const filteredAttendanceData = useMemo(() => {
     link.click();
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
-  };
+  } catch (err) {
+    alert(`Erreur lors de l'export : ${err.message}`);
+  } finally {
+    setLoading(false);
+  }
+};
 
 const generateJetonsCantine = (design) => {
   const eligibleData = filteredAttendanceData.filter(
@@ -480,7 +527,7 @@ const generateJetonsCantine = (design) => {
           gap: 2mm;
         }
         .jeton-icon {
-          font-size: 35px;
+          font-size: 22px;
           line-height: 1;
         }
         .jeton-date {
@@ -504,7 +551,11 @@ const generateJetonsCantine = (design) => {
   printWindow.document.close();
 };
 
-  const handleFilterChange = (key, value) => setFilters(prev => ({ ...prev, [key]: value, skip: 0 }));
+  const handleFilterChange = (key, value) => setFilters(prev => ({
+    ...prev,
+    [key]: value,
+    ...(key !== 'skip' ? { skip: 0 } : {}),
+  }));
 
   const clearFilters = () => {
     setFilters({
@@ -651,8 +702,8 @@ const generateJetonsCantine = (design) => {
               <RefreshCw className={`icon ${loading ? 'animate-spin' : ''}`} />
               Actualiser
             </button>
-            <button onClick={exportToExcel} className="btn btn-green">
-              <Download className="icon" />
+            <button onClick={() => exportToExcel()} className="btn btn-green">
+                <Download className="icon" />
               Exporter
             </button>
             <button onClick={() => setShowDesignModal(true)} className="btn btn-gray">
@@ -729,7 +780,7 @@ const generateJetonsCantine = (design) => {
               </div>
 
               <div className="filter-group">
-                <label className="filter-label">Sites</label>
+                <label className="filter-label">Groupe de clockers</label>
                 <select value={selectedGroup}
                   onChange={(e) => { setSelectedGroup(e.target.value); handleFilterChange('device_ip', ''); }}
                   className="filter-input">
@@ -1009,6 +1060,7 @@ const generateJetonsCantine = (design) => {
           <p>Système de pointage HR - Version 2.0 avec filtrage temporel avancé</p>
         </footer>
       </div>
+
       {showModal && (
         <RecordModal record={selectedRecord} onClose={() => { setSelectedRecord(null); setShowModal(false); }} />
       )}
