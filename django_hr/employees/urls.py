@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     CantineListViewSet, FactoryViewSet, DepartmentViewSet, EmployeeViewSet, SectionViewSet,
     WorkScheduleViewSet, ClassificationViewSet, PosteViewSet, cached_classifications,
-    cached_factories, cached_departments, employee_export, TransportListViewSet, WorkScheduleViewSet
+    cached_factories, cached_departments, employee_export, TransportListViewSet,
 )
 
 sub_router = DefaultRouter()
