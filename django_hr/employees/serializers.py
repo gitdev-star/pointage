@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Classification, Poste, Factory, Department, Employee, Section, TransportList, TransportListItem, WorkSchedule
+from .models import CantineList, CantineListItem, Classification, Poste, Factory, Department, Employee, Section, TransportList, TransportListItem, WorkSchedule
 
 
 class ClassificationSerializer(serializers.ModelSerializer):
@@ -271,3 +271,22 @@ class TransportListCreateSerializer(serializers.Serializer):
         ]
         TransportListItem.objects.bulk_create(items)
         return transport_list
+    
+class CantineListItemSerializer(serializers.ModelSerializer):
+    factory_name = serializers.CharField(source="employee.factory.name", read_only=True, default=None)
+    
+    class Meta:
+        model  = CantineListItem
+        fields = ["id", "employee", "matricule", "nom", "prenom", "arrival", "factory_name", "added_at"]
+
+
+class CantineListSerializer(serializers.ModelSerializer):
+    items = CantineListItemSerializer(many=True, read_only=True)
+    total = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = CantineList
+        fields = ["id", "cantine_date", "created_by", "created_at", "items", "total"]
+
+    def get_total(self, obj):
+        return obj.items.count()
