@@ -1,25 +1,29 @@
 import csv
 import io
 import re
-
+import requests
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
+from datetime import date
+from django.core.exceptions import ValidationError as DjangoValidationError
 
-from django.core.exceptions import ValidationError
 from django.core.cache import cache
 
 from audit_log.utils import diff_dict, log_action, snapshot
+from django.conf import settings
 from .models import (
-    Classification, Poste, Factory, Department, Employee, Section, TransportList, WorkSchedule,
+    CantineList, CantineListItem, Classification, Poste, Factory, Department, Employee, Section, TransportList, WorkSchedule,
 )
-from django.db.models import OuterRef, Subquery, CharField
+from django.db.models import IntegerField, OuterRef, Subquery, CharField
 from django.db.models.functions import Cast
 from audit_log.models import AuditLog
 from .serializers import (
+    CantineListSerializer,
+    CantineListItemSerializer,
     EmployeeTransportSerializer,
     SectionSerializer,
     FactorySerializer,
@@ -39,6 +43,8 @@ from alerts.email_utils import (
     notify_bulk_resiliation,
 )
 from accounts.permissions import get_hr_profile
+
+ATTENDANCE_SERVICE_URL = getattr(settings, "ATTENDANCE_SERVICE_URL", "http://localhost:8000")
 
 REQUIRED_COLUMNS = [
     "employee_id", "first_name", "last_name",
@@ -182,22 +188,16 @@ def _parse_row(row, row_num):
     if not contract_type:
         contract_type = "CDI"
 
-    if not employee_id:
-        errors.append("employee_id is required")
-    if not first_name:
-        first_name = last_name
-    if not last_name:
-        last_name = first_name
-    if not factory_name:
-        factory_name = None
+    if not employee_id:   errors.append("employee_id is required")
+    if not first_name:    first_name = last_name
+    if not last_name:     last_name = first_name
+    if not factory_name:  factory_name = None
     if not dept_name:
         errors.append("'Département' column is missing or empty (should be placed after 'Etablissement' in your Excel file)")
-    if not job_title:
-        job_title = ""
+    if not job_title:     job_title = ""
     if contract_type not in VALID_CONTRACT_TYPES:
         contract_type = "CDI"
-    if not hire_date:
-        hire_date = None
+    if not hire_date:     hire_date = None
     if status_val not in VALID_STATUSES:
         status_val = "ACTIVE"
 
@@ -388,8 +388,8 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         log_action(self.request, serializer.instance, "CREATE")
 
     def perform_update(self, serializer):
-        old_data = snapshot(serializer.instance)
         old_status = serializer.instance.status
+        old_data = snapshot(serializer.instance)
 
         employee = serializer.save()
 
@@ -413,7 +413,6 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 import traceback
                 print(f"[NOTIFY ERROR] {exc}")
                 traceback.print_exc()
-    
 
     def perform_destroy(self, instance):
         log_action(self.request, instance, "DELETE")
@@ -518,6 +517,8 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
         results = []
         to_create = []
+        new_factories = []
+        new_departments = []
         skipped = 0
         errors = 0
         factory_cache = {}
@@ -784,16 +785,11 @@ def employee_export(request):
     search        = request.query_params.get("search")
     sexe          = request.query_params.get("sexe")
 
-    if status_param:
-        qs = qs.filter(status=status_param)
-    if factory:
-        qs = qs.filter(factory_id=factory)
-    if department:
-        qs = qs.filter(department_id=department)
-    if contract_type:
-        qs = qs.filter(contract_type=contract_type)
-    if sexe:
-        qs = qs.filter(sexe__iregex=r"^f[eé]minin$") if sexe.upper() == "F" else qs.filter(sexe__icontains="masc")
+    if status_param:  qs = qs.filter(status=status_param)
+    if factory:       qs = qs.filter(factory_id=factory)
+    if department:    qs = qs.filter(department_id=department)
+    if contract_type: qs = qs.filter(contract_type=contract_type)
+    if sexe:          qs = qs.filter(sexe__iregex=r"^f[eé]minin$") if sexe.upper() == "F" else qs.filter(sexe__icontains="masc")
     if search:
         from django.db.models import Q
         qs = qs.filter(
@@ -840,3 +836,94 @@ class TransportListViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         transport_list = serializer.save()
         return Response(TransportListSerializer(transport_list).data, status=status.HTTP_201_CREATED)
+    
+class CantineListViewSet(viewsets.ModelViewSet):
+    queryset = CantineList.objects.prefetch_related("items", "items__employee").all()
+    serializer_class = CantineListSerializer
+
+    @action(detail=False, methods=["get"], url_path="today")
+    def today(self, request):
+        today = date.today()
+        cantine_list, created = CantineList.objects.get_or_create(
+            cantine_date=today,
+            defaults={"created_by": getattr(request.user, "username", None)},
+        )
+        if created:
+            self._auto_populate(cantine_list, today)
+        return Response(CantineListSerializer(cantine_list).data)
+    
+    def get_queryset(self):
+        qs = super().get_queryset()
+        date_param = self.request.query_params.get("date")
+        if date_param:
+            qs = qs.filter(cantine_date=date_param)
+        return qs
+
+    def _auto_populate(self, cantine_list, target_date):
+        try:
+            resp = requests.get(
+                f"{ATTENDANCE_SERVICE_URL}/attendance/grouped",
+                params={
+                    "date_from": target_date.isoformat(),
+                    "date_to": target_date.isoformat(),
+                    "limit": 50000,
+                },
+                timeout=5,
+            )
+            resp.raise_for_status()
+            present_rows = resp.json()
+        except Exception as e:
+            print(f"[CANTINE] Impossible de récupérer les présences: {e}")
+            return
+
+        arrival_by_user = {row["user_id"]: row.get("arrival") for row in present_rows}
+        device_ids = list(arrival_by_user.keys())
+
+        employees = (
+            Employee.objects
+            .annotate(employee_id_int=Cast("employee_id", output_field=IntegerField()))
+            .filter(employee_id_int__in=device_ids, status="ACTIVE")
+            .exclude(classification__classe="HC")
+            .select_related("classification", "factory")
+        )
+        items = [
+            CantineListItem(
+                cantine_list=cantine_list,
+                employee=emp,
+                matricule=emp.employee_id,
+                nom=emp.last_name or "",
+                prenom=emp.first_name or "",
+                arrival=arrival_by_user.get(emp.employee_id_int),
+            )
+            for emp in employees
+        ]
+        CantineListItem.objects.bulk_create(items, ignore_conflicts=True)
+
+    @action(detail=True, methods=["post"], url_path="add-item")
+    def add_item(self, request, pk=None):
+        cantine_list = self.get_object()
+        employee_id = request.data.get("employee_id")
+        try:
+            emp = Employee.objects.get(id=employee_id)
+        except Employee.DoesNotExist:
+            return Response({"detail": "Employé introuvable."}, status=404)
+        item, created = CantineListItem.objects.get_or_create(
+            cantine_list=cantine_list,
+            employee=emp,
+            defaults={
+                "matricule": emp.employee_id,
+                "nom": emp.last_name or "",
+                "prenom": emp.first_name or "",
+            },
+        )
+        if not created:
+            return Response({"detail": "Employé déjà dans la liste."}, status=400)
+        return Response(CantineListItemSerializer(item).data, status=201)
+
+    @action(detail=True, methods=["delete"], url_path=r"items/(?P<item_id>[0-9]+)")
+    def remove_item(self, request, pk=None, item_id=None):
+        cantine_list = self.get_object()
+        deleted, _ = cantine_list.items.filter(id=item_id).delete()
+        if not deleted:
+            return Response({"detail": "Item introuvable."}, status=404)
+        return Response(status=204)

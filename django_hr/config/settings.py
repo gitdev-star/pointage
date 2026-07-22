@@ -170,6 +170,8 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # ── Internal service URLs ──────────────────────────────
 DJANGO_AUTH_URL = os.environ.get("DJANGO_AUTH_URL", "http://django_auth:8000")
+ATTENDANCE_SERVICE_URL = os.environ.get("ATTENDANCE_SERVICE_URL", "http://fastapi:8080")
+
 
 # ── Redis Cache ────────────────────────────────────────
 REDIS_URL = os.environ.get("REDIS_URL", "redis://redis_pointage:6379/1")
