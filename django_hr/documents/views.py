@@ -1,9 +1,8 @@
-import logging
-logger = logging.getLogger(__name__)
 # =====================================================
 # PATH: pointage/django_hr/documents/views.py
 # Fills real .docx templates with employee data
 # =====================================================
+import logging
 import os
 import re
 import io
@@ -20,6 +19,8 @@ import copy
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 from .badge import build_badge_pdf
+
+logger = logging.getLogger(__name__)
 
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
 
