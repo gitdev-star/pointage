@@ -22,3 +22,4 @@ pytest-cov
 pypdf
 sentry-sdk
 weasyprint>=62.0
+requests>=2.31.0
