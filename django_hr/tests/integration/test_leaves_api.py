@@ -86,7 +86,7 @@ class TestLeaveApproval:
     def test_approve_sets_approver_and_timestamp(
         self, mock_notify, authenticated_client, pending_leave_request, test_user
     ):
-        resp = authenticated_client.post(
+        authenticated_client.post(
             f"/api/leaves/requests/{pending_leave_request.id}/approve_reject/",
             {"action": "approve"},
         )

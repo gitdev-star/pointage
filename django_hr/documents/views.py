@@ -2,6 +2,7 @@
 # PATH: pointage/django_hr/documents/views.py
 # Fills real .docx templates with employee data
 # =====================================================
+import logging
 import os
 import re
 import io
@@ -18,6 +19,8 @@ import copy
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 from .badge import build_badge_pdf
+
+logger = logging.getLogger(__name__)
 
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
 
@@ -701,6 +704,7 @@ def bulk_documents_pdf(request):
             try:
                 pdf_bytes_list.append(build_badge_pdf(emp))
             except Exception:
+                logger.exception("bulk_documents_pdf: badge failed for employee %s", emp.employee_id)
                 continue
     else:
         fn, prefix = BUILDERS[doc_type]
@@ -721,7 +725,10 @@ def bulk_documents_pdf(request):
                     if os.path.exists(pdf_path):
                         with open(pdf_path, "rb") as f:
                             pdf_bytes_list.append(f.read())
+                    else:
+                        logger.error("bulk_documents_pdf: pdf not produced for employee %s (docx_path=%s)", emp.employee_id, docx_path)
                 except Exception:
+                    logger.exception("bulk_documents_pdf: unexpected error for employee %s", emp.employee_id)
                     continue
 
     if not pdf_bytes_list:
