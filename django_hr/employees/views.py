@@ -409,9 +409,11 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                     triggered_by=triggered_by,
                     hr_manager_email=hr_manager_email,
                 )
-            except Exception:
+            except Exception as exc:
                 import traceback
+                print(f"[NOTIFY ERROR] {exc}")
                 traceback.print_exc()
+    
 
     def perform_destroy(self, instance):
         log_action(self.request, instance, "DELETE")
@@ -447,7 +449,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             return self.get_paginated_response(EmployeeListSerializer(page, many=True).data)
         return Response(EmployeeListSerializer(emps, many=True).data)
 
-    @action(detail=False, methods=["post"], url_path="import", url_name="import", parser_classes=[MultiPartParser])
+    @action(detail=False, methods=["post"], url_path="import", parser_classes=[MultiPartParser])
     def import_csv(self, request):
         import traceback as _tb
         try:
@@ -735,10 +737,7 @@ class WorkScheduleViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         created = serializer.save()
         return Response(
-            {
-                "created_count": len(created),
-                "schedules": WorkScheduleSerializer(created, many=True).data,
-            },
+            WorkScheduleSerializer(created, many=True).data,
             status=status.HTTP_201_CREATED,
         )
 
