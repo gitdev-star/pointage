@@ -29,6 +29,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger("sync_service")
 
+# --------------------------------------------------
+# GLITCHTIP / SENTRY
+# --------------------------------------------------
+import sentry_sdk
+
+GLITCHTIP_DSN = os.getenv("GLITCHTIP_DSN")
+if GLITCHTIP_DSN:
+    sentry_sdk.init(dsn=GLITCHTIP_DSN)
+    logger.info("Glitchtip error reporting enabled")
+
 sync_tasks: Dict[str, asyncio.Task] = {}
 device_locks: Dict[str, asyncio.Lock] = {}
 
