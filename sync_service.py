@@ -36,7 +36,11 @@ import sentry_sdk
 
 GLITCHTIP_DSN = os.getenv("GLITCHTIP_DSN")
 if GLITCHTIP_DSN:
-    sentry_sdk.init(dsn=GLITCHTIP_DSN)
+    sentry_sdk.init(
+        dsn=GLITCHTIP_DSN,
+        environment="sync",
+        ca_certs="/etc/ssl/glitchtip/fullchain.pem",
+    )
     logger.info("Glitchtip error reporting enabled")
 
 sync_tasks: Dict[str, asyncio.Task] = {}

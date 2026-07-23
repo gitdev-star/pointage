@@ -182,6 +182,7 @@ services:
       - GLITCHTIP_DSN=${GLITCHTIP_DSN_SYNC}
     volumes:
       - ./:/app
+      - ./ssl:/etc/ssl/glitchtip:ro
     depends_on:
       django-auth:
         condition: service_started
