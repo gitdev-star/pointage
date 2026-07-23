@@ -179,6 +179,7 @@ services:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
       - DJANGO_AUTH_URL=http://django-auth:8000/api/clockers/
       - DJANGO_HR_URL=http://django-hr:8002
+      - GLITCHTIP_DSN=${GLITCHTIP_DSN_SYNC}
     volumes:
       - ./:/app
     depends_on:
@@ -254,6 +255,7 @@ services:
       - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
       - DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL}
       - SERVICE_INTERNAL_KEY=${SERVICE_INTERNAL_KEY}
+      - GLITCHTIP_DSN=${GLITCHTIP_DSN_CRON}
     volumes:
       - ./django_hr:/app
     command: bash -c "echo '0 7 * * * cd /app && python3 manage.py send_cdd_alerts >> /var/log/cron.log 2>&1' > /etc/cron.d/hr-cron && echo '0 7 * * * cd /app && python3 manage.py send_maternity_alerts >> /var/log/cron.log 2>&1' >> /etc/cron.d/hr-cron && chmod 0644 /etc/cron.d/hr-cron && crontab /etc/cron.d/hr-cron && cron -f"
