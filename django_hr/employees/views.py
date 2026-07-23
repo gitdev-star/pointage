@@ -188,16 +188,22 @@ def _parse_row(row, row_num):
     if not contract_type:
         contract_type = "CDI"
 
-    if not employee_id:   errors.append("employee_id is required")
-    if not first_name:    first_name = last_name
-    if not last_name:     last_name = first_name
-    if not factory_name:  factory_name = None
+    if not employee_id:
+        errors.append("employee_id is required")
+    if not first_name:
+        first_name = last_name
+    if not last_name:
+        last_name = first_name
+    if not factory_name:
+        factory_name = None
     if not dept_name:
         errors.append("'Département' column is missing or empty (should be placed after 'Etablissement' in your Excel file)")
-    if not job_title:     job_title = ""
+    if not job_title:
+        job_title = ""
     if contract_type not in VALID_CONTRACT_TYPES:
         contract_type = "CDI"
-    if not hire_date:     hire_date = None
+    if not hire_date:
+        hire_date = None
     if status_val not in VALID_STATUSES:
         status_val = "ACTIVE"
 
@@ -348,7 +354,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 ref_year, ref_m = map(int, ref_month.split("-"))
                 months = int(anciennete_months)
             except (ValueError, TypeError):
-                raise ValidationError({"anciennete_months": "Doit être un entier (3, 6, 12 ou 18)."})
+                raise DjangoValidationError({"anciennete_months": "Doit être un entier (3, 6, 12 ou 18)."})
 
             total = ref_year * 12 + (ref_m - 1) - months
             target_year = total // 12
@@ -517,8 +523,6 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
         results = []
         to_create = []
-        new_factories = []
-        new_departments = []
         skipped = 0
         errors = 0
         factory_cache = {}
@@ -785,11 +789,16 @@ def employee_export(request):
     search        = request.query_params.get("search")
     sexe          = request.query_params.get("sexe")
 
-    if status_param:  qs = qs.filter(status=status_param)
-    if factory:       qs = qs.filter(factory_id=factory)
-    if department:    qs = qs.filter(department_id=department)
-    if contract_type: qs = qs.filter(contract_type=contract_type)
-    if sexe:          qs = qs.filter(sexe__iregex=r"^f[eé]minin$") if sexe.upper() == "F" else qs.filter(sexe__icontains="masc")
+    if status_param:
+        qs = qs.filter(status=status_param)
+    if factory:
+        qs = qs.filter(factory_id=factory)
+    if department:
+        qs = qs.filter(department_id=department)
+    if contract_type:
+        qs = qs.filter(contract_type=contract_type)
+    if sexe:
+        qs = qs.filter(sexe__iregex=r"^f[eé]minin$") if sexe.upper() == "F" else qs.filter(sexe__icontains="masc")
     if search:
         from django.db.models import Q
         qs = qs.filter(
