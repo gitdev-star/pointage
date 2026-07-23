@@ -14,6 +14,7 @@ import httpx
 from app.database import AsyncSessionLocal, engine
 from app.models.attendance import Base
 from app.devices.zk_reader import ZKReader
+import sentry_sdk
 
 # --------------------------------------------------
 # CONFIG
@@ -32,8 +33,6 @@ logger = logging.getLogger("sync_service")
 # --------------------------------------------------
 # GLITCHTIP / SENTRY
 # --------------------------------------------------
-import sentry_sdk
-
 GLITCHTIP_DSN = os.getenv("GLITCHTIP_DSN")
 if GLITCHTIP_DSN:
     sentry_sdk.init(
