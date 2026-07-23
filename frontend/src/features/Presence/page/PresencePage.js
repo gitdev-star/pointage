@@ -232,6 +232,35 @@ const isEarlyDeparture = (record) => {
   return depTime < standardEnd;
 };
 
+const OVERTIME_THRESHOLD_MINUTES = 30;
+const STANDARD_WORK_HOURS_MS = 9 * 60 * 60 * 1000; // 9h de travail attendu
+const STANDARD_START_HOUR = 7;
+const STANDARD_START_MINUTE = 30;
+
+const computeOvertimeMinutes = (record) => {
+  if (!record.arrival || !record.departure) return 0;
+  const arrivalDate = new Date(record.arrival);
+  const departureDate = new Date(record.departure);
+
+  const standardStartDate = new Date(arrivalDate);
+  standardStartDate.setHours(STANDARD_START_HOUR, STANDARD_START_MINUTE, 0, 0);
+
+  // Effective start = max(arrivée, 7h30) — une arrivée précoce ne fait pas avancer le décompte
+  const effectiveStart = arrivalDate > standardStartDate ? arrivalDate : standardStartDate;
+
+  const normalDepartureDate = new Date(effectiveStart.getTime() + STANDARD_WORK_HOURS_MS);
+  const diffMinutes = Math.round((departureDate - normalDepartureDate) / 60000);
+  if (diffMinutes <= OVERTIME_THRESHOLD_MINUTES) return 0;
+  return diffMinutes;
+};
+
+const fmtOvertimeMinutes = (mins) => {
+  if (!mins || mins <= 0) return '—';
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${m}min`;
+};
+
 const filteredAttendanceData = useMemo(() => {
   let data = attendanceData;
   if (classificationFilter) {
@@ -419,13 +448,14 @@ const exportToExcel = async () => {
 
     if (allData.length === 0) { alert('Aucune donnée à exporter.'); return; }
 
-    const headers = ['User ID', 'Nom', 'Date', 'Arrivée', 'Départ', 'Pointages'];
+    const headers = ['User ID', 'Nom', 'Date', 'Arrivée', 'Départ', 'Heure sup.', 'Pointages'];
     const csvData = allData.map(r => [
       formatEmployeeId(r.user_id) ? `="${formatEmployeeId(r.user_id)}"` : '—',
       getEmployeeName(r.user_id) || `ID:${r.user_id}`,
       r.attendance_date || r.date,
       r.arrival ? new Date(r.arrival).toLocaleTimeString('fr-FR') : '—',
       r.departure ? new Date(r.departure).toLocaleTimeString('fr-FR') : '—',
+      fmtOvertimeMinutes(computeOvertimeMinutes(r)),
       r.punch_count || 1,
     ]);
     const csv = [headers, ...csvData].map(row => row.join(';')).join('\n');
@@ -599,54 +629,6 @@ const generateJetonsCantine = (design) => {
     fetchKpi(); 
   }, []);
 
-  const RecordModal = ({ record, onClose }) => {
-    if (!record) return null;
-    const empName = getEmployeeName(record.user_id);
-    return (
-      <div className="attendance-modal-backdrop">
-        <div className="attendance-modal">
-          <div className="modal-header">
-            <h3>Détails du pointage</h3>
-            <button onClick={onClose} className="modal-close-btn"><X /></button>
-          </div>
-          <div className="modal-content">
-            <div className="modal-info-grid">
-              <div>
-                <p className="modal-label">ID employé(e)</p>
-                <p className="modal-value">{formatEmployeeId(record.user_id)}</p>
-              </div>
-              {/* ✅ Show employee name in modal */}
-              {empName && (
-                <div>
-                  <p className="modal-label">Nom</p>
-                  <p className="modal-value"><strong>{empName}</strong></p>
-                </div>
-              )}
-              <div>
-                <p className="modal-label">Clocker</p>
-                <p className="modal-value">{getClockerName(record.device_ip)}</p>
-              </div>
-            </div>
-            <div className="modal-info-item">
-              <p className="modal-label">Date</p>
-              <p className="modal-value">{formatDate(record.date || record.attendance_date)}</p>
-            </div>
-            <div className="modal-info-item">
-              <p className="modal-label">Heure</p>
-              <p className="modal-value">{formatTime(record.timestamp)}</p>
-            </div>
-            <div className="modal-info-item">
-              <p className="modal-label">Horodatage complet</p>
-              <p className="modal-value-small">{formatDateTime(record.timestamp)}</p>
-            </div>
-          </div>
-          <div className="modal-actions">
-            <button onClick={onClose} className="btn btn-blue">Fermer</button>
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   const DesignPickerModal = ({ onClose, onConfirm }) => {
   const [choice, setChoice] = useState(selectedDesign);
@@ -913,10 +895,10 @@ const generateJetonsCantine = (design) => {
                 <th style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 2, color: '#111' }}>Date</th>
                 <th style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 2, color: '#10b981' }}>Arrivée</th>
                 <th style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 2, color: '#ef4444' }}>Départ</th>
+                <th style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 2, color: '#7c3aed' }}>Heure sup.</th>
                 <th style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 2 }}>Pointages</th>
                 <th style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 2 }}>Clocker</th>
                 <th style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 2 }}>Section</th>
-                <th style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 2 }}>Actions</th>
               </tr>
             </thead>
               <tbody>
@@ -945,17 +927,15 @@ const generateJetonsCantine = (design) => {
                       <td style={{ color: record.departure ? '#ef4444' : '#9e9e9e', fontWeight: 600, fontSize: 13 }}>
                         {record.departure ? fmtTime(record.departure) : '—'}
                       </td>
+                      <td style={{ fontWeight: 600, fontSize: 13, color: computeOvertimeMinutes(record) > 0 ? '#7c3aed' : '#9e9e9e' }}>
+                        {fmtOvertimeMinutes(computeOvertimeMinutes(record))}
+                      </td>
                       <td style={{ fontSize: 12, color: '#6b7280', textAlign: 'center' }}>
                         {record.punch_count || 1}
                       </td>
                       <td className="ip-cell">{getClockerName(record.device_ip)}</td>
                       <td style={{ fontSize: 13, color: '#374151' }}>
                         {getEmployeeSection(record.user_id) || '—'}
-                      </td>
-                      <td>
-                        <button onClick={() => viewRecord(record)} className="btn btn-view">
-                          <Eye className="icon" />Voir
-                        </button>
                       </td>
                     </tr>
                   );
@@ -1057,17 +1037,9 @@ const generateJetonsCantine = (design) => {
             <Clock className="icon" />
             Dernière mise à jour : {new Date().toLocaleString('fr-FR')}
           </div>
-          <p>Système de pointage HR - Version 2.0 avec filtrage temporel avancé</p>
+          <p>Système de pointage RH</p>
         </footer>
       </div>
-
-      {showModal && (
-        <RecordModal record={selectedRecord} onClose={() => { setSelectedRecord(null); setShowModal(false); }} />
-      )}
-
-      {showModal && (
-  <RecordModal record={selectedRecord} onClose={() => { setSelectedRecord(null); setShowModal(false); }} />
-)}
 
   {showDesignModal && (
     <DesignPickerModal
