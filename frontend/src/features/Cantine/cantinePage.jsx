@@ -28,43 +28,21 @@ const CantineDashboard = () => {
   const isReadOnly = !!selectedDate;
 
   const availableSites = useMemo(() => {
-  const set = new Set((cantineList?.items || []).map(i => i.factory_name).filter(Boolean));
-  return Array.from(set).sort();
-}, [cantineList]);
+    const set = new Set((cantineList?.items || []).map(i => i.factory_name).filter(Boolean));
+    return Array.from(set).sort();
+  }, [cantineList]);
 
-const fetchList = useCallback(async (date) => {
-  setLoading(true);
-  try {
-    if (date) {
-      const res = await hrClient.get('employees/cantine-lists/', { params: { date } });
-      const list = (res.data.results ?? res.data)[0] || null;
-      setCantineList(list);
-    } else {
-      const res = await hrClient.get('employees/cantine-lists/today/');
-      setCantineList(res.data);
-    }
-  } catch (err) {
-    console.error('Erreur chargement liste cantine:', err);
-  } finally {
-    setLoading(false);
-  }
-}, []);
-
-useEffect(() => { fetchList(selectedDate); }, [fetchList, selectedDate]);
-
-useEffect(() => { fetchList(selectedDate); }, [fetchList, selectedDate]);
-
-  const filteredItems = useMemo(() => {
-    const items = cantineList?.items || [];
-    if (!siteFilter) return items;
-    return items.filter(i => i.factory_name === siteFilter);
-  }, [cantineList, siteFilter]);
-
-  const fetchToday = useCallback(async () => {
+  const fetchList = useCallback(async (date) => {
     setLoading(true);
     try {
-      const res = await hrClient.get('employees/cantine-lists/today/');
-      setCantineList(res.data);
+      if (date) {
+        const res = await hrClient.get('employees/cantine-lists/', { params: { date } });
+        const list = (res.data.results ?? res.data)[0] || null;
+        setCantineList(list);
+      } else {
+        const res = await hrClient.get('employees/cantine-lists/today/');
+        setCantineList(res.data);
+      }
     } catch (err) {
       console.error('Erreur chargement liste cantine:', err);
     } finally {
@@ -72,7 +50,20 @@ useEffect(() => { fetchList(selectedDate); }, [fetchList, selectedDate]);
     }
   }, []);
 
-  useEffect(() => { fetchToday(); }, [fetchToday]);
+  useEffect(() => { fetchList(selectedDate); }, [fetchList, selectedDate]);
+
+  const filteredItems = useMemo(() => {
+    const items = cantineList?.items || [];
+    const filtered = siteFilter
+      ? items.filter(i => i.factory_name === siteFilter)
+      : items;
+
+    return [...filtered].sort((a, b) => {
+      const matA = a.matricule || '';
+      const matB = b.matricule || '';
+      return matB.localeCompare(matA, undefined, { numeric: true });
+    });
+  }, [cantineList, siteFilter]);
 
   useEffect(() => {
     if (search.trim().length < 2) { setSearchResults([]); return; }
@@ -123,30 +114,30 @@ useEffect(() => { fetchList(selectedDate); }, [fetchList, selectedDate]);
   };
 
   const exportCantineCsv = () => {
-  const items = filteredItems;
-  if (items.length === 0) { alert('Aucune donnée à exporter.'); return; }
+    const items = filteredItems;
+    if (items.length === 0) { alert('Aucune donnée à exporter.'); return; }
 
-  const fmtTime = (dt) => dt ? new Date(dt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—';
+    const fmtTime = (dt) => dt ? new Date(dt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—';
 
-  const headers = ['Matricule', 'Nom', 'Prénom', 'Site', 'Heure d\'arrivée'];
-  const csvData = items.map(i => [
-    i.matricule || '—',
-    i.nom || '—',
-    i.prenom || '—',
-    i.factory_name || '—',
-    fmtTime(i.arrival),
-  ]);
-  const csv = [headers, ...csvData].map(row => row.join(';')).join('\n');
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-  const url = window.URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `Cantine_${new Date().toISOString().split('T')[0]}.csv`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  window.URL.revokeObjectURL(url);
-};
+    const headers = ['Matricule', 'Nom', 'Prénom', 'Site', 'Heure d\'arrivée'];
+    const csvData = items.map(i => [
+      i.matricule || '—',
+      i.nom || '—',
+      i.prenom || '—',
+      i.factory_name || '—',
+      fmtTime(i.arrival),
+    ]);
+    const csv = [headers, ...csvData].map(row => row.join(';')).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Cantine_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  };
 
   const generateJetons = (design) => {
     const count = cantineList?.items?.length || 0;
@@ -269,138 +260,165 @@ useEffect(() => { fetchList(selectedDate); }, [fetchList, selectedDate]);
           </div>
         </header>
 
-<section className="filters-section">
-  <div className="filters-content">
-
-    {/* Bloc 1 : Consulter une date */}
-    <div className="filter-group">
-      <label className="filter-label">Consulter une date</label>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <input
-          type="date"
-          value={selectedDate || new Date().toISOString().split('T')[0]}
-          max={new Date().toISOString().split('T')[0]}
-          onChange={(e) => {
-            const today = new Date().toISOString().split('T')[0];
-            setSelectedDate(e.target.value === today ? null : e.target.value);
-          }}
-          className="filter-input"
-        />
-        {isReadOnly && (
-          <span style={{ fontSize: 12, color: '#f59e0b', fontWeight: 600 }}>
-            Lecture seule — historique
-          </span>
-        )}
-        {isReadOnly && (
-          <button onClick={() => setSelectedDate(null)} className="btn btn-gray">
-            Revenir à aujourd'hui
-          </button>
-        )}
-      </div>
-    </div>
-
-    {/* Bloc 2 : Ajouter un employé (uniquement si pas en lecture seule) */}
-    {!isReadOnly && (
-      <div className="filter-group" style={{ position: 'relative' }}>
-        <label className="filter-label">Ajouter un employé</label>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Search className="icon" size={16} />
-          <input
-            type="text"
-            placeholder="Rechercher par nom ou matricule…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="filter-input"
-          />
-        </div>
-
-        {searchResults.length > 0 && (
-          <div style={{
-            position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
-            background: '#fff', border: '1px solid #ddd', borderRadius: 8,
-            maxHeight: 240, overflowY: 'auto', marginTop: 4,
-          }}>
-            {searchResults.map(emp => {
-              const already = alreadyInList.has(emp.id);
-              return (
-                <div
-                  key={emp.id}
-                  onClick={() => !already && addEmployee(emp)}
-                  style={{
-                    padding: '8px 12px', cursor: already ? 'not-allowed' : 'pointer',
-                    opacity: already ? 0.5 : 1,
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    borderBottom: '1px solid #f0f0f0',
+        <section className="filters-section">
+          <div
+            className="filters-content"
+            style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}
+          >
+            {/* Bloc 1 : Consulter une date */}
+            <div className="filter-group" style={{ flex: 1, minWidth: 220 }}>
+              <label className="filter-label">Consulter une date</label>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  type="date"
+                  value={selectedDate || new Date().toISOString().split('T')[0]}
+                  max={new Date().toISOString().split('T')[0]}
+                  onChange={(e) => {
+                    const today = new Date().toISOString().split('T')[0];
+                    setSelectedDate(e.target.value === today ? null : e.target.value);
                   }}
-                >
-                  <span>{emp.full_name} <small style={{ color: '#999' }}>#{emp.employee_id}</small></span>
-                  {already ? <span style={{ fontSize: 11, color: '#999' }}>Déjà ajouté</span> : <Plus size={16} />}
+                  className="filter-input"
+                />
+                {isReadOnly && (
+                  <span style={{ fontSize: 12, color: '#f59e0b', fontWeight: 600 }}>
+                    Lecture seule — historique
+                  </span>
+                )}
+                {isReadOnly && (
+                  <button onClick={() => setSelectedDate(null)} className="btn btn-gray">
+                    Revenir à aujourd'hui
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Bloc 2 : Ajouter un employé (uniquement si pas en lecture seule) */}
+            {!isReadOnly && (
+              <div className="filter-group" style={{ flex: 1, minWidth: 220, position: 'relative' }}>
+                <label className="filter-label">Ajouter un employé</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Search className="icon" size={16} />
+                  <input
+                    type="text"
+                    placeholder="Rechercher par nom ou matricule…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="filter-input"
+                  />
                 </div>
-              );
-            })}
+
+                {searchResults.length > 0 && (
+                  <div style={{
+                    position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
+                    background: '#fff', border: '1px solid #ddd', borderRadius: 8,
+                    maxHeight: 240, overflowY: 'auto', marginTop: 4,
+                  }}>
+                    {searchResults.map(emp => {
+                      const already = alreadyInList.has(emp.id);
+                      return (
+                        <div
+                          key={emp.id}
+                          onClick={() => !already && addEmployee(emp)}
+                          style={{
+                            padding: '8px 12px', cursor: already ? 'not-allowed' : 'pointer',
+                            opacity: already ? 0.5 : 1,
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                            borderBottom: '1px solid #f0f0f0',
+                          }}
+                        >
+                          <span>{emp.full_name} <small style={{ color: '#999' }}>#{emp.employee_id}</small></span>
+                          {already ? <span style={{ fontSize: 11, color: '#999' }}>Déjà ajouté</span> : <Plus size={16} />}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Bloc 3 : Filtre par site — toujours visible, même en lecture seule */}
+            <div className="filter-group" style={{ flex: 1, minWidth: 220 }}>
+              <label className="filter-label">Filtrer par site</label>
+              <select value={siteFilter} onChange={(e) => setSiteFilter(e.target.value)} className="filter-input">
+                <option value="">-- Tous les sites --</option>
+                {availableSites.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
           </div>
-        )}
-      </div>
-    )}
-
-    {/* Bloc 3 : Filtre par site — toujours visible, même en lecture seule */}
-    <div className="filter-group">
-      <label className="filter-label">Filtrer par site</label>
-      <select value={siteFilter} onChange={(e) => setSiteFilter(e.target.value)} className="filter-input">
-        <option value="">-- Tous les sites --</option>
-        {availableSites.map(s => <option key={s} value={s}>{s}</option>)}
-      </select>
-    </div>
-
-  </div>
-</section>
+        </section>
 
         <section className="attendance-table-section">
           <div className="table-header">
             <h2>Liste du jour</h2>
-            <p>Total : <strong>{filteredItems.length}</strong> employé(s)</p>          </div>
+            <p>Total : <strong>{filteredItems.length}</strong> employé(s)</p>
+          </div>
 
           <div className="table-scroll" style={{ maxHeight: '600px', overflowY: 'auto' }}>
-            <table className="attendance-table">
-              <thead>
-  <tr>
-    <th>Matricule</th>
-    <th>Nom</th>
-    <th>Prénom</th>
-    <th>Site</th>
-    <th>Arrivée</th>
-    {!isReadOnly && <th>Actions</th>}
-  </tr>
-</thead>
-<tbody>
-  {filteredItems.map(item => (
-    <tr key={item.id}>
-      <td>{item.matricule || '—'}</td>
-      <td>{item.nom || '—'}</td>
-      <td>{item.prenom || '—'}</td>
-      <td>{item.factory_name || '—'}</td>
-      <td>
-        {item.arrival ? new Date(item.arrival).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—'}
-      </td>
-      {!isReadOnly && (
-        <td>
-          <button onClick={() => removeEmployee(item.id)} className="btn btn-view" style={{ color: '#ef4444' }}>
-            <Trash2 className="icon" size={14} />
-            Retirer
-          </button>
-        </td>
-      )}
-    </tr>
-  ))}
-</tbody>
-            </table>
-
-            {!loading && (filteredItems?.items || []).length === 0 && (
-              <div className="no-data">
-                <Users className="icon large" />
-                <p className="no-data-title">Aucun employé dans la liste</p>
-                <p className="no-data-subtitle">Ajoutez des employés via la recherche ci-dessus</p>
+            {loading ? (
+              <div style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center',
+                gap: 12, padding: '48px 0',
+              }}>
+                <div
+                  style={{
+                    width: 32, height: 32,
+                    border: '3px solid #e5e7eb',
+                    borderTopColor: '#3b82f6',
+                    borderRadius: '50%',
+                    animation: 'cantine-spin 0.8s linear infinite',
+                  }}
+                />
+                <p style={{ color: '#999', fontSize: 14 }}>Chargement de la liste…</p>
+                <style>{`
+                  @keyframes cantine-spin {
+                    to { transform: rotate(360deg); }
+                  }
+                `}</style>
               </div>
+            ) : (
+              <>
+                <table className="attendance-table">
+                  <thead>
+                    <tr>
+                      <th>Matricule</th>
+                      <th>Nom</th>
+                      <th>Prénom</th>
+                      <th>Site</th>
+                      <th>Arrivée</th>
+                      {!isReadOnly && <th>Actions</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredItems.map(item => (
+                      <tr key={item.id}>
+                        <td>{item.matricule || '—'}</td>
+                        <td>{item.nom || '—'}</td>
+                        <td>{item.prenom || '—'}</td>
+                        <td>{item.factory_name || '—'}</td>
+                        <td>
+                          {item.arrival ? new Date(item.arrival).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                        </td>
+                        {!isReadOnly && (
+                          <td>
+                            <button onClick={() => removeEmployee(item.id)} className="btn btn-view" style={{ color: '#ef4444' }}>
+                              <Trash2 className="icon" size={14} />
+                              Retirer
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                {filteredItems.length === 0 && (
+                  <div className="no-data">
+                    <Users className="icon large" />
+                    <p className="no-data-title">Aucun employé dans la liste</p>
+                    <p className="no-data-subtitle">Ajoutez des employés via la recherche ci-dessus</p>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </section>
