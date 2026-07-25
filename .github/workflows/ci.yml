@@ -493,7 +493,8 @@ jobs:
           run: |
             docker run --rm \
               --network host \
-              -e BASE_URL=https://192.168.8.217 \
+              # line ~496
+              -e BASE_URL=${{ vars.TEST_217_URL }} \
               -v /home/github-runner/pointage/k6:/scripts \
               grafana/k6 run /scripts/load-test.js --insecure-skip-tls-verify
 
@@ -521,7 +522,7 @@ jobs:
       - name: Wait for app to be ready
         run: |
           for i in {1..15}; do
-            if curl -k -sf https://192.168.8.217/ -o /dev/null; then
+            if curl -k -sf ${{ vars.TEST_217_URL }}/ -o /dev/null; then
               echo "App is up"
               break
             fi
@@ -532,7 +533,7 @@ jobs:
       - name: Run E2E tests
         run: npx playwright test --reporter=list
         env:
-          E2E_BASE_URL: https://192.168.8.217
+          E2E_BASE_URL: ${{ vars.TEST_217_URL }}
           E2E_USERNAME: e2e_test_user
           E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }} #In the GitHub repo: Settings → Secrets and variables → Actions → New repository secret Name:E2E_PASSWORD and it's password Value
 
