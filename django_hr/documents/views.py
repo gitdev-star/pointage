@@ -345,16 +345,27 @@ def build_evaluation_cdd(emp, extra):
     })
 
 def build_cdd_18(emp, extra):
-    dept     = emp.department.name if emp.department else "—"
-    section  = extra.get("section") or (emp.section.name if emp.section else dept)
-    factory  = emp.factory.name if emp.factory else "—"
-    hire     = fmt_date(emp.hire_date)
-    d_debut  = fmt_date(extra.get("date_debut") or str(emp.hire_date or date.today()))
-    d_fin    = fmt_date(extra.get("date_fin") or date.today())
-    name     = f"{emp.last_name} {emp.first_name}"
+    dept = emp.department.name if emp.department else "—"
+    section = extra.get("section") or (emp.section.name if emp.section else dept)
+    factory = emp.factory.name if emp.factory else "—"
+
+    # Date d'embauche
+    hire_date = emp.hire_date or date.today()
+
+    # Contrat de 18 mois
+    contrat_fin = hire_date + relativedelta(months=18)
+
+    # Début du CDI = lendemain de la fin du CDD
+    debut_cdi = contrat_fin + timedelta(days=1)
+
+    hire = fmt_date(hire_date)
+    d_debut = fmt_date(hire_date)
+    d_fin = fmt_date(contrat_fin)
+    d_cdi = fmt_date(debut_cdi)
+
+    name = f"{emp.last_name} {emp.first_name}"
     fonction = emp.job_title.name if emp.job_title else "—"
     matricule = emp.employee_id or "—"
-
     return fill_template(
         os.path.join(TEMPLATES_DIR, "cdd-18mois.docx"),
         {
@@ -372,8 +383,8 @@ def build_cdd_18(emp, extra):
             "Fonction :  Machiniste"                    : f"Fonction :  {fonction}",
             "Section :   GILLET ARABIE 2						Site :  PBI3" : f"Section :   {section}						Site :  {factory}",
             # CDI date in letter body (appears twice)
-            "à compter du 31 juillet 2026  . "          : f"à compter du {d_fin}  . ",
-            "manomboka ny 31 juillet 2026  ."              : f"manomboka ny {d_fin}  .",
+            "à compter du 31 juillet 2026  . "          : f"à compter du {d_cdi}  . ",
+            "manomboka ny 31 juillet 2026  ."              : f"manomboka ny {d_cdi}  .",
         }
     )
 
