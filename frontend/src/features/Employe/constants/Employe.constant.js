@@ -79,18 +79,18 @@ export const EMPTY_FILTERS = {
 // ── Colonnes export CSV ───────────────────────────────────────────────────────
 
 export const CSV_EXPORT_HEADERS = [
-  "N RH","Matricule","Nom","Prénom","Sexe","Date naissance",
-  "CIN","Date CIN","Lieu CIN","CNAPS",
-  "Usine","Département","Section","Poste","Contrat",
-  "Date embauche","Statut","Email","Téléphone","Adresse",
-  "Nbre enfants","Affectation",
+  "Matricule","Nom","Prénom","Poste","Classification","Section",
+  "Usine","Département","Affectation","Date embauche","CIN",
+  "Sexe","CNAPS","Téléphone","Adresse","N RH","Date naissance",
+  "Lieu de naissance","Date CIN","Lieu CIN","Nbre enfants", 
+  "Contrat","Statut","Email",
 ];
 
 /** Extrait les valeurs d'un objet employé dans l'ordre des colonnes CSV */
 export const CSV_ROW_EXTRACTOR = (e) => [
-  e.n_rh, e.employee_id, e.last_name, e.first_name, e.sexe,
-  e.birth_date, e.cin, e.cin_date, e.cin_place, e.cnaps,
-  e.factory_name, e.department_name, e.section_name || "", e.job_title, e.contract_type,
-  e.hire_date, e.status, e.email, e.phone, e.address,
-  e.nbre_enfants, e.affectation,
-];
+  e.employee_id, e.last_name, e.first_name, e.job_title_name, e.classification_name, e.section_name || "",
+  e.factory_name, e.department_name, e.affectation, e.hire_date, e.cin, 
+  e.sexe, e.cnaps, e.phone, e.address, e.n_rh, e.birth_date, 
+  e.birth_place, e.cin_date, e.cin_place, e.nbre_enfants, 
+  e.contract_type,  e.status, e.email,  
+]; 
