@@ -261,6 +261,7 @@ services:
       - DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL}
       - SERVICE_INTERNAL_KEY=${SERVICE_INTERNAL_KEY}
       - GLITCHTIP_DSN=${GLITCHTIP_DSN_CRON}
+      - GLITCHTIP_CRON_HEARTBEAT_URL=${GLITCHTIP_CRON_HEARTBEAT_URL}
     volumes:
       - ./django_hr:/app
     command: bash -c "echo '0 7 * * * /app/cron_jobs.sh' > /etc/cron.d/hr-cron && chmod 0644 /etc/cron.d/hr-cron && crontab /etc/cron.d/hr-cron && cron -f"
