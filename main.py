@@ -13,7 +13,11 @@ import sentry_sdk
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
+
+# Silence noisy third-party library internals while keeping our own code at DEBUG
+for noisy_logger in ("httpx", "httpcore", "asyncio", "urllib3"):
+    logging.getLogger(noisy_logger).setLevel(logging.WARNING)
 
 GLITCHTIP_DSN = os.environ.get("GLITCHTIP_DSN")
 if GLITCHTIP_DSN:
@@ -24,6 +28,7 @@ if GLITCHTIP_DSN:
         traces_sample_rate=0.1,
         send_default_pii=False,
         ca_certs="/etc/ssl/glitchtip/fullchain.pem",
+        enable_logs=True,
     )
 
 logger = logging.getLogger(__name__)
@@ -56,6 +61,26 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+request_logger = logging.getLogger("request")
+
+
+@app.middleware("http")
+async def log_requests(request, call_next):
+    import time
+    if request.url.path == "/health":
+        return await call_next(request)
+    start = time.monotonic()
+    response = await call_next(request)
+    duration_ms = (time.monotonic() - start) * 1000
+    request_logger.info(
+        "%s %s -> %s (%.1fms)",
+        request.method,
+        request.url.path,
+        response.status_code,
+        duration_ms,
+    )
+    return response
 
 app.include_router(attendance_routes.router, prefix="/attendance")
 app.include_router(hr_routes.router)

@@ -259,7 +259,7 @@ services:
       - GLITCHTIP_DSN=${GLITCHTIP_DSN_CRON}
     volumes:
       - ./django_hr:/app
-    command: bash -c "echo '0 7 * * * cd /app && python3 manage.py send_cdd_alerts >> /var/log/cron.log 2>&1' > /etc/cron.d/hr-cron && echo '0 7 * * * cd /app && python3 manage.py send_maternity_alerts >> /var/log/cron.log 2>&1' >> /etc/cron.d/hr-cron && chmod 0644 /etc/cron.d/hr-cron && crontab /etc/cron.d/hr-cron && cron -f"
+    command: bash -c "echo '0 7 * * * /app/cron_jobs.sh' > /etc/cron.d/hr-cron && chmod 0644 /etc/cron.d/hr-cron && crontab /etc/cron.d/hr-cron && cron -f"
 
   glitchtip-postgres:
     image: postgres:15
@@ -295,6 +295,7 @@ services:
       CSRF_TRUSTED_ORIGINS: https://${SERVER_IP}:8443
       ENABLE_USER_REGISTRATION: "false"
       ENABLE_ORGANIZATION_CREATION: "false"
+      GLITCHTIP_UPTIME_ALLOW_PRIVATE_IPS: "True"
     volumes:
       - glitchtip_uploads:/code/uploads
     networks:
@@ -315,6 +316,11 @@ services:
       DEFAULT_FROM_EMAIL: noreply@pb-industries.mg
       ALLOWED_HOSTS: ${SERVER_IP},localhost,127.0.0.1
       CSRF_TRUSTED_ORIGINS: https://${SERVER_IP}:8443
+      GLITCHTIP_UPTIME_ALLOW_PRIVATE_IPS: "True"
+      REQUESTS_CA_BUNDLE: /etc/ssl/glitchtip/fullchain.pem
+      SSL_CERT_FILE: /etc/ssl/glitchtip/fullchain.pem
+    volumes:
+      - ./ssl:/etc/ssl/glitchtip:ro
     networks:
       - pointage_net
 

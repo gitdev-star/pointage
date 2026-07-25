@@ -41,6 +41,7 @@ if GLITCHTIP_DSN and not DEBUG:
         send_default_pii=False,
         ca_certs="/etc/ssl/glitchtip/fullchain.pem",
         auto_session_tracking=False,
+        enable_logs=True,
     )
 
 # ── Apps ──────────────────────────────────────────────
@@ -74,6 +75,7 @@ REST_FRAMEWORK = {
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'config.middleware.RequestLoggingMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -169,4 +171,19 @@ SIMPLE_JWT = {
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
     "SIGNING_KEY": JWT_SECRET_KEY,
     "ALGORITHM": "HS256",
+}
+
+# ── Logging ─────────────────────────────────────────────
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",
+    },
 }

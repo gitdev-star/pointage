@@ -15,6 +15,7 @@ from app.database import AsyncSessionLocal, engine
 from app.models.attendance import Base
 from app.devices.zk_reader import ZKReader
 import sentry_sdk
+from sentry_sdk.integrations.logging import LoggingIntegration
 
 # --------------------------------------------------
 # CONFIG
@@ -25,22 +26,38 @@ IDLE_INTERVAL        = 120   # seconds between syncs when no new logs
 DEVICE_STAGGER       = 10    # seconds between starting each device task
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format="%(asctime)s [SYNC] %(levelname)s - %(message)s"
 )
+
+# Silence noisy third-party library internals while keeping our own code at DEBUG
+for noisy_logger in ("httpx", "httpcore", "asyncio", "urllib3"):
+    logging.getLogger(noisy_logger).setLevel(logging.WARNING)
 logger = logging.getLogger("sync_service")
 
 # --------------------------------------------------
 # GLITCHTIP / SENTRY
 # --------------------------------------------------
+# By default, sentry_sdk auto-attaches a LoggingIntegration that turns every
+# logger.error(...) call into a Glitchtip ISSUE. This service logs expected,
+# transient stuff as errors (device unreachable, one-off sync failure, etc.),
+# so we override that integration to stop auto-creating issues from logs.
+# The heartbeat loop below still confirms liveness independently.
+sentry_logging = LoggingIntegration(
+    level=logging.INFO,   # still attached as breadcrumbs if an event IS sent
+    event_level=None,     # <- disables auto-capture of ERROR logs as issues
+)
+
 GLITCHTIP_DSN = os.getenv("GLITCHTIP_DSN")
 if GLITCHTIP_DSN:
     sentry_sdk.init(
         dsn=GLITCHTIP_DSN,
         environment="sync",
         ca_certs="/etc/ssl/glitchtip/fullchain.pem",
+        enable_logs=True,
+        integrations=[sentry_logging],
     )
-    logger.info("Glitchtip error reporting enabled")
+    logger.info("Glitchtip configured (log-based issue auto-capture disabled)")
 
 sync_tasks: Dict[str, asyncio.Task] = {}
 device_locks: Dict[str, asyncio.Lock] = {}
@@ -124,7 +141,7 @@ async def sync_device_loop(ip: str, port: int):
             if saved and saved > 0:
                 consecutive_errors = 0
                 idle_cycles = 0
-                logger.info(f"[{ip}] ✅ {saved} logs inserted")
+                logger.debug(f"[{ip}] ✅ {saved} logs inserted")
             else:
                 idle_cycles += 1
                 logger.debug(f"[{ip}] No new logs (idle #{idle_cycles})")
@@ -219,6 +236,24 @@ async def start_all_syncs():
             logger.info(f"✅ {len(sync_tasks)} sync task(s) running ({new_count} new)")
         await asyncio.sleep(300)  # re-check for new devices every 5 minutes
 
+
+# --------------------------------------------------
+# GLITCHTIP HEARTBEAT MONITOR
+# --------------------------------------------------
+HEARTBEAT_URL = "https://192.168.8.217:8443/api/0/organizations/hr_nexus/heartbeat_check/f579e6a2-7700-4649-a45c-085956f20bf2/"
+
+async def heartbeat_loop():
+    """Pings Glitchtip every 120s to confirm this service is alive."""
+    async with httpx.AsyncClient(verify=False, timeout=10) as client:
+        while True:
+            try:
+                await client.post(HEARTBEAT_URL)
+                logger.debug("\U0001F493 Heartbeat sent to Glitchtip")
+            except Exception as e:
+                logger.warning(f"Heartbeat failed: {e}")
+            await asyncio.sleep(120)
+
+
 async def main():
     logger.info("=" * 50)
     logger.info("  ZKTeco Sync Service")
@@ -234,6 +269,7 @@ async def main():
     await asyncio.gather(
         start_all_syncs(),
         daily_reset_loop(),
+        heartbeat_loop(),
     )
 
 

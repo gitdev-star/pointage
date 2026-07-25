@@ -35,7 +35,7 @@ class ZKReader:
             return
         try:
             self.connection = self.zk.connect()
-            logger.info(f"[ZK] Connected to {self.device_ip}")
+            logger.debug(f"[ZK] Connected to {self.device_ip}")
         except Exception as e:
             self.connection = None
             raise RuntimeError(f"Connection failed to {self.device_ip}: {e}")
@@ -48,7 +48,7 @@ class ZKReader:
                 pass
             finally:
                 self.connection = None
-                logger.info(f"[ZK] Disconnected from {self.device_ip}")
+                logger.debug(f"[ZK] Disconnected from {self.device_ip}")
 
     async def _force_cleanup(self) -> None:
         """Hard reset device connection"""
@@ -71,7 +71,7 @@ class ZKReader:
             logs = list(reversed(logs))  # latest logs first
             logs = [log for log in logs if log.timestamp.year >= since_year]
             self.consecutive_errors = 0
-            logger.info(f"[ZK] {self.device_ip} fetched {len(logs)} logs since {since_year}")
+            logger.debug(f"[ZK] {self.device_ip} fetched {len(logs)} logs since {since_year}")
             return logs
         except Exception as e:
             self.consecutive_errors += 1
@@ -127,9 +127,10 @@ class ZKReader:
                 await db.execute(stmt)
                 await db.commit()
                 total_inserted += len(chunk)
-                logger.info(f"[ZK] {self.device_ip} inserted {total_inserted}/{len(values)} logs")
+                logger.debug(f"[ZK] {self.device_ip} inserted {total_inserted}/{len(values)} logs")
+            logger.debug(f"[ZK] {self.device_ip} inserted {total_inserted}/{len(values)} logs total")
             return total_inserted
         except Exception as e:
-            logger.error(f"[ZK] {self.device_ip} bulk insert failed: {e}")
+            logger.error(f"[ZK] {self.device_ip} bulk insert failed: {e!r}", exc_info=True)
             await db.rollback()
             return 0

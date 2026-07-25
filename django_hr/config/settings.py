@@ -44,6 +44,7 @@ if GLITCHTIP_DSN and not DEBUG:
         send_default_pii=False,
         ca_certs="/etc/ssl/glitchtip/fullchain.pem",
         auto_session_tracking=False,
+        enable_logs=True,
     )
 
 
@@ -76,6 +77,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "config.middleware.RequestLoggingMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -206,3 +208,18 @@ if not EMAIL_HOST or not EMAIL_HOST_USER or not EMAIL_HOST_PASSWORD:
 
 # ── HR Alerts ──────────────────────────────────────────
 HR_ALERT_DAYS = [int(x) for x in os.environ.get("HR_ALERT_DAYS", "30,60,90").split(",")]
+
+# ── Logging ─────────────────────────────────────────────
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",
+    },
+}
