@@ -13,6 +13,19 @@ SYSTEM_ACCOUNTS = {"invité", "krbtgt", "administrateur", "guest", "administrato
 
 def get_ldap_connection():
     """Get an authenticated LDAP connection."""
+    missing = [
+        name for name, value in (
+            ("LDAP_SERVER_URI", settings.LDAP_SERVER_URI),
+            ("LDAP_BIND_DN", settings.LDAP_BIND_DN),
+            ("LDAP_PASSWORD", settings.LDAP_PASSWORD),
+        )
+        if not value
+    ]
+    if missing:
+        raise RuntimeError(
+            f"LDAP is misconfigured — missing env var(s): {', '.join(missing)}"
+        )
+
     server = Server(settings.LDAP_SERVER_URI, get_info=ALL)
     conn   = Connection(
         server,
