@@ -150,14 +150,14 @@ CORS_ALLOW_HEADERS = [
 ]
 
 # ── LDAP ───────────────────────────────────────────────
-LDAP_SERVER_URI  = os.environ.get('LDAP_SERVER_URI',  'ldap://192.168.8.1:389')
-LDAP_SERVER      = os.environ.get('LDAP_SERVER',      'ldap://192.168.8.1')
-LDAP_BIND_DN     = os.environ.get('LDAP_BIND_DN',     'CN=ldap_suivi,OU=Tecma,DC=tecma,DC=lan')
+LDAP_SERVER_URI  = os.environ.get('LDAP_SERVER_URI')
+LDAP_SERVER      = os.environ.get('LDAP_SERVER')
+LDAP_BIND_DN     = os.environ.get('LDAP_BIND_DN')
 LDAP_PASSWORD    = os.environ.get('LDAP_BIND_PASSWORD')
 if not LDAP_PASSWORD:
     raise ValueError("LDAP_BIND_PASSWORD environment variable is not set")
-LDAP_BASE_DN     = os.environ.get('LDAP_BASE_DN',    'DC=tecma,DC=lan')
-LDAP_SEARCH_BASE = os.environ.get('LDAP_SEARCH_BASE','DC=tecma,DC=lan')
+LDAP_BASE_DN     = os.environ.get('LDAP_BASE_DN')
+LDAP_SEARCH_BASE = os.environ.get('LDAP_SEARCH_BASE')
 LDAP_USER_FILTER = '(&(objectClass=person)(objectCategory=person)(!(sAMAccountName=*$)))'
 LDAP_ATTRIBUTES  = ['cn', 'mail', 'sAMAccountName', 'department', 'title', 'givenName', 'sn']
 

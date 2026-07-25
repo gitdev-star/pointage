@@ -240,15 +240,17 @@ async def start_all_syncs():
 # --------------------------------------------------
 # GLITCHTIP HEARTBEAT MONITOR
 # --------------------------------------------------
-HEARTBEAT_URL = "https://192.168.8.217:8443/api/0/organizations/hr_nexus/heartbeat_check/f579e6a2-7700-4649-a45c-085956f20bf2/"
+HEARTBEAT_URL = os.getenv("GLITCHTIP_HEARTBEAT_URL")
 
 async def heartbeat_loop():
-    """Pings Glitchtip every 120s to confirm this service is alive."""
+    if not HEARTBEAT_URL:
+        logger.warning("GLITCHTIP_HEARTBEAT_URL not set — heartbeat disabled")
+        return
     async with httpx.AsyncClient(verify=False, timeout=10) as client:
         while True:
             try:
                 await client.post(HEARTBEAT_URL)
-                logger.debug("\U0001F493 Heartbeat sent to Glitchtip")
+                logger.debug("💓 Heartbeat sent to Glitchtip")
             except Exception as e:
                 logger.warning(f"Heartbeat failed: {e}")
             await asyncio.sleep(120)
