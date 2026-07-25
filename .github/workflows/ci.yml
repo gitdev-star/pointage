@@ -100,6 +100,11 @@ jobs:
           DJANGO_SECRET_KEY: ci-test-secret-key-minimum-32-chars-long
           JWT_SECRET_KEY: ci-test-secret-key-minimum-32-chars-long
           LDAP_BIND_PASSWORD: test-password
+          LDAP_SERVER: ldap://ci-test:389
+          LDAP_SERVER_URI: ldap://ci-test:389
+          LDAP_BIND_DN: CN=ci-test,OU=Test,DC=test,DC=local
+          LDAP_BASE_DN: DC=test,DC=local
+          LDAP_SEARCH_BASE: DC=test,DC=local
 
 
       - name: django_hr tests
