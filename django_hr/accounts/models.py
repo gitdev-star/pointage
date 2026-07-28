@@ -91,7 +91,7 @@ class HRProfile(models.Model):
                 "employees", "payroll", "leaves", "reports", "shifts",
                 "recruitment", "contracts", "sanctions", "retraite",
                 "pay_events", "alerts", "organisation", "hr_users",
-                "transport", "horaire", "audit_logs",   # ✅ ajoutés
+                "transport", "cantine", "horaire", "audit_logs",   # ✅ ajoutés
             ]
         modules = []
         if self.perm_employees_read:
@@ -123,9 +123,11 @@ class HRProfile(models.Model):
         if self.perm_hr_users_manage:
             modules.append("hr_users")
         if self.perm_transport_read:
-            modules.append("transport")   # ✅ ajouté
+            modules.append("transport")
+        if self.perm_cantine_read:
+            modules.append("cantine")  
         if self.perm_horaire_read:
-            modules.append("horaire")     # ✅ ajouté
+            modules.append("horaire")    
         if self.perm_audit_logs_read:
-            modules.append("audit_logs")  # ✅ ajouté
+            modules.append("audit_logs")  
         return modules
