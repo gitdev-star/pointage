@@ -3,19 +3,29 @@ from .models import CantineList, CantineListItem, Classification, Poste, Factory
 
 
 class ClassificationSerializer(serializers.ModelSerializer):
+    last_action    = serializers.CharField(read_only=True, allow_null=True)
+    last_action_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    last_action_by = serializers.CharField(read_only=True, allow_null=True)
+
     class Meta:
         model  = Classification
-        fields = ["id_classification", "classe", "salaire"]
+        fields = ["id_classification", "classe", "salaire", "last_action", "last_action_at", "last_action_by"]
 
 
 class PosteSerializer(serializers.ModelSerializer):
+    last_action    = serializers.CharField(read_only=True, allow_null=True)
+    last_action_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    last_action_by = serializers.CharField(read_only=True, allow_null=True)
+
     class Meta:
         model  = Poste
-        fields = ["id", "name", "description", "is_active", "created_at"]
-
+        fields = ["id", "name", "description", "is_active", "created_at", "last_action", "last_action_at", "last_action_by"]
 
 class FactorySerializer(serializers.ModelSerializer):
     employee_count = serializers.SerializerMethodField()
+    last_action    = serializers.CharField(read_only=True, allow_null=True)
+    last_action_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    last_action_by = serializers.CharField(read_only=True, allow_null=True)
 
     class Meta:
         model  = Factory
@@ -28,6 +38,10 @@ class FactorySerializer(serializers.ModelSerializer):
 class DepartmentSerializer(serializers.ModelSerializer):
     factory_name   = serializers.CharField(source="factory.name", read_only=True)
     employee_count = serializers.SerializerMethodField()
+    last_action    = serializers.CharField(read_only=True, allow_null=True)
+    last_action_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    last_action_by = serializers.CharField(read_only=True, allow_null=True)
+
 
     class Meta:
         model  = Department
@@ -40,6 +54,10 @@ class DepartmentSerializer(serializers.ModelSerializer):
 class SectionSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source="department.name",         read_only=True)
     factory_name    = serializers.CharField(source="department.factory.name", read_only=True)
+    last_action    = serializers.CharField(read_only=True, allow_null=True)
+    last_action_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    last_action_by = serializers.CharField(read_only=True, allow_null=True)
+
 
     class Meta:
         model  = Section

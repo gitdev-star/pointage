@@ -21,9 +21,8 @@ export default function EmployeeDocumentTable({
 
   return (
     <Paper elevation={2}>
-      <TableContainer>
-        <Table size="small">
-          
+       <TableContainer sx={{ maxHeight: 520, overflow: "auto" }}>
+        <Table size="small" stickyHeader>
           <TableHead>
             <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
               <TableCell padding="checkbox">

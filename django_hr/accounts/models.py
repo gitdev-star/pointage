@@ -51,6 +51,8 @@ class HRProfile(models.Model):
     perm_hr_users_manage   = models.BooleanField(default=False)
     perm_transport_read    = models.BooleanField(default=False)
     perm_transport_write   = models.BooleanField(default=False)
+    perm_cantine_read = models.BooleanField(default=False)
+    perm_cantine_write = models.BooleanField(default=False)
     perm_horaire_read      = models.BooleanField(default=False)
     perm_horaire_write     = models.BooleanField(default=False)
     perm_audit_logs_read   = models.BooleanField(default=False)
