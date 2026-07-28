@@ -18,6 +18,9 @@ const EMPTY_SECTION        = { name: "", department: "", is_active: true };
 const EMPTY_CLASSIFICATION = { classe: "", salaire: "" };
 const EMPTY_POSTE          = { name: "", description: "", is_active: true };
 
+const ACTION_LABELS = { CREATE: "Créé", UPDATE: "Modifié", DELETE: "Supprimé" };
+const ACTION_COLORS = { CREATE: "success", UPDATE: "info", DELETE: "error" };
+
 // Maps each entity type to its API endpoint and state setter key
 const ENTITY_CONFIG = {
   factory:        { url: "employees/factories/?page_size=1000",       key: "factories" },
@@ -59,14 +62,35 @@ function CRUDTable({ columns, rows, loading, onAdd, onEdit, onDelete, canWrite, 
             ) : rows.map(row => (
               <TableRow key={row.id} hover>
                 {columns.map(c => (
-                  <TableCell key={c.key}>
+        <TableCell key={c.key}>
                     {c.chip ? (
                       <Chip
                         label={row[c.key] ? "Actif" : "Inactif"}
                         color={row[c.key] ? "success" : "default"}
                         size="small"
                       />
-                    ) : row[c.key] || "—"}
+              ) : c.audit ? (
+                  row.last_action ? (
+                    <Box sx={{ display: "flex", flexDirection: "column", gap: 0.3 }}>
+                      <Chip
+                        size="small"
+                        color={ACTION_COLORS[row.last_action] || "default"}
+                        label={`${ACTION_LABELS[row.last_action] || row.last_action}${
+                          row.last_action_by ? " · " + row.last_action_by : ""
+                        }`}
+                      />
+                      {row.last_action_at && (
+                        <Typography variant="caption" color="text.secondary">
+                          {new Date(row.last_action_at).toLocaleString("fr-FR")}
+                        </Typography>
+                      )}
+                    </Box>
+                  ) : (
+                    "—"
+                  )
+                ) : (
+                      row[c.key] || "—"
+                    )}
                   </TableCell>
                 ))}
                 {(canWrite || canDelete) && (
@@ -299,27 +323,32 @@ export default function OrganisationManager() {
     { key: "name",      label: "Nom" },
     { key: "location",  label: "Localisation" },
     { key: "is_active", label: "Statut", chip: true },
+    { key: "last_action", label: "Dernière action", audit: true },
   ];
   const deptColumns = [
     { key: "name",         label: "Nom" },
     { key: "code_departement", label: "Code" },
     { key: "factory_name", label: "Usine" },
     { key: "is_active",    label: "Statut", chip: true },
+    { key: "last_action", label: "Dernière action", audit: true },
   ];
   const sectionColumns = [
     { key: "name",            label: "Nom" },
     { key: "department_name", label: "Département" },
     { key: "factory_name",    label: "Usine" },
     { key: "is_active",       label: "Statut", chip: true },
+    { key: "last_action", label: "Dernière action", audit: true },
   ];
   const classificationColumns = [
     { key: "classe",  label: "Classe" },
     { key: "salaire", label: "Salaire" },
+    { key: "last_action", label: "Dernière action", audit: true },
   ];
   const posteColumns = [
     { key: "name",        label: "Nom du poste" },
     { key: "description", label: "Description" },
     { key: "is_active",   label: "Statut", chip: true },
+    { key: "last_action", label: "Dernière action", audit: true },
   ];
 
   // ── Filtered rows ──────────────────────────────────────────────────────────

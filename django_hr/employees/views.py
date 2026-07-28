@@ -258,16 +258,50 @@ def _parse_row(row, row_num):
         "classification_name":   classification_val,
     }, None
 
+class AuditedModelViewSet(viewsets.ModelViewSet):
+    """ModelViewSet qui journalise automatiquement CREATE / UPDATE / DELETE
+    dans AuditLog, sur le même principe que EmployeeViewSet."""
+
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        log_action(self.request, instance, "CREATE")
+
+    def perform_update(self, serializer):
+        old_data = snapshot(serializer.instance)
+        super().perform_update(serializer)
+        new_data = snapshot(serializer.instance)
+        changes = diff_dict(old_data, new_data)
+        if changes:
+            log_action(self.request, serializer.instance, "UPDATE", changes)
+
+    def perform_destroy(self, instance):
+        log_action(self.request, instance, "DELETE")
+        super().perform_destroy(instance)
+
+def with_last_action(queryset, model_name):
+    latest_log = AuditLog.objects.filter(
+        model_name=model_name,
+        object_id=Cast(OuterRef("pk"), output_field=CharField()),
+    ).order_by("-timestamp")
+    return queryset.annotate(
+        last_action=Subquery(latest_log.values("action")[:1]),
+        last_action_at=Subquery(latest_log.values("timestamp")[:1]),
+        last_action_by=Subquery(latest_log.values("username")[:1]),
+    )
+
 
 # ── ViewSets ───────────────────────────────────────────────────────────────
 
-class FactoryViewSet(viewsets.ModelViewSet):
+class FactoryViewSet(AuditedModelViewSet):
     queryset = Factory.objects.only(
         "id", "name", "location", "is_active", "created_at"
     )
     serializer_class = FactorySerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ["name", "location"]
+
+    def get_queryset(self):
+        return with_last_action(super().get_queryset(), "factory")
 
     @action(detail=True, methods=["get"])
     def departments(self, request, pk=None):
@@ -290,7 +324,7 @@ class FactoryViewSet(viewsets.ModelViewSet):
         return Response(EmployeeListSerializer(emps, many=True).data)
 
 
-class DepartmentViewSet(viewsets.ModelViewSet):
+class DepartmentViewSet(AuditedModelViewSet):
     queryset = Department.objects.select_related("factory", "manager").only(
         "id", "name", "is_active", "created_at",
         "factory__id", "factory__name",
@@ -300,6 +334,9 @@ class DepartmentViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ["factory", "is_active"]
     search_fields = ["name"]
+
+    def get_queryset(self):
+        return with_last_action(super().get_queryset(), "department")
 
     @action(detail=True, methods=["get"])
     def employees(self, request, pk=None):
@@ -707,7 +744,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         return Response(EmployeeTransportSerializer(qs, many=True).data)
 
 
-class SectionViewSet(viewsets.ModelViewSet):
+class SectionViewSet(AuditedModelViewSet):
     queryset = Section.objects.select_related("department", "department__factory").only(
         "id", "name", "is_active", "created_at",
         "department__id", "department__name",
@@ -717,6 +754,9 @@ class SectionViewSet(viewsets.ModelViewSet):
     filter_backends  = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ["department", "is_active"]
     search_fields    = ["name"]
+
+    def get_queryset(self):
+        return with_last_action(super().get_queryset(), "section")
 
 
 class WorkScheduleViewSet(viewsets.ModelViewSet):
@@ -747,12 +787,15 @@ class WorkScheduleViewSet(viewsets.ModelViewSet):
         )
 
 
-class PosteViewSet(viewsets.ModelViewSet):
+class PosteViewSet(AuditedModelViewSet):
     queryset = Poste.objects.all().order_by("name")
     serializer_class = PosteSerializer
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     filterset_fields = ["is_active"]
     search_fields = ["name"]
+
+    def get_queryset(self):
+        return with_last_action(super().get_queryset(), "poste")
 
 # ── Function-based views ───────────────────────────────────────────────────
 
@@ -810,11 +853,14 @@ def employee_export(request):
     return Response({"count": len(data), "results": data})
 
 
-class ClassificationViewSet(viewsets.ModelViewSet):
+class ClassificationViewSet(AuditedModelViewSet):
     queryset = Classification.objects.all().order_by("classe")
     serializer_class = ClassificationSerializer
     filter_backends = [filters.SearchFilter]
     search_fields = ["classe"]
+
+    def get_queryset(self):
+        return with_last_action(super().get_queryset(), "classification")
 
 
 @api_view(["GET"])
