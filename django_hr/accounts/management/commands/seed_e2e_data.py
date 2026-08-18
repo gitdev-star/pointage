@@ -27,6 +27,12 @@ class Command(BaseCommand):
                 "is_active": True,
                 "perm_employees_read": True,
                 "perm_alerts_read": True,
+                "perm_dashboard_read": True,
+                "perm_presence_read": True,
+                "perm_presence_write": True,
+                "perm_retard_read": True,
+                "perm_devices_read": True,
+                "perm_devices_write": True,
                 # ajoute ici d'autres perm_* si de nouveaux specs e2e en ont besoin
             },
         )

@@ -18,6 +18,7 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import ProtectedRoute from "./ProtectedRoute";
+import { HRAuthProvider } from "../contexts/HRAuthContext";
 
 function renderProtected(initialPath, tokenPayload) {
   if (tokenPayload) {
@@ -27,6 +28,7 @@ function renderProtected(initialPath, tokenPayload) {
   }
   return render(
     <MemoryRouter initialEntries={[initialPath]}>
+      <HRAuthProvider>
       <Routes>
         <Route path="/login" element={<div>Login Page</div>} />
         <Route
@@ -38,6 +40,7 @@ function renderProtected(initialPath, tokenPayload) {
           }
         />
       </Routes>
+      </HRAuthProvider>
     </MemoryRouter>
   );
 }

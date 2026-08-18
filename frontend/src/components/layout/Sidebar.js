@@ -11,15 +11,17 @@ import TransportPage from "../../features/Transport/page/TransportPage";
 import WorkSchedulePage from "../../features/Horaire/page/HorairePage";
 
 const POINTAGE_ITEMS = [
-  { to: "/",  label: "Tableau de bord" },
-  { to: "/attendance", label: "Présences" },
-  { to: "/attendance/late-report", label: "Retards" },
-  { to: "/devices",    label: "Appareils" },
+  { to: "/",  label: "Tableau de bord", module: "dashboard" },
+  { to: "/attendance", label: "Présences", module: "presence" },
+  { to: "/attendance/late-report", label: "Retards", module: "retard" },
+  { to: "/devices",    label: "Appareils", module: "devices" },
 ];
 
 export default function Sidebar({isOpen, onClose}) {
   const navigate  = useNavigate();
   const { hrProfile, canSee } = useHRAuth();
+
+const filteredPointageItems = POINTAGE_ITEMS.filter(item => canSee(item.module));
 
 const hrMenuItems = [
   { to: "/hr/employees",           label: "Employés",              module: "employees"    },
@@ -78,7 +80,7 @@ const hrAdminItems = [
         {/* Navigation */}
         <nav className="flex-1 pb-6">
           <NavSection title="Pointage">
-            {POINTAGE_ITEMS.map(item => (
+            {filteredPointageItems.map(item => (
               <NavItem key={item.to} to={item.to} label={item.label} onClick={onClose} />
             ))}
           </NavSection>
