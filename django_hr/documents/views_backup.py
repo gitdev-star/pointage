@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
 
-# â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── helpers ───────────────────────────────────────────────────────────────────
 
 MONTHS_FR = ["","janvier","f\u00e9vrier","mars","avril","mai","juin",
              "juillet","ao\u00fbt","septembre","octobre","novembre","d\u00e9cembre"]
@@ -57,7 +57,7 @@ def ref_rh():
 def get_classif(emp):
     return getattr(emp,"classification",None) or getattr(emp,"category",None) or "\u2014"
 
-# â”€â”€ core replace (handles split runs) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── core replace (handles split runs) ────────────────────────────────────────
 
 def replace_in_paragraph(para, reps):
     full = "".join(r.text for r in para.runs)
@@ -188,7 +188,7 @@ def fill_template(tpl_path, reps, strip_underline=False, mergefields=None):
     buf.seek(0)
     return buf.read()
 
-# â”€â”€ builders â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── builders ──────────────────────────────────────────────────────────────────
 
 def build_attestation(emp, extra):
     usage        = extra.get("usage") or "Pr\u00eat bancaire BOA Tanjombato"
@@ -198,7 +198,7 @@ def build_attestation(emp, extra):
     civ          = civilite(emp)
     name         = f"{emp.last_name} {emp.first_name}"
     classif      = get_classif(emp)
-    factory      = emp.factory.name if emp.factory else "—"
+    factory      = emp.factory.name if emp.factory else "�"
     contrat_txt  = "ind\u00e9termin\u00e9e" if (emp.contract_type or "") == "CDI" else "d\u00e9termin\u00e9e"
     return fill_template(os.path.join(TEMPLATES_DIR,"BASE_ATTESTATION.docx"), {
         "Date demande attestation"                                    : today,
@@ -245,7 +245,7 @@ def build_cdd_6(emp, extra):
                 classif_salaire = f"{val:,.2f}".replace(",", " ")
         except (ValueError, TypeError):
             pass
-    salaire = extra.get("salaire") or emp.salaire or classif_salaire or "—"
+    salaire = extra.get("salaire") or emp.salaire or classif_salaire or "�"
     raw = extra.get("date_embauche") or str(emp.hire_date or date.today())
 
     emb_fr = fmt_date(raw)
@@ -255,58 +255,58 @@ def build_cdd_6(emp, extra):
     civ = civilite(emp)
     name = f"{emp.last_name} {emp.first_name}"
 
-    fonction = emp.job_title.name if emp.job_title else "—"
-    classif = emp.classification.classe if emp.classification else "—"
+    fonction = emp.job_title.name if emp.job_title else "�"
+    classif = emp.classification.classe if emp.classification else "�"
 
     b_date = fmt_date(getattr(emp, "birth_date", None))
-    b_place = getattr(emp, "birth_place", None) or "—"
-    addr = getattr(emp, "address", None) or "—"
-    cin = getattr(emp, "cin", None) or "—"
+    b_place = getattr(emp, "birth_place", None) or "�"
+    addr = getattr(emp, "address", None) or "�"
+    cin = getattr(emp, "cin", None) or "�"
     cin_date = fmt_date(getattr(emp, "cin_date", None))
-    cin_plc = getattr(emp, "cin_place", None) or "—"
+    cin_plc = getattr(emp, "cin_place", None) or "�"
 
     return fill_template(
         os.path.join(TEMPLATES_DIR, "contrat_de_travail.docx"),
         {
             # Ancien template avec placeholders
             "Madame/Monsieur": civ,
-            "Nom et Prénom": name,
+            "Nom et Pr�nom": name,
             "Date de naissance": b_date,
             "Date de naissace": b_date,
             "Lieu de naissance": b_place,
             "Adresse": addr,
-            "Numéro CIN": cin,
+            "Num�ro CIN": cin,
             "Date CIN": cin_date,
             "Lieu CIN": cin_plc,
-            "Emploie occupé": fonction,
+            "Emploie occup�": fonction,
             "Fonction": fonction,
-            "Numéro Matricule": emp.employee_id or "—",
-            "Matricule": emp.employee_id or "—",
+            "Num�ro Matricule": emp.employee_id or "�",
+            "Matricule": emp.employee_id or "�",
             "Montant": salaire,
             "Classification": classif,
-            "Date d’embacuhe  + mois": fin6,
-            "Date d’embauche + 6 mois": fin6,
-            "Date d’embauche + 3 mois": essai3,
-            "Date d’embauhce + 3 mois": essai3,
-            "Date d’embauhce": emb_fr,
-            "Date d’embauche": emb_fr,
+            "Date d�embacuhe  + mois": fin6,
+            "Date d�embauche + 6 mois": fin6,
+            "Date d�embauche + 3 mois": essai3,
+            "Date d�embauhce + 3 mois": essai3,
+            "Date d�embauhce": emb_fr,
+            "Date d�embauche": emb_fr,
 
-            # Nouveau template déjà rempli avec RAZANAMALALA Sandra
+            # Nouveau template d�j� rempli avec RAZANAMALALA Sandra
             "RAZANAMALALA Sandra": name,
-            "006278": emp.employee_id or "—",
+            "006278": emp.employee_id or "�",
             "Machiniste": fonction,
             "309500,00": salaire,
             "309500": salaire,
             "OS1": classif,
             "04 juin 2026": emb_fr,
-            "04 décembre 2026": fin6,
+            "04 d�cembre 2026": fin6,
             "04 septembre 2026": essai3,
             "117032017870": cin,
             "19 mars 1994": b_date,
             "Sakambahiny Bemasoandro": b_place,
             "Lot IT U 41 bis - Andranonahoatra": addr,
             "29 juillet 2013": cin_date,
-            ", à  Andranonahoatra.": f", à  {cin_plc}.",
+            ", �  Andranonahoatra.": f", �  {cin_plc}.",
             ", tao Andranonahoatra.": f", tao {cin_plc}.",
         },
         strip_underline=True,
@@ -346,9 +346,9 @@ def build_evaluation_cdd(emp, extra):
     })
 
 def build_cdd_18(emp, extra):
-    dept = emp.department.name if emp.department else "—"
+    dept = emp.department.name if emp.department else "�"
     section = extra.get("section") or (emp.section.name if emp.section else dept)
-    factory = emp.factory.name if emp.factory else "—"
+    factory = emp.factory.name if emp.factory else "�"
 
     # Date d'embauche
     hire_date = emp.hire_date or date.today()
@@ -356,7 +356,7 @@ def build_cdd_18(emp, extra):
     # Contrat de 18 mois
     contrat_fin = hire_date + relativedelta(months=18)
 
-    # Début du CDI = lendemain de la fin du CDD
+    # D�but du CDI = lendemain de la fin du CDD
     debut_cdi = contrat_fin + timedelta(days=1)
 
     hire = fmt_date(hire_date)
@@ -365,8 +365,8 @@ def build_cdd_18(emp, extra):
     d_cdi = fmt_date(debut_cdi)
 
     name = f"{emp.last_name} {emp.first_name}"
-    fonction = emp.job_title.name if emp.job_title else "—"
-    matricule = emp.employee_id or "—"
+    fonction = emp.job_title.name if emp.job_title else "�"
+    matricule = emp.employee_id or "�"
     return fill_template(
         os.path.join(TEMPLATES_DIR, "cdd-18mois.docx"),
         {
@@ -374,17 +374,17 @@ def build_cdd_18(emp, extra):
             "ONJANIAINA Virginie"                          : name,
             "004994"                                       : matricule,
             "Machiniste"                                   : fonction,
-            "GILLET ARABIE 2					Site : PBI3"    : f"{section}					Site : {factory}",
-            "31 janvier 2025			Date fin :  31 juillet 2026 " : f"{d_debut}			Date fin :  {d_fin} ",
-            "Date d’embauche : 31 janvier 2025"   : f"Date d’embauche : {hire}",
+            "GILLET ARABIE 2					Site�: PBI3"    : f"{section}					Site�: {factory}",
+            "31 janvier 2025			Date fin�:  31 juillet 2026 " : f"{d_debut}			Date fin�:  {d_fin} ",
+            "Date d�embauche�: 31 janvier 2025"   : f"Date d�embauche�: {hire}",
             # Signature + letter body (appears twice, both replaced)
             "Antananarivo le  31 juillet 2026"             : f"Antananarivo le  {d_fin}",
-            "M. / Mme : ONJANIAINA Virginie"            : f"M. / Mme : {name}",
-            "Matricule n° :  004994"               : f"Matricule n° :  {matricule}",
-            "Fonction :  Machiniste"                    : f"Fonction :  {fonction}",
-            "Section :   GILLET ARABIE 2						Site :  PBI3" : f"Section :   {section}						Site :  {factory}",
+            "M. / Mme�: ONJANIAINA Virginie"            : f"M. / Mme�: {name}",
+            "Matricule n��:  004994"               : f"Matricule n��:  {matricule}",
+            "Fonction�:  Machiniste"                    : f"Fonction�:  {fonction}",
+            "Section�:   GILLET ARABIE 2						Site�:  PBI3" : f"Section�:   {section}						Site�:  {factory}",
             # CDI date in letter body (appears twice)
-            "à compter du 31 juillet 2026  . "          : f"à compter du {d_cdi}  . ",
+            "� compter du 31 juillet 2026  . "          : f"� compter du {d_cdi}  . ",
             "manomboka ny 31 juillet 2026  ."              : f"manomboka ny {d_cdi}  .",
         }
     )
@@ -394,14 +394,14 @@ def build_cdd_3(emp, extra):
     hire_fr = fmt_date(raw)
     fin_essai = add_months(raw, 3)
 
-    fonction = emp.job_title.name if emp.job_title else "—"
-    section = extra.get("section") or (emp.section.name if emp.section else (emp.department.name if emp.department else "—"))
-    factory = emp.factory.name if emp.factory else "—"
+    fonction = emp.job_title.name if emp.job_title else "�"
+    section = extra.get("section") or (emp.section.name if emp.section else (emp.department.name if emp.department else "�"))
+    factory = emp.factory.name if emp.factory else "�"
 
     mergefields = {
-        "Nom": emp.last_name or "—",
-        "Prenom": emp.first_name or "—",
-        "Matricule": emp.employee_id or "—",
+        "Nom": emp.last_name or "�",
+        "Prenom": emp.first_name or "�",
+        "Matricule": emp.employee_id or "�",
         "Fonction": fonction,
         "Section": section,
         "Site_Publi": factory,
@@ -420,25 +420,25 @@ def build_cdd_12(emp, extra):
     hire_fr = fmt_date(raw)
     fin6 = add_months(raw, 6)
     fin12 = add_months(raw, 12)
-    fin18 = add_months(raw, 18)   # ? ajouté
+    fin18 = add_months(raw, 18)   # ? ajout�
 
-    fonction = emp.job_title.name if emp.job_title else "—"
-    section = extra.get("section") or (emp.section.name if emp.section else (emp.department.name if emp.department else "—"))
-    factory = emp.factory.name if emp.factory else "—"
+    fonction = emp.job_title.name if emp.job_title else "�"
+    section = extra.get("section") or (emp.section.name if emp.section else (emp.department.name if emp.department else "�"))
+    factory = emp.factory.name if emp.factory else "�"
 
     mergefields = {
-        "Nom": emp.last_name or "—",
-        "Prénom": emp.first_name or "—",
-        "Matricule": emp.employee_id or "—",
+        "Nom": emp.last_name or "�",
+        "Pr�nom": emp.first_name or "�",
+        "Matricule": emp.employee_id or "�",
         "Fonction": fonction,
         "Section": section,
         "Site_Publi": factory,
         "DE_en_LETTRES": hire_fr,
         "D_Fin_6_en_lettres": fin6,
         "D_Fin_12_en_lettres": fin12,
-        "D_Fin_18_en_lettres": fin18,   # ? ajouté
-        "Début_1_ère_renouvellement1": fin6,
-        "Fin_1ère_renouvellement1": fin12,
+        "D_Fin_18_en_lettres": fin18,   # ? ajout�
+        "D�but_1_�re_renouvellement1": fin6,
+        "Fin_1�re_renouvellement1": fin12,
     }
     return fill_template(
         os.path.join(TEMPLATES_DIR, "cdd-12mois.docx"),
@@ -450,7 +450,7 @@ def replace_mergefields(doc, field_map):
     """Remplace les champs MERGEFIELD Word (complexes ET simples) par du texte statique."""
     root = doc.element
 
-    # â”€â”€ 1. Champs simples : <w:fldSimple w:instr=" MERGEFIELD X "> ... </w:fldSimple>
+    # ── 1. Champs simples : <w:fldSimple w:instr=" MERGEFIELD X "> ... </w:fldSimple>
     fld_simples = root.findall('.//' + qn('w:fldSimple'))
     for fs in fld_simples:
         instr = fs.get(qn('w:instr')) or ""
@@ -475,7 +475,7 @@ def replace_mergefields(doc, field_map):
             fs.remove(child)
         fs.append(new_r)
 
-    # â”€â”€ 2. Champs complexes : fldChar begin/instrText/separate/end â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── 2. Champs complexes : fldChar begin/instrText/separate/end ──────────
     paragraphs = root.findall('.//' + qn('w:p'))
     for p in paragraphs:
         runs = list(p.findall(qn('w:r')))
@@ -598,13 +598,13 @@ def build_fin_cdd(emp, extra):
 
     return fill_template(os.path.join(TEMPLATES_DIR, "fin_cdd_terme.docx"), {
         "Antananarivo le,02 juillet 2026"                              : f"Antananarivo le,{date_fin}",
-        "Mr / Mme  RAMIARINARIVO  Cébastien Youlo Mabialahy"           : f"Mr / Mme  {name}",
+        "Mr / Mme  RAMIARINARIVO  C�bastien Youlo Mabialahy"           : f"Mr / Mme  {name}",
         "Fonction\xa0: Machiniste"                                     : f"Fonction\xa0: {fonction}",
         "Matricule\xa0:  005089"                                       : f"Matricule\xa0:  {matricule}",
         "Section\xa0: Machiniste"                                      : f"Section\xa0: {section}",
         "[DATE EMBAUCHE]" : hire,  
-        "18 février 2025" : hire,      # date d'embauche (corps FR + MG)
-        "02 juillet 2026" : date_fin,  # date d'effet (en-tête + corps FR + MG)
+        "18 f�vrier 2025" : hire,      # date d'embauche (corps FR + MG)
+        "02 juillet 2026" : date_fin,  # date d'effet (en-t�te + corps FR + MG)
     })
 
 
@@ -622,16 +622,16 @@ def build_essai_non_concluant(emp, extra):
         "M. RANDRIANOTAHINA Tiavina Milison Rova" : f"{civ_abbrev(emp)} {name}",
         "Mle 006418"                              : f"Mle {matricule}",
         "Machiniste"                              : fonction,   # remplace les 3 occurrences (titre, phrase FR, citation MG)
-        "07 juillet 2026"                          : date_fin,   # remplace en-tête + corps FR + corps MG
+        "07 juillet 2026"                          : date_fin,   # remplace en-t�te + corps FR + corps MG
     })
 
 BUILDERS = {
     "attestation"     : (build_attestation,      "Attestation_emploi"),
     "certificat"      : (build_certificat,       "Certificat_travail"),
     "cdd_3"           : (build_cdd_3,            "Evaluation_CDD_3mois"),
-    "cdd_6"           : (build_cdd_6,            "Contrat_CDD_6mois"),      # ex build_contrat_cdd, renommé
+    "cdd_6"           : (build_cdd_6,            "Contrat_CDD_6mois"),      # ex build_contrat_cdd, renomm�
     "cdd_12"          : (build_cdd_12,           "Evaluation_CDD_12mois"),
-    "cdd_18"          : (build_cdd_18,           "Contrat_CDD_18mois"),     # ex build_confirmation_cdi, renommé
+    "cdd_18"          : (build_cdd_18,           "Contrat_CDD_18mois"),     # ex build_confirmation_cdi, renomm�
     "evaluation_cdd"  : (build_evaluation_cdd,   "Evaluation_CDD"),
     "convocation_cdd"  : (build_convocation_cdd,   "Convocation_Abandon_Poste_CDD"),
     "convocation_cdi"  : (build_convocation_cdi,   "Convocation_Abandon_Poste_CDI"),
@@ -682,14 +682,14 @@ def bulk_documents_zip(request):
     if doc_type not in BUILDERS:
         return Response({"detail": f"Type inconnu: {doc_type}"}, status=400)
     if not employee_ids:
-        return Response({"detail": "Aucun employé sélectionné."}, status=400)
+        return Response({"detail": "Aucun employ� s�lectionn�."}, status=400)
 
     employees = Employee.objects.select_related(
         "factory", "department", "classification", "job_title",
     ).filter(employee_id__in=employee_ids)
 
     if not employees.exists():
-        return Response({"detail": "Aucun employé trouvé."}, status=404)
+        return Response({"detail": "Aucun employ� trouv�."}, status=404)
 
     zip_buffer = io.BytesIO()
 
@@ -729,7 +729,7 @@ def bulk_documents_zip(request):
 #         {"id":"certificat",     "title":"Certificat de travail"},
 #         {"id":"contrat_cdd",    "title":"Contrat CDD 6 mois"},
 #         {"id":"evaluation_cdd", "title":"\u00c9valuation & Renouvellement CDD"},
-#         {"id":"confirmation_cdi", "title":"Évaluation & Confirmation CDI"},
+#         {"id":"confirmation_cdi", "title":"�valuation & Confirmation CDI"},
 #     ]})
 @api_view(["GET"])
 @permission_classes([IsHRUser])
@@ -744,7 +744,7 @@ def list_templates(request):
         {"id":"evaluation_cdd",  "title":"\u00c9valuation & Renouvellement CDD"},
         {"id":"fin_cdd_terme",       "title":"Fin de contrat CDD (non renouvellement)"},
         {"id":"essai_non_concluant", "title":"Essai non concluant"},
-        {"id":"badge",           "title":"Badge employé"},
+        {"id":"badge",           "title":"Badge employ�"},
     ]})
 
 @api_view(["POST"])
@@ -757,9 +757,9 @@ def generate_document_pdf(request, employee_id, doc_type):
             "factory", "department", "section", "classification", "job_title",
         ).get(pk=employee_id)
     except Employee.DoesNotExist:
-        return Response({"detail": "Employé introuvable."}, status=404)
+        return Response({"detail": "Employ� introuvable."}, status=404)
 
-    # â”€â”€ Cas spécial : badge (HTML → PDF direct, pas de docx/LibreOffice) â”€â”€
+    # ── Cas sp�cial : badge (HTML ? PDF direct, pas de docx/LibreOffice) ──
     if doc_type == "badge":
         try:
             pdf_bytes = build_badge_pdf(emp)
@@ -801,7 +801,7 @@ def generate_document_pdf(request, employee_id, doc_type):
 
         pdf_path = os.path.join(tmpdir, "document.pdf")
         if not os.path.exists(pdf_path):
-            return Response({"detail": "PDF non généré."}, status=500)
+            return Response({"detail": "PDF non g�n�r�."}, status=500)
 
         with open(pdf_path, "rb") as f:
             pdf_bytes = f.read()
@@ -871,7 +871,7 @@ def bulk_documents_pdf(request):
     if not pdf_bytes_list:
         return Response({"detail": "Aucun PDF genere."}, status=500)
 
-    # Merge PDFs using pypdf (inchangé)
+    # Merge PDFs using pypdf (inchang�)
     import tempfile as _tempfile
     with _tempfile.TemporaryDirectory() as tmpdir:
         merged_path = os.path.join(tmpdir, "merged.pdf")
