@@ -4,7 +4,14 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import hrClient from "../api/hrClient";
 
-const HRAuthContext = createContext(null);
+const HRAuthContext = createContext({
+  hrProfile: null,
+  hrLoading: false,
+  can: () => false,
+  canSee: () => false,
+  reload: () => {},
+  resetProfile: () => {},
+});
 
 export function HRAuthProvider({ children }) {
   const [hrProfile, setHrProfile] = useState(null);
