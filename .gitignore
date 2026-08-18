@@ -54,3 +54,5 @@ ssl/*.pem
 frontend/playwright-report/
 frontend/test-results/
 test-results/
+*.backup
+*_backup.py
