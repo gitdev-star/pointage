@@ -1,4 +1,6 @@
-#models/attendance.py
+#===============================
+#app/models/attendance.py
+#===============================
 from sqlalchemy import Column, Integer, String, Date, DateTime, UniqueConstraint
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession

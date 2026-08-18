@@ -1,5 +1,6 @@
 # app/devices/zk_reader.py
 import logging
+import zlib
 from typing import List
 
 from zk import ZK
@@ -101,7 +102,9 @@ class ZKReader:
                 timestamp = log.timestamp
                 uid = getattr(log, "uid", None)
                 if uid is None:
-                    uid = int(f"{user_id}{int(timestamp.timestamp())}")
+                    # Same overflow-safe synthesis as adms_routes.py —
+                    # uid column is int32, naive concatenation overflows it.
+                    uid = zlib.crc32(f"{user_id}-{timestamp.isoformat()}".encode()) % 2147483647
                 else:
                     uid = int(uid)
                 values.append({
