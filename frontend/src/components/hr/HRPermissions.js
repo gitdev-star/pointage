@@ -80,6 +80,20 @@ const MODULES = [
   { key: "audit_logs", label: "Journal d'audit", perms: [
     { key: "audit_logs_read", label: "Voir" },
   ]},
+    { key: "dashboard", label: "Tableau de bord", perms: [
+    { key: "dashboard_read", label: "Voir" },
+  ]},
+  { key: "presence", label: "Présence", perms: [
+    { key: "presence_read",  label: "Voir" },
+    { key: "presence_write", label: "Modifier" },
+  ]},
+  { key: "retard", label: "Retards", perms: [
+    { key: "retard_read", label: "Voir" },
+  ]},
+  { key: "devices", label: "Appareils", perms: [
+    { key: "devices_read",  label: "Voir" },
+    { key: "devices_write", label: "Modifier" },
+  ]},
 ];
 
 export default function HRPermissions() {

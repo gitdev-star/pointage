@@ -45,10 +45,10 @@ function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
-          <Route path="/"           element={<PresenceDashboard />} />
-          <Route path="attendance"          element={<HRAttendanceDashboard />} />
-          <Route path="attendance/analysis" element={<AttendanceAnalysis />} />
-          <Route path="devices"             element={<DeviceStatus />} />
+          <Route path="/"                   element={<ProtectedRoute module="dashboard"><PresenceDashboard /></ProtectedRoute>} />
+          <Route path="attendance"          element={<ProtectedRoute module="presence"><HRAttendanceDashboard /></ProtectedRoute>} />
+          <Route path="attendance/analysis" element={<ProtectedRoute module="presence"><AttendanceAnalysis /></ProtectedRoute>} />
+          <Route path="devices"             element={<ProtectedRoute module="devices"><DeviceStatus /></ProtectedRoute>} />
           <Route path="profile"             element={<ProfilePage />} />
           <Route path="secure"              element={<SecurePage />} />
           <Route path="hr/employees"        element={< EmployeeList />} />
@@ -74,7 +74,7 @@ function App() {
           <Route path="hr/maternity"        element={<MaternityLeave />} />
 	        <Route path="hr/work-schedules" element={<WorkSchedules />} />
           <Route path="hr/schedule-assignment" element={<ScheduleAssignment />} />
-	        <Route path="attendance/late-report" element={<RetardPage />} />
+	        <Route path="attendance/late-report" element={<ProtectedRoute module="retard"><RetardPage /></ProtectedRoute>} />
         </Route>
       </Routes>
     </Router>
