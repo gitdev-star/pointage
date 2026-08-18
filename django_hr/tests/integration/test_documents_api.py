@@ -39,6 +39,8 @@ REAL_DOC_TYPES = [
     "cdd_12",
     "cdd_18",
     "evaluation_cdd",
+    "fin_cdd_terme",
+    "essai_non_concluant",
 ]
 
 
