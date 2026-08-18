@@ -5,11 +5,13 @@
 from django.utils import timezone
 from datetime import timedelta
 import django_filters
+from django.http import HttpResponse
 from rest_framework import viewsets, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from accounts.permissions import require_perm
+import csv
 
 
 from employees.models import WorkSchedule
@@ -194,7 +196,42 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"])
     def export(self, request):
-        ...  # inchangé
+        queryset = self.filter_queryset(self.get_queryset())
+
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = (
+            f'attachment; filename="evenements_{timezone.now().date()}.csv"'
+        )
+        response.write("\ufeff")  
+
+        writer = csv.writer(response, delimiter=";")  
+
+        writer.writerow([
+            "Matricule", "Employe", "Usine", "Type de conge",
+            "Date debut", "Date fin", "Jours demandes", "Duree (heures)",
+            "Statut", "Motif", "Approuve par", "Date approbation",
+            "Motif de rejet", "Cree le",
+        ])
+
+        for leave in queryset:
+            writer.writerow([
+                leave.employee.employee_id,
+                leave.employee.full_name,
+                leave.employee.factory.name if leave.employee.factory else "",
+                leave.leave_type.name,
+                leave.start_date.strftime("%d/%m/%Y"),
+                leave.end_date.strftime("%d/%m/%Y"),
+                leave.days_requested,
+                leave.duration_hours or "",
+                STATUS_LABELS_FR.get(leave.status, leave.status),
+                leave.reason,
+                leave.approved_by or "",
+                leave.approved_at.strftime("%d/%m/%Y %H:%M") if leave.approved_at else "",
+                leave.rejection_reason,
+                leave.created_at.strftime("%d/%m/%Y %H:%M"),
+            ])
+
+        return response
 
     @action(detail=True, methods=["post"])
     def approve_reject(self, request, pk=None):

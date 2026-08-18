@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
 
-# â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── helpers ───────────────────────────────────────────────────────────────────
 
 MONTHS_FR = ["","janvier","f\u00e9vrier","mars","avril","mai","juin",
              "juillet","ao\u00fbt","septembre","octobre","novembre","d\u00e9cembre"]
@@ -57,7 +57,7 @@ def ref_rh():
 def get_classif(emp):
     return getattr(emp,"classification",None) or getattr(emp,"category",None) or "\u2014"
 
-# â”€â”€ core replace (handles split runs) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── core replace (handles split runs) ────────────────────────────────────────
 
 def replace_in_paragraph(para, reps):
     full = "".join(r.text for r in para.runs)
@@ -188,7 +188,7 @@ def fill_template(tpl_path, reps, strip_underline=False, mergefields=None):
     buf.seek(0)
     return buf.read()
 
-# â”€â”€ builders â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── builders ──────────────────────────────────────────────────────────────────
 
 def build_attestation(emp, extra):
     usage        = extra.get("usage") or "Pr\u00eat bancaire BOA Tanjombato"
@@ -198,7 +198,7 @@ def build_attestation(emp, extra):
     civ          = civilite(emp)
     name         = f"{emp.last_name} {emp.first_name}"
     classif      = get_classif(emp)
-    factory      = emp.factory.name if emp.factory else "—"
+    factory      = emp.factory.name if emp.factory else "\u2014"
     contrat_txt  = "ind\u00e9termin\u00e9e" if (emp.contract_type or "") == "CDI" else "d\u00e9termin\u00e9e"
     return fill_template(os.path.join(TEMPLATES_DIR,"BASE_ATTESTATION.docx"), {
         "Date demande attestation"                                    : today,
@@ -400,7 +400,7 @@ def build_cdd_3(emp, extra):
 
     mergefields = {
         "Nom": emp.last_name or "—",
-        "Prenom": emp.first_name or "—",
+        "Prénom": emp.first_name or "—",
         "Matricule": emp.employee_id or "—",
         "Fonction": fonction,
         "Section": section,
@@ -420,25 +420,25 @@ def build_cdd_12(emp, extra):
     hire_fr = fmt_date(raw)
     fin6 = add_months(raw, 6)
     fin12 = add_months(raw, 12)
-    fin18 = add_months(raw, 18)   # ? ajouté
+    fin18 = add_months(raw, 18)   # ? ajout�
 
-    fonction = emp.job_title.name if emp.job_title else "—"
-    section = extra.get("section") or (emp.section.name if emp.section else (emp.department.name if emp.department else "—"))
-    factory = emp.factory.name if emp.factory else "—"
+    fonction = emp.job_title.name if emp.job_title else "�"
+    section = extra.get("section") or (emp.section.name if emp.section else (emp.department.name if emp.department else "�"))
+    factory = emp.factory.name if emp.factory else "�"
 
     mergefields = {
-        "Nom": emp.last_name or "—",
-        "Prénom": emp.first_name or "—",
-        "Matricule": emp.employee_id or "—",
+        "Nom": emp.last_name or "�",
+        "Pr�nom": emp.first_name or "�",
+        "Matricule": emp.employee_id or "�",
         "Fonction": fonction,
         "Section": section,
         "Site_Publi": factory,
         "DE_en_LETTRES": hire_fr,
         "D_Fin_6_en_lettres": fin6,
         "D_Fin_12_en_lettres": fin12,
-        "D_Fin_18_en_lettres": fin18,   # ? ajouté
-        "Début_1_ère_renouvellement1": fin6,
-        "Fin_1ère_renouvellement1": fin12,
+        "D_Fin_18_en_lettres": fin18,   # ? ajout�
+        "D�but_1_�re_renouvellement1": fin6,
+        "Fin_1�re_renouvellement1": fin12,
     }
     return fill_template(
         os.path.join(TEMPLATES_DIR, "cdd-12mois.docx"),
@@ -450,7 +450,7 @@ def replace_mergefields(doc, field_map):
     """Remplace les champs MERGEFIELD Word (complexes ET simples) par du texte statique."""
     root = doc.element
 
-    # â”€â”€ 1. Champs simples : <w:fldSimple w:instr=" MERGEFIELD X "> ... </w:fldSimple>
+    # ── 1. Champs simples : <w:fldSimple w:instr=" MERGEFIELD X "> ... </w:fldSimple>
     fld_simples = root.findall('.//' + qn('w:fldSimple'))
     for fs in fld_simples:
         instr = fs.get(qn('w:instr')) or ""
@@ -475,7 +475,7 @@ def replace_mergefields(doc, field_map):
             fs.remove(child)
         fs.append(new_r)
 
-    # â”€â”€ 2. Champs complexes : fldChar begin/instrText/separate/end â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── 2. Champs complexes : fldChar begin/instrText/separate/end ──────────
     paragraphs = root.findall('.//' + qn('w:p'))
     for p in paragraphs:
         runs = list(p.findall(qn('w:r')))
@@ -759,7 +759,7 @@ def generate_document_pdf(request, employee_id, doc_type):
     except Employee.DoesNotExist:
         return Response({"detail": "Employé introuvable."}, status=404)
 
-    # â”€â”€ Cas spécial : badge (HTML → PDF direct, pas de docx/LibreOffice) â”€â”€
+    # ── Cas spécial : badge (HTML → PDF direct, pas de docx/LibreOffice) ──
     if doc_type == "badge":
         try:
             pdf_bytes = build_badge_pdf(emp)

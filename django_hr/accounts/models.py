@@ -90,8 +90,8 @@ class HRProfile(models.Model):
             return [
                 "employees", "payroll", "leaves", "reports", "shifts",
                 "recruitment", "contracts", "sanctions", "retraite",
-                "pay_events", "alerts", "organisation", "hr_users",
-                "transport", "cantine", "horaire", "audit_logs",   # ✅ ajoutés
+                "pay_events", "alerts", "organisation", "hr_events", "hr_users",
+                "transport", "cantine", "horaire", "audit_logs", 
             ]
         modules = []
         if self.perm_employees_read:

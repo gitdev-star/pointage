@@ -27,7 +27,9 @@ export function useExportCSV(filters, filenamePrefix = "employes", endpoint = "e
       params.page = 1;
 
       const r    = await hrClient.get(endpoint, { params });
-      const rows = r.data.results ?? r.data;
+      const rows = (r.data.results ?? r.data).slice().sort((a, b) =>
+        String(a.employee_id ?? "").localeCompare(String(b.employee_id ?? ""), undefined, { numeric: true, sensitivity: "base" })
+      );
 
       const content = buildCSVContent(rows);
       downloadCSV(content, csvFilename(filenamePrefix));
