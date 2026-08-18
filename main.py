@@ -11,6 +11,8 @@ from app.routers.late_report import router as late_report_router
 from app.routers.devices import router as devices_router
 import sentry_sdk
 from sentry_sdk.integrations.fastapi import FastApiIntegration
+from app.routers import adms_routes
+
 
 
 logging.basicConfig(level=logging.DEBUG)
@@ -86,6 +88,7 @@ app.include_router(attendance_routes.router, prefix="/attendance")
 app.include_router(hr_routes.router)
 app.include_router(late_report_router)
 app.include_router(devices_router)
+app.include_router(adms_routes.router)
 
 @app.get("/")
 async def root():
