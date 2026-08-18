@@ -22,16 +22,16 @@ async function loadEmployeeMap() {
       map[id] = {
         name: `${e.first_name} ${e.last_name}`,
         factoryId: e.factory,
-        factoryName: e.factory_name || "Non assigné",
-        empId: e.employee_id || "",                          // <-- ajouté
-        departmentName: e.department_name || "Non assigné",  // <-- ajouté
+        factoryName: e.factory_name || "Non assign�",
+        empId: e.employee_id || "",
+        departmentName: e.department_name || "Non assign�",
+        fonction: e.fonction || e.poste || e.job_title || "Non assign�", // <-- � ajuster
       };
     }
   });
   sessionStorage.setItem("empMap_v1", JSON.stringify(map));
   return map;
 }
-
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function useRetard() {
@@ -90,19 +90,62 @@ export default function useRetard() {
     }
   }, [year, month, minLate, classificationParam]);
 
-  const exportReport = useCallback(async () => {
-    setExporting(true);
-    try {
-      await retardService.exportLateReport({
-        year, month, minLate, classification: classificationParam,
-      });
-    } catch (e) {
-      alert(e.message || "Erreur lors de l'export");
-    } finally {
-      setExporting(false);
-    }
-  }, [year, month, minLate, classificationParam]);
+const exportReport = useCallback(() => {
+  if (!data) return;
+  setExporting(true);
+  try {
+    const MONTH_NAMES = ["", "Janvier","F�vrier","Mars","Avril","Mai","Juin",
+      "Juillet","Ao�t","Septembre","Octobre","Novembre","D�cembre"];
 
+    const DAY_NAMES_FR = {
+  	Monday: "Lundi", Tuesday: "Mardi", Wednesday: "Mercredi",
+  	Thursday: "Jeudi", Friday: "Vendredi", Saturday: "Samedi", Sunday: "Dimanche",
+    };
+
+    const rows = [];
+    rows.push([`Rapport retards � ${MONTH_NAMES[data.month]} ${data.year}`]);
+    rows.push([`Seuil minimum : ${data.min_late} retard(s)`]);
+    rows.push([
+      `Employ�s analys�s : ${data.total_employees_analyzed}`,
+      `Employ�s en retard = ${data.min_late}x : ${data.total_late_employees}`,
+    ]);
+    rows.push([]);
+    rows.push([
+      "ID Employ�", "Nom", "Fonction", "Nb retards", "Jours pr�sents",
+      "Taux retard (%)", "Date", "Jour", "Heure arriv�e", "Minutes de retard",
+    ]);
+
+data.employees.forEach((emp) => {
+  const info = employeeMap[Number(emp.user_id)] || {};
+  emp.late_days.forEach((ld, i) => {
+    rows.push([
+      i === 0 ? emp.user_id : "",
+      i === 0 ? (info.name || "Employ� inconnu") : "",
+      i === 0 ? (info.fonction || "") : "",
+      i === 0 ? emp.late_count : "",
+      i === 0 ? emp.total_days_present : "",
+      i === 0 ? emp.late_rate_pct : "",
+      new Date(ld.date).toLocaleDateString("fr-FR"),
+      DAY_NAMES_FR[ld.day_name] || ld.day_name,
+      ld.arrival || "�",
+      ld.minutes_late,
+    ]);
+  });
+});
+    const csv = "\ufeff" + rows.map(r => r.join(";")).join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `retards_${data.year}_${String(data.month).padStart(2, "0")}_min${data.min_late}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    alert(e.message || "Erreur lors de l'export");
+  } finally {
+    setExporting(false);
+  }
+}, [data, employeeMap]);
   const toggleSort = useCallback((col) => {
     if (sortBy === col) setSortDir((d) => (d === "desc" ? "asc" : "desc"));
     else { setSortBy(col); setSortDir("desc"); }

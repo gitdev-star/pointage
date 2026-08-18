@@ -469,6 +469,13 @@
                   ))}
                 </Select>
               </FormControl>
+  		<TextField
+                  {...sm}
+                  label="CNAPS"
+                  value={formData.cnaps || ""}
+                  onChange={(e) => handleFormChange("cnaps", e.target.value)}
+                  InputProps={{ sx: inputSx }}
+                />
             </Row>
             <Row>
                 <TextField

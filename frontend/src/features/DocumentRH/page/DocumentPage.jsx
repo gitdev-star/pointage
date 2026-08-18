@@ -12,8 +12,13 @@ import EmployeeDocumentTable from "../component/EmployeDocumentListe";
 // Champs supplémentaires à saisir manuellement pour certains documents
 // (mêmes valeurs appliquées à tous les employés sélectionnés)
 const DOC_EXTRA_FIELDS = {
+  
+  attestation: [
+    { key: "usage", label: "Motif de l'attestation (usage)", type: "text" },
+  ],
+
   certificat: [
-    { key: "date_fin", label: "Date de fin (d�bauche)", type: "date" },
+    { key: "date_fin", label: "Date de fin (d�bauche)", type: "date" },
   ],
   convocation_cdd: [
     { key: "date_abandon",           label: "Date d'abandon de poste",   type: "date" },
@@ -35,9 +40,15 @@ const DOC_EXTRA_FIELDS = {
     { key: "date_preavis_debut", label: "Début période préavis",             type: "date" },
     { key: "date_preavis_fin",   label: "Fin période préavis",               type: "date" },
   ],
+  fin_cdd_terme: [
+    { key: "date_fin", label: "Date d'effet (fin de contrat)", type: "date" },
+  ],
+  essai_non_concluant: [
+    { key: "date_fin", label: "Date d'effet (rupture)", type: "date" },
+  ],
 };
 
-const SINGLE_EMPLOYEE_ONLY = ["convocation_cdd", "convocation_cdi", "suspension"];
+const SINGLE_EMPLOYEE_ONLY = ["convocation_cdd", "convocation_cdi", "suspension", "fin_cdd_terme", "essai_non_concluant"];
 
 export default function DocumentsRHPage() {
   const [employees, setEmployees] = useState([]);
@@ -193,6 +204,8 @@ const handleBulkPrint = async (documentType) => {
   { type: "convocation_cdd",  label: "Convocation abandon de poste (CDD)",  color: "error",     always: true },
   { type: "convocation_cdi",  label: "Convocation abandon de poste (CDI)",  color: "error",     always: true },
   { type: "suspension",       label: "Suspension de contrat (maladie)",     color: "warning",   always: true },
+  { type: "fin_cdd_terme",       label: "Fin de contrat CDD (non renouvellement)", color: "error", always: true },
+  { type: "essai_non_concluant", label: "Essai non concluant",                     color: "error", always: true },
   { type: "badge",            label: "Badge employé",                   color: "info",      always: true },
 ];
   // en haut du fichier, à côté de DOC_TYPES
@@ -268,7 +281,7 @@ const anciennetEmployees = useMemo(() => {
 
         {cddType && (
           <Chip
-            label={`${anciennetEmployees.length} employé(s) — ${CDD_ANCIENNETE_TYPES.find(t => t.value === cddType)?.label}`}
+            label={`${total} employé(s) — ${CDD_ANCIENNETE_TYPES.find(t => t.value === cddType)?.label}`}
             color="warning"
           />
         )}

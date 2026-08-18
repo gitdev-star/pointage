@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
 
-# ── helpers ───────────────────────────────────────────────────────────────────
+# â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 MONTHS_FR = ["","janvier","f\u00e9vrier","mars","avril","mai","juin",
              "juillet","ao\u00fbt","septembre","octobre","novembre","d\u00e9cembre"]
@@ -57,7 +57,7 @@ def ref_rh():
 def get_classif(emp):
     return getattr(emp,"classification",None) or getattr(emp,"category",None) or "\u2014"
 
-# ── core replace (handles split runs) ────────────────────────────────────────
+# â”€â”€ core replace (handles split runs) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def replace_in_paragraph(para, reps):
     full = "".join(r.text for r in para.runs)
@@ -188,7 +188,7 @@ def fill_template(tpl_path, reps, strip_underline=False, mergefields=None):
     buf.seek(0)
     return buf.read()
 
-# ── builders ──────────────────────────────────────────────────────────────────
+# â”€â”€ builders â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def build_attestation(emp, extra):
     usage        = extra.get("usage") or "Pr\u00eat bancaire BOA Tanjombato"
@@ -198,7 +198,7 @@ def build_attestation(emp, extra):
     civ          = civilite(emp)
     name         = f"{emp.last_name} {emp.first_name}"
     classif      = get_classif(emp)
-    factory      = emp.factory.name if emp.factory else "\u2014"
+    factory      = emp.factory.name if emp.factory else "—"
     contrat_txt  = "ind\u00e9termin\u00e9e" if (emp.contract_type or "") == "CDI" else "d\u00e9termin\u00e9e"
     return fill_template(os.path.join(TEMPLATES_DIR,"BASE_ATTESTATION.docx"), {
         "Date demande attestation"                                    : today,
@@ -266,7 +266,7 @@ def build_cdd_6(emp, extra):
     cin_plc = getattr(emp, "cin_place", None) or "—"
 
     return fill_template(
-        os.path.join(TEMPLATES_DIR, "cdd-6mois.docx"),
+        os.path.join(TEMPLATES_DIR, "contrat_de_travail.docx"),
         {
             # Ancien template avec placeholders
             "Madame/Monsieur": civ,
@@ -317,12 +317,13 @@ def build_evaluation_cdd(emp, extra):
     section  = extra.get("section") or dept
     factory  = emp.factory.name if emp.factory else "\u2014"
     hire     = fmt_date(emp.hire_date)
-    d_debut  = fmt_date(extra.get("date_debut") or str(emp.hire_date or date.today()))
-    d_fin    = fmt_date(extra.get("date_fin_eval")) if extra.get("date_fin_eval") else "\u2014"
+    raw_hire = extra.get("date_debut") or str(emp.hire_date or date.today())
+    d_debut  = fmt_date(raw_hire)
+    d_fin    = fmt_date(extra.get("date_fin_eval")) if extra.get("date_fin_eval") else add_months(raw_hire, 6)
     name     = f"{emp.last_name} {emp.first_name}"
     civ      = civilite(emp)
     today    = today_fr()
-    return fill_template(os.path.join(TEMPLATES_DIR,"contrat_de_travail.docx"), {
+    return fill_template(os.path.join(TEMPLATES_DIR,"cdd-6mois.docx"), {
         # Header block
         "NOM ET PRENOMS\xa0: "                          : f"NOM ET PRENOMS\xa0: {name}",
         "MATRICULE\xa0: "                               : f"MATRICULE\xa0: {emp.employee_id or chr(8212)}",
@@ -399,7 +400,7 @@ def build_cdd_3(emp, extra):
 
     mergefields = {
         "Nom": emp.last_name or "—",
-        "Prénom": emp.first_name or "—",
+        "Prenom": emp.first_name or "—",
         "Matricule": emp.employee_id or "—",
         "Fonction": fonction,
         "Section": section,
@@ -419,6 +420,7 @@ def build_cdd_12(emp, extra):
     hire_fr = fmt_date(raw)
     fin6 = add_months(raw, 6)
     fin12 = add_months(raw, 12)
+    fin18 = add_months(raw, 18)   # ? ajouté
 
     fonction = emp.job_title.name if emp.job_title else "—"
     section = extra.get("section") or (emp.section.name if emp.section else (emp.department.name if emp.department else "—"))
@@ -434,6 +436,7 @@ def build_cdd_12(emp, extra):
         "DE_en_LETTRES": hire_fr,
         "D_Fin_6_en_lettres": fin6,
         "D_Fin_12_en_lettres": fin12,
+        "D_Fin_18_en_lettres": fin18,   # ? ajouté
         "Début_1_ère_renouvellement1": fin6,
         "Fin_1ère_renouvellement1": fin12,
     }
@@ -583,15 +586,45 @@ def build_suspension(emp, extra):
         os.path.join(TEMPLATES_DIR, "Mod\u00e8le_suspension_du_contrat.docx"),
         reps,
     )
-# ── API ───────────────────────────────────────────────────────────────────────
 
-# BUILDERS = {
-#     "attestation"   : (build_attestation,    "Attestation_emploi"),
-#     "certificat"    : (build_certificat,     "Certificat_travail"),
-#     "contrat_cdd"   : (build_contrat_cdd,    "Contrat_CDD"),
-#     "evaluation_cdd": (build_evaluation_cdd, "Evaluation_CDD"),
-#     "confirmation_cdi" : (build_confirmation_cdi,  "Confirmation_CDI"),
-# }
+def build_fin_cdd(emp, extra):
+    """Lettre de fin de contrat CDD (non-renouvellement)."""
+    date_fin = fmt_date(extra.get("date_fin") or date.today())
+    hire     = fmt_date(emp.hire_date)
+    name     = f"{emp.last_name}  {emp.first_name}"
+    fonction = emp.job_title.name if emp.job_title else "\u2014"
+    section  = emp.section.name if emp.section else (emp.department.name if emp.department else "\u2014")
+    matricule = emp.employee_id or "\u2014"
+
+    return fill_template(os.path.join(TEMPLATES_DIR, "fin_cdd_terme.docx"), {
+        "Antananarivo le,02 juillet 2026"                              : f"Antananarivo le,{date_fin}",
+        "Mr / Mme  RAMIARINARIVO  Cébastien Youlo Mabialahy"           : f"Mr / Mme  {name}",
+        "Fonction\xa0: Machiniste"                                     : f"Fonction\xa0: {fonction}",
+        "Matricule\xa0:  005089"                                       : f"Matricule\xa0:  {matricule}",
+        "Section\xa0: Machiniste"                                      : f"Section\xa0: {section}",
+        "[DATE EMBAUCHE]" : hire,  
+        "18 février 2025" : hire,      # date d'embauche (corps FR + MG)
+        "02 juillet 2026" : date_fin,  # date d'effet (en-tête + corps FR + MG)
+    })
+
+
+def civ_abbrev(emp):
+    return "Mme" if civilite(emp) == "Madame" else "M."
+
+def build_essai_non_concluant(emp, extra):
+    """Lettre de rupture pour essai non concluant."""
+    date_fin  = fmt_date(extra.get("date_fin") or date.today())
+    name      = f"{emp.last_name} {emp.first_name}"
+    fonction  = emp.job_title.name if emp.job_title else "\u2014"
+    matricule = emp.employee_id or "\u2014"
+
+    return fill_template(os.path.join(TEMPLATES_DIR, "essai_non_concluant.docx"), {
+        "M. RANDRIANOTAHINA Tiavina Milison Rova" : f"{civ_abbrev(emp)} {name}",
+        "Mle 006418"                              : f"Mle {matricule}",
+        "Machiniste"                              : fonction,   # remplace les 3 occurrences (titre, phrase FR, citation MG)
+        "07 juillet 2026"                          : date_fin,   # remplace en-tête + corps FR + corps MG
+    })
+
 BUILDERS = {
     "attestation"     : (build_attestation,      "Attestation_emploi"),
     "certificat"      : (build_certificat,       "Certificat_travail"),
@@ -603,6 +636,8 @@ BUILDERS = {
     "convocation_cdd"  : (build_convocation_cdd,   "Convocation_Abandon_Poste_CDD"),
     "convocation_cdi"  : (build_convocation_cdi,   "Convocation_Abandon_Poste_CDI"),
     "suspension"       : (build_suspension,        "Suspension_Contrat"),
+    "fin_cdd_terme"      : (build_fin_cdd,              "Fin_CDD_Terme"),        
+    "essai_non_concluant": (build_essai_non_concluant,  "Essai_Non_Concluant"),
     "badge"           : (None,                   "Badge_employe"), 
 }
 
@@ -707,6 +742,8 @@ def list_templates(request):
         {"id":"cdd_12",          "title":"Contrat CDD 12 mois"},
         {"id":"cdd_18",          "title":"Contrat CDD 18 mois"},
         {"id":"evaluation_cdd",  "title":"\u00c9valuation & Renouvellement CDD"},
+        {"id":"fin_cdd_terme",       "title":"Fin de contrat CDD (non renouvellement)"},
+        {"id":"essai_non_concluant", "title":"Essai non concluant"},
         {"id":"badge",           "title":"Badge employé"},
     ]})
 
@@ -722,7 +759,7 @@ def generate_document_pdf(request, employee_id, doc_type):
     except Employee.DoesNotExist:
         return Response({"detail": "Employé introuvable."}, status=404)
 
-    # ── Cas spécial : badge (HTML → PDF direct, pas de docx/LibreOffice) ──
+    # â”€â”€ Cas spécial : badge (HTML → PDF direct, pas de docx/LibreOffice) â”€â”€
     if doc_type == "badge":
         try:
             pdf_bytes = build_badge_pdf(emp)
