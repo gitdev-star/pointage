@@ -85,67 +85,6 @@ def remove_underline(doc):
                         if r.underline:
                             r.underline = False
 
-def replace_mergefields(doc, field_map):
-    """Remplace les champs MERGEFIELD Word par du texte statique."""
-    root = doc.element
-    paragraphs = root.findall('.//' + qn('w:p'))
-    for p in paragraphs:
-        runs = list(p.findall(qn('w:r')))
-        i = 0
-        while i < len(runs):
-            r = runs[i]
-            fld = r.find(qn('w:fldChar'))
-            if fld is not None and fld.get(qn('w:fldCharType')) == 'begin':
-                collected = [r]
-                field_name = None
-                j = i + 1
-                while j < len(runs):
-                    rj = runs[j]
-                    collected.append(rj)
-                    instr = rj.find(qn('w:instrText'))
-                    if instr is not None and instr.text and 'MERGEFIELD' in instr.text:
-                        m = re.search(r'MERGEFIELD\s+"?([^"\s]+)"?', instr.text)
-                        if m:
-                            field_name = m.group(1)
-                    fld2 = rj.find(qn('w:fldChar'))
-                    if fld2 is not None and fld2.get(qn('w:fldCharType')) == 'separate':
-                        j += 1
-                        break
-                    j += 1
-                template_run = None
-                k = j
-                while k < len(runs):
-                    rk = runs[k]
-                    collected.append(rk)
-                    if template_run is None and rk.find(qn('w:t')) is not None:
-                        template_run = rk
-                    fldend = rk.find(qn('w:fldChar'))
-                    if fldend is not None and fldend.get(qn('w:fldCharType')) == 'end':
-                        break
-                    k += 1
-
-                value = field_map.get(field_name, "") if field_name else ""
-
-                new_r = OxmlElement('w:r')
-                if template_run is not None:
-                    rpr = template_run.find(qn('w:rPr'))
-                    if rpr is not None:
-                        new_r.append(copy.deepcopy(rpr))
-                t = OxmlElement('w:t')
-                t.set(qn('xml:space'), 'preserve')
-                t.text = str(value)
-                new_r.append(t)
-
-                collected[0].addprevious(new_r)
-                for el in collected:
-                    parent = el.getparent()
-                    if parent is not None:
-                        parent.remove(el)
-
-                runs = list(p.findall(qn('w:r')))
-                i = runs.index(new_r) + 1
-                continue
-            i += 1
 
 def fill_template(tpl_path, reps, strip_underline=False, mergefields=None):
     from docx import Document
