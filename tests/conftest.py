@@ -81,3 +81,24 @@ def pytest_sessionfinish(session, exitstatus):
         loop.close()
     except Exception:
         pass
+
+@pytest.fixture
+async def pg_engine():
+    pg_url = os.environ.get(
+        "TEST_DATABASE_URL",
+        "postgresql+asyncpg://postgres:postgres@localhost:5432/pointage_test",
+    )
+    eng = create_async_engine(pg_url)
+    async with eng.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield eng
+    async with eng.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+    await eng.dispose()
+
+
+@pytest.fixture
+async def pg_session(pg_engine):
+    async_session = async_sessionmaker(pg_engine, class_=AsyncSession, expire_on_commit=False)
+    async with async_session() as session:
+        yield session
