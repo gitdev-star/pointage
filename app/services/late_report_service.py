@@ -22,6 +22,7 @@ from calendar import monthrange
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime
+from zoneinfo import ZoneInfo
 from typing import List, Optional, Set
 
 from sqlalchemy import select, func, and_
@@ -35,6 +36,8 @@ from app.services.analysis_service import (
 )
 
 logger = logging.getLogger(__name__)
+
+MADAGASCAR_TZ = ZoneInfo("Indian/Antananarivo")
 
 
 # ── HR DB connection helper ────────────────────────────────────────────────────
