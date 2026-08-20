@@ -4,8 +4,7 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.database import engine
-from app.models.attendance import Base
+from app.database import engine, init_db
 from app.routers import attendance_routes, hr_routes
 from app.routers.late_report import router as late_report_router
 from app.routers.devices import router as devices_router
@@ -39,8 +38,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     logger.info("🚀 FastAPI starting...")
     if os.getenv("ENVIRONMENT") != "test":
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+        await init_db()
         logger.info("✅ Database ready")
     logger.info("🎯 API is LIVE on :8080 — sync handled by sync_service.py")
     yield

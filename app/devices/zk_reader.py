@@ -2,6 +2,7 @@
 import logging
 import zlib
 from typing import List
+from datetime import datetime, timezone
 
 from zk import ZK
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -99,20 +100,19 @@ class ZKReader:
         for log in logs:
             try:
                 user_id = int(log.user_id)
-                timestamp = log.timestamp
+                device_timestamp = log.timestamp
                 uid = getattr(log, "uid", None)
                 if uid is None:
-                    # Same overflow-safe synthesis as adms_routes.py —
-                    # uid column is int32, naive concatenation overflows it.
-                    uid = zlib.crc32(f"{user_id}-{timestamp.isoformat()}".encode()) % 2147483647
+                    uid = zlib.crc32(f"{user_id}-{device_timestamp.isoformat()}".encode()) % 2147483647
                 else:
                     uid = int(uid)
                 values.append({
                     "uid": uid,
                     "user_id": user_id,
-                    "timestamp": timestamp,
-                    "date": timestamp.date(),
+                    "device_timestamp": device_timestamp,
+                    "date": device_timestamp.date(),
                     "device_ip": self.device_ip,
+                    # created_at intentionally omitted — DB sets it automatically
                 })
             except Exception as e:
                 logger.warning(f"[ZK] {self.device_ip} bad log skipped: {e}")
@@ -126,7 +126,7 @@ class ZKReader:
             for i in range(0, len(values), BATCH_SIZE):
                 chunk = values[i:i + BATCH_SIZE]
                 stmt = insert(Attendance.__table__).values(chunk)
-                stmt = stmt.on_conflict_do_nothing(index_elements=["user_id", "timestamp", "date"])
+                stmt = stmt.on_conflict_do_nothing(index_elements=["user_id", "device_timestamp", "date"])
                 await db.execute(stmt)
                 await db.commit()
                 total_inserted += len(chunk)
