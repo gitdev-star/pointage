@@ -392,7 +392,8 @@ class TestAttendanceRoutesBranches:
         today = date.today()
         test_session.add(Attendance(
             uid=8010, user_id=810,
-            timestamp=datetime.combine(today, time(8, 0)),  # after 07:40 = late
+            device_timestamp=datetime.combine(today, time(8, 0)),  # after 07:40 = late
+            timestamp=datetime.combine(today, time(8, 0)),  # KPI logic reads `timestamp`, not device_timestamp
             date=today, device_ip="10.8.0.10"
         ))
         await test_session.commit()

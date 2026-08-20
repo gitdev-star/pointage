@@ -4,6 +4,7 @@ os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 
 import pytest
 from httpx import AsyncClient, ASGITransport
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.pool import StaticPool
 from app.database import Base
@@ -19,6 +20,14 @@ async def test_engine():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
+
+    @event.listens_for(eng.sync_engine, "connect")
+    def _register_sqlite_now(dbapi_connection, connection_record):
+        from datetime import datetime, timezone
+        dbapi_connection.create_function(
+            "now", 0, lambda: datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f")
+        )
+
     async with eng.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield eng
