@@ -11,8 +11,7 @@ from typing import Dict, List, Tuple
 
 import httpx
 
-from app.database import AsyncSessionLocal, engine
-from app.models.attendance import Base
+from app.database import AsyncSessionLocal, engine, init_db
 from app.devices.zk_reader import ZKReader
 import sentry_sdk
 from sentry_sdk.integrations.logging import LoggingIntegration
@@ -24,6 +23,32 @@ CLOCKERS_API_URL = os.getenv("DJANGO_AUTH_URL", "http://django-auth:8000/api/clo
 SYNC_INTERVAL        = 60    # seconds between syncs when active
 IDLE_INTERVAL        = 120   # seconds between syncs when no new logs
 DEVICE_STAGGER       = 10    # seconds between starting each device task
+
+
+
+from sqlalchemy import select
+from app.models.device_sync import DeviceSyncState
+
+# --------------------------------------------------
+# PUSH-AWARENESS
+# --------------------------------------------------
+PUSH_ACTIVE_WINDOW = 300   # seconds — if device pushed within this window, treat push as healthy
+PUSH_BACKOFF_SLEEP = 180   # seconds — how long to wait before re-checking when push is healthy
+
+async def is_push_active(ip: str) -> bool:
+    """True if this device has pushed data recently — pull should stand down."""
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(DeviceSyncState.last_push_at).where(DeviceSyncState.device_ip == ip)
+        )
+        last_push = result.scalar()
+        if last_push is None:
+            return False
+        age = (datetime.utcnow().replace(tzinfo=last_push.tzinfo) - last_push).total_seconds()
+        return age < PUSH_ACTIVE_WINDOW
+
+
+
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -111,15 +136,24 @@ async def fetch_active_devices() -> List[Tuple[str, int]]:
 # - on_conflict_do_nothing (no duplicates)
 # --------------------------------------------------
 async def sync_device_loop(ip: str, port: int):
-    """Runs forever for one device: connect → fetch → bulk insert → sleep → repeat."""
+    """Runs forever for one device: connect → fetch → bulk insert → sleep → repeat.
+    Backs off entirely while push is confirmed healthy for this device —
+    pull only takes over as a fallback if push goes quiet."""
     lock = get_lock(ip)
-    logger.info(f"[{ip}] 🔄 Starting sync loop")
+    logger.info(f"[{ip}] 🔄 Starting sync loop (fallback mode)")
 
     consecutive_errors = 0
     idle_cycles = 0
 
     while True:
-        # Check reachability first to avoid long timeouts
+        # NEW: if push is alive for this device, don't contend for the socket at all
+        if await is_push_active(ip):
+            logger.debug(f"[{ip}] 💤 Push active — pull standing down for {PUSH_BACKOFF_SLEEP}s")
+            await asyncio.sleep(PUSH_BACKOFF_SLEEP)
+            continue
+
+        logger.info(f"[{ip}] ⚠️  No recent push seen — pull taking over as fallback")
+
         if not await is_reachable(ip, port):
             consecutive_errors += 1
             logger.warning(f"[{ip}] ⚠️  Unreachable [{consecutive_errors}], retrying in 30s")
@@ -129,11 +163,9 @@ async def sync_device_loop(ip: str, port: int):
         zk = ZKReader(device_ip=ip, device_port=port)
 
         try:
-            # Connect
             async with lock:
                 await zk.connect()
 
-            # Fetch + bulk insert using zk_reader.process_logs()
             async with AsyncSessionLocal() as db:
                 async with lock:
                     saved = await zk.process_logs(db)
@@ -141,12 +173,12 @@ async def sync_device_loop(ip: str, port: int):
             if saved and saved > 0:
                 consecutive_errors = 0
                 idle_cycles = 0
-                logger.debug(f"[{ip}] ✅ {saved} logs inserted")
+                logger.debug(f"[{ip}] ✅ {saved} logs inserted via fallback pull")
             else:
                 idle_cycles += 1
-                logger.debug(f"[{ip}] No new logs (idle #{idle_cycles})")
+                logger.debug(f"[{ip}] No new logs via pull (idle #{idle_cycles})")
 
-            consecutive_errors = 0  # reset on successful cycle
+            consecutive_errors = 0
 
         except Exception as e:
             consecutive_errors += 1
@@ -155,18 +187,14 @@ async def sync_device_loop(ip: str, port: int):
                 logger.error(f"[{ip}] 🛑 Too many errors, stopping")
                 break
         finally:
-            # Always clean up device connection
             try:
                 await zk.force_reset()
             except Exception as e:
                 logger.debug(f"[{ip}] force_reset cleanup failed (non-fatal): {e}")
 
-        # Smart sleep: slow down when idle to reduce DB pressure
         sleep_time = IDLE_INTERVAL if idle_cycles >= 3 else SYNC_INTERVAL
-        logger.debug(f"[{ip}] 💤 Next sync in {sleep_time}s")
+        logger.debug(f"[{ip}] 💤 Next check in {sleep_time}s")
         await asyncio.sleep(sleep_time)
-
-
 # --------------------------------------------------
 # RESET LOGIC
 # --------------------------------------------------
@@ -264,15 +292,14 @@ async def main():
     logger.info("=" * 50)
 
     # Ensure DB tables exist
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    await init_db()
     logger.info("✅ Database ready")
-
     await asyncio.gather(
         start_all_syncs(),
         daily_reset_loop(),
         heartbeat_loop(),
     )
+
 
 
 if __name__ == "__main__":
