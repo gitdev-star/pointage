@@ -4,7 +4,7 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.database import engine, init_db
+from app.database import init_db
 from app.routers import attendance_routes, hr_routes
 from app.routers.late_report import router as late_report_router
 from app.routers.devices import router as devices_router
