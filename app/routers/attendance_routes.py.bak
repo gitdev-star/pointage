@@ -7,9 +7,6 @@
 
 from typing import List, Optional
 from datetime import datetime, date, time, timedelta
-from zoneinfo import ZoneInfo
-
-MADAGASCAR_TZ = ZoneInfo("Indian/Antananarivo")
 import hashlib
 import json
 
@@ -538,8 +535,7 @@ async def get_daily_kpi(
     for row in rows:
         rules = schedules.get(row.user_id, default_rules)
         threshold = datetime.combine(kpi_date, rules.standard_start) + timedelta(minutes=7)
-        first_punch = row.first_punch.astimezone(MADAGASCAR_TZ).replace(tzinfo=None) if row.first_punch and row.first_punch.tzinfo else row.first_punch
-        if first_punch >= threshold:
+        if row.first_punch >= threshold:
             late += 1
 
     return KpiResponse(
@@ -586,9 +582,8 @@ async def get_late_today(
     for row in all_rows:
         rules = schedules.get(row.user_id, default_rules)
         threshold = datetime.combine(kpi_date, rules.standard_start) + timedelta(minutes=7)
-        first_punch = row.first_punch.astimezone(MADAGASCAR_TZ).replace(tzinfo=None) if row.first_punch and row.first_punch.tzinfo else row.first_punch
-        if first_punch >= threshold:
-            late_rows.append((row.user_id, first_punch, threshold))
+        if row.first_punch >= threshold:
+            late_rows.append((row.user_id, row.first_punch, threshold))
 
     late_rows.sort(key=lambda r: r[1])
 

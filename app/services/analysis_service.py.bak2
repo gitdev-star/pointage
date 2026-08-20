@@ -2,9 +2,6 @@
 # PATH: pointage/app/services/analysis_service.py
 # =====================================================
 from datetime import date, time, datetime, timedelta
-from zoneinfo import ZoneInfo
-
-MADAGASCAR_TZ = ZoneInfo("Indian/Antananarivo")
 from typing import List, Optional
 from dataclasses import dataclass
 
@@ -198,13 +195,12 @@ def _analyze_day(row, rules: ScheduleRules) -> DayRecord:
     last:       Optional[datetime]  = getattr(row, "last_punch",  None)
     punch_count: int                = int(getattr(row, "punch_count", 0) or 0)
 
-    # DB timestamp column is timestamptz (asyncpg returns it labeled UTC).
-    # Convert to Madagascar local time BEFORE stripping tzinfo, so the naive
-    # value's wall-clock numbers match the local schedule thresholds below.
+    # DB timestamp column is timestamptz — strip tzinfo so comparisons against
+    # naive datetime.combine(...) reference points below don't raise TypeError.
     if first and first.tzinfo:
-        first = first.astimezone(MADAGASCAR_TZ).replace(tzinfo=None)
+        first = first.replace(tzinfo=None)
     if last and last.tzinfo:
-        last = last.astimezone(MADAGASCAR_TZ).replace(tzinfo=None)
+        last = last.replace(tzinfo=None)
 
     day_name   = day.strftime("%A")
     is_weekend = day.weekday() >= 5
