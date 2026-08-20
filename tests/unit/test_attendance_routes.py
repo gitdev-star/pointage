@@ -131,6 +131,7 @@ async def test_kpi_endpoint(test_client, test_session, auth_headers):
         uid=2004,
         user_id=203,
         device_timestamp=datetime.combine(today, time(7, 0)),
+        timestamp=datetime.combine(today, time(7, 0)),  # KPI logic reads `timestamp`, not device_timestamp
         date=today,
         device_ip="10.0.0.4"
     )
