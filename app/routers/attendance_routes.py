@@ -8,8 +8,6 @@
 from typing import List, Optional
 from datetime import datetime, date, time, timedelta
 from zoneinfo import ZoneInfo
-
-MADAGASCAR_TZ = ZoneInfo("Indian/Antananarivo")
 import hashlib
 import json
 
@@ -23,6 +21,8 @@ from app.models.attendance import Attendance
 from app.auth.django_auth import get_current_user
 # from app.services.analysis_service import compute_user_analysis
 from app.services.analysis_service import _default_rules, compute_user_analysis, get_schedules_bulk
+
+MADAGASCAR_TZ = ZoneInfo("Indian/Antananarivo")
 
 router = APIRouter()
 

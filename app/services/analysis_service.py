@@ -3,8 +3,6 @@
 # =====================================================
 from datetime import date, time, datetime, timedelta
 from zoneinfo import ZoneInfo
-
-MADAGASCAR_TZ = ZoneInfo("Indian/Antananarivo")
 from typing import List, Optional
 from dataclasses import dataclass
 
@@ -15,6 +13,8 @@ from app.models.attendance import Attendance
 
 import logging
 logger = logging.getLogger(__name__)
+
+MADAGASCAR_TZ = ZoneInfo("Indian/Antananarivo")
 
 # --------------------------------------------------
 # GLOBAL WORK RULES — fallback when no custom schedule found
