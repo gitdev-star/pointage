@@ -2,7 +2,6 @@
 import logging
 import zlib
 from typing import List
-from datetime import datetime, timezone
 
 from zk import ZK
 from sqlalchemy.ext.asyncio import AsyncSession

@@ -11,10 +11,12 @@ from typing import Dict, List, Tuple
 
 import httpx
 
-from app.database import AsyncSessionLocal, engine, init_db
+from app.database import AsyncSessionLocal, init_db
 from app.devices.zk_reader import ZKReader
 import sentry_sdk
 from sentry_sdk.integrations.logging import LoggingIntegration
+from sqlalchemy import select
+from app.models.device_sync import DeviceSyncState
 
 # --------------------------------------------------
 # CONFIG
@@ -23,11 +25,6 @@ CLOCKERS_API_URL = os.getenv("DJANGO_AUTH_URL", "http://django-auth:8000/api/clo
 SYNC_INTERVAL        = 60    # seconds between syncs when active
 IDLE_INTERVAL        = 120   # seconds between syncs when no new logs
 DEVICE_STAGGER       = 10    # seconds between starting each device task
-
-
-
-from sqlalchemy import select
-from app.models.device_sync import DeviceSyncState
 
 # --------------------------------------------------
 # PUSH-AWARENESS
