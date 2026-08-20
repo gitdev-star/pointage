@@ -4,7 +4,7 @@ from fastapi import Header, HTTPException
 import jwt
 
 #DJANGO_SECRET = os.environ.get("JWT_SECRET_KEY", "supersecretkey")  # Must match Django SIMPLE_JWT SIGNING_KEY
-DJANGO_SECRET = os.environ.get("JWT_SECRET_KEY")
+DJANGO_SECRET = os.environ.get("JWT_SECRET_KEY", "supersecretkey")
 #DJANGO_SECRET = os.environ.get("DJANGO_SECRET_KEY")
 ALGORITHM = "HS256"
 
