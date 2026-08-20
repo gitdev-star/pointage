@@ -19,45 +19,63 @@
 #   e.g. "16\t2026-08-18 08:03:11\t0\t1\t0"
 # ============================================================
 
+# app/routers/adms_routes.py
 import logging
 import zlib
-from datetime import datetime
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Request, Response, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.postgresql import insert
-from fastapi import Depends
+from sqlalchemy import select
 
 from app.database import get_async_db
 from app.models.attendance import Attendance
+from app.models.device_sync import DeviceSyncState
 
 router = APIRouter(prefix="/iclock", tags=["adms"])
-
-logger = logging.getLogger("uvicorn.error")  # same docker logs stream as devices.py
+logger = logging.getLogger("uvicorn.error")
 
 BATCH_SIZE = 500
 
 
 # --------------------------------------------------
-# HELPERS
+# STAMP HELPERS
+# --------------------------------------------------
+async def _get_last_stamp(db: AsyncSession, sn: str) -> str:
+    result = await db.execute(
+        select(DeviceSyncState.last_stamp).where(DeviceSyncState.sn == sn)
+    )
+    val = result.scalar()
+    return val if val else "None"
+
+
+async def _upsert_push_state(db: AsyncSession, sn: str, device_ip: str, stamp: str | None):
+    """Record that this device pushed, and (if a Stamp was sent) confirm it."""
+    now = datetime.now(timezone.utc)
+    values = {"sn": sn, "device_ip": device_ip, "last_push_at": now}
+    if stamp:
+        values["last_stamp"] = stamp
+
+    stmt = insert(DeviceSyncState.__table__).values(**values)
+    update_cols = {"device_ip": device_ip, "last_push_at": now}
+    if stamp:
+        update_cols["last_stamp"] = stamp
+    stmt = stmt.on_conflict_do_update(index_elements=["sn"], set_=update_cols)
+    await db.execute(stmt)
+    await db.commit()
+
+
+# --------------------------------------------------
+# ATTLOG PARSING (unchanged)
 # --------------------------------------------------
 def _parse_attlog_line(line: str) -> dict | None:
-    """
-    Parse a single ADMS ATTLOG line into an Attendance-ready dict.
-    Mirrors zk_reader.process_logs()'s field mapping:
-      - user_id = device PIN (int)
-      - uid     = synthesized fallback (ADMS ATTLOG never carries a
-                  separate internal uid counter the way pull's SDK does,
-                  so we always use the same synthesis pull falls back to)
-    Returns None for malformed/unparseable lines (skipped, not fatal).
-    """
     line = line.strip()
     if not line:
         return None
 
     parts = line.split("\t")
     if len(parts) < 2:
-        # some firmwares send space-separated instead of tab-separated
         parts = line.split()
     if len(parts) < 2:
         return None
@@ -69,33 +87,27 @@ def _parse_attlog_line(line: str) -> dict | None:
     except ValueError:
         return None
 
-    timestamp = None
+    device_timestamp = None
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S"):
         try:
-            timestamp = datetime.strptime(time_raw, fmt)
+            device_timestamp = datetime.strptime(time_raw, fmt)
             break
         except ValueError:
             continue
-    if timestamp is None:
+    if device_timestamp is None:
         return None
 
-    # uid column is a Postgres INTEGER (32-bit signed, max ~2.1e9).
-    # ADMS never provides a device-side uid, so we synthesize one that's
-    # deterministic and always fits the column, instead of naive string
-    # concatenation (which overflows int32 almost immediately).
-    uid = zlib.crc32(f"{user_id}-{timestamp.isoformat()}".encode()) % 2147483647
+    uid = zlib.crc32(f"{user_id}-{device_timestamp.isoformat()}".encode()) % 2147483647
 
     return {
         "uid": uid,
         "user_id": user_id,
-        "timestamp": timestamp,
-        "date": timestamp.date(),
-        # device_ip set by caller from request.client.host
+        "device_timestamp": device_timestamp,           # raw device value — dedup key
+        "date": device_timestamp.date(),                 # calendar day from the device's own record
     }
 
-
 async def _bulk_insert(db: AsyncSession, values: list[dict]) -> int:
-    """Same on_conflict_do_nothing bulk insert pattern as zk_reader.process_logs()."""
+    """Same on_conflict_do_nothing pattern — now returns REAL rowcount, not chunk size."""
     if not values:
         return 0
     total_inserted = 0
@@ -103,10 +115,10 @@ async def _bulk_insert(db: AsyncSession, values: list[dict]) -> int:
         for i in range(0, len(values), BATCH_SIZE):
             chunk = values[i:i + BATCH_SIZE]
             stmt = insert(Attendance.__table__).values(chunk)
-            stmt = stmt.on_conflict_do_nothing(index_elements=["user_id", "timestamp", "date"])
-            await db.execute(stmt)
+            stmt = stmt.on_conflict_do_nothing(index_elements=["user_id", "device_timestamp", "date"])
+            result = await db.execute(stmt)
             await db.commit()
-            total_inserted += len(chunk)
+            total_inserted += result.rowcount  # <-- fixed: was len(chunk)
         return total_inserted
     except Exception as e:
         logger.error(f"[ADMS] bulk insert failed: {e!r}", exc_info=True)
@@ -119,20 +131,25 @@ async def _bulk_insert(db: AsyncSession, values: list[dict]) -> int:
 # --------------------------------------------------
 
 @router.get("/cdata")
-async def adms_handshake(request: Request, SN: str = "", options: str = ""):
+async def adms_handshake(
+    request: Request,
+    SN: str = "",
+    options: str = "",
+    db: AsyncSession = Depends(get_async_db),
+):
     """
-    Device registration handshake, sent on boot and periodically.
-    Must return plain text (not JSON) or the device treats it as a
-    protocol error and will not proceed to push data.
-    Minimal accepted response tells the device its config is fine
-    and to use the default push intervals.
+    Device registration handshake. Must echo the REAL last-confirmed
+    stamp for this SN, or the device will assume nothing was ever
+    received and endlessly retry its oldest unacknowledged record —
+    blocking every punch queued behind it.
     """
     device_ip = request.client.host if request.client else "unknown"
-    logger.info(f"[ADMS] Handshake from SN={SN} ip={device_ip} options={options}")
+    stamp = await _get_last_stamp(db, SN)
+    logger.info(f"[ADMS] Handshake SN={SN} ip={device_ip} options={options} → ATTLOGStamp={stamp}")
 
     body = (
         "GET OPTION FROM: SERVER\n"
-        "ATTLOGStamp=None\n"
+        f"ATTLOGStamp={stamp}\n"
         "OPERLOGStamp=None\n"
         "ErrorDelay=30\n"
         "Delay=10\n"
@@ -150,15 +167,9 @@ async def adms_receive_data(
     request: Request,
     SN: str = "",
     table: str = "",
+    Stamp: str = "",
     db: AsyncSession = Depends(get_async_db),
 ):
-    """
-    Device pushes attendance/operation logs here.
-    Body is raw text, one record per line (NOT JSON).
-    Only ATTLOG (attendance punches) is handled for now — OPERLOG
-    (user/enrollment changes) is acknowledged but not persisted,
-    since there's no corresponding table yet.
-    """
     device_ip = request.client.host if request.client else "unknown"
     raw_body = (await request.body()).decode("utf-8", errors="replace")
 
@@ -178,22 +189,23 @@ async def adms_receive_data(
         values.append(parsed)
 
     inserted = await _bulk_insert(db, values)
+    await _upsert_push_state(db, SN, device_ip, Stamp)
+
+    # NEW: pull out user_ids for live visibility in logs
+    user_ids = [v["user_id"] for v in values]
+
     logger.info(
         f"[ADMS] SN={SN} ip={device_ip} table=ATTLOG "
-        f"received={len(lines)} parsed={len(values)} skipped={skipped} inserted_batch={inserted}"
+        f"received={len(lines)} parsed={len(values)} skipped={skipped} "
+        f"new_rows={inserted} stamp={Stamp or 'none'} "
+        f"user_ids={user_ids}"
     )
 
-    # Device expects the count of records it sent back, as plain text
-    return Response(content=str(len(values)), media_type="text/plain")
+    return Response(content="OK", media_type="text/plain")
 
 
 @router.get("/getrequest")
 async def adms_get_request(request: Request, SN: str = ""):
-    """
-    Device polls this to check for queued commands (e.g. remote user
-    delete, clear log). No command queue is implemented yet, so this
-    always returns OK (no pending commands).
-    """
     device_ip = request.client.host if request.client else "unknown"
     logger.debug(f"[ADMS] getrequest poll from SN={SN} ip={device_ip}")
     return Response(content="OK", media_type="text/plain")
@@ -201,11 +213,6 @@ async def adms_get_request(request: Request, SN: str = ""):
 
 @router.post("/devicecmd")
 async def adms_device_cmd_result(request: Request, SN: str = ""):
-    """
-    Device reports the result of a previously queued command.
-    No-op until a command queue exists — just acknowledge so the
-    device doesn't retry indefinitely.
-    """
     raw_body = (await request.body()).decode("utf-8", errors="replace")
     logger.info(f"[ADMS] devicecmd result from SN={SN}: {raw_body[:200]}")
     return Response(content="OK", media_type="text/plain")
