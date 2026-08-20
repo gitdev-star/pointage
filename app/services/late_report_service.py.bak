@@ -22,8 +22,6 @@ from calendar import monthrange
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime
-from zoneinfo import ZoneInfo
-
 from typing import List, Optional, Set
 
 from sqlalchemy import select, func, and_
@@ -37,8 +35,6 @@ from app.services.analysis_service import (
 )
 
 logger = logging.getLogger(__name__)
-
-MADAGASCAR_TZ = ZoneInfo("Indian/Antananarivo")
 
 
 # ── HR DB connection helper ────────────────────────────────────────────────────
@@ -98,9 +94,8 @@ def _hhmm(dt: Optional[datetime]) -> Optional[str]:
 
 def _minutes_late(arrival: datetime, rules: ScheduleRules) -> int:
     """Return how many minutes after rules.work_start the arrival was."""
-    arrival_naive = arrival.astimezone(MADAGASCAR_TZ).replace(tzinfo=None) if arrival.tzinfo else arrival
-    work_start_dt = datetime.combine(arrival_naive.date(), rules.work_start)
-    delta = (arrival_naive - work_start_dt).total_seconds()
+    work_start_dt = datetime.combine(arrival.date(), rules.work_start)
+    delta = (arrival - work_start_dt).total_seconds()
     return max(0, int(delta // 60))
 
 
