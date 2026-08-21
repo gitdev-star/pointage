@@ -8,6 +8,7 @@ import logging
 import socket
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple
+from sqlalchemy import text
 
 import httpx
 
@@ -25,6 +26,7 @@ CLOCKERS_API_URL = os.getenv("DJANGO_AUTH_URL", "http://django-auth:8000/api/clo
 SYNC_INTERVAL        = 60    # seconds between syncs when active
 IDLE_INTERVAL        = 120   # seconds between syncs when no new logs
 DEVICE_STAGGER       = 10    # seconds between starting each device task
+HOURLY_SYNC_INTERVAL  = 3600  # seconds — 1 hour, for clock sync
 
 # --------------------------------------------------
 # PUSH-AWARENESS
@@ -195,7 +197,7 @@ async def sync_device_loop(ip: str, port: int):
 # --------------------------------------------------
 # RESET LOGIC
 # --------------------------------------------------
-async def reset_device(ip: str, port: int):
+async def reset_device(ip: str, port: int, reference_time: datetime):
     """Daily reset: sync device time + clear old logs."""
     if not await is_reachable(ip, port):
         logger.warning(f"[RESET] {ip} unreachable, skipped")
@@ -207,7 +209,7 @@ async def reset_device(ip: str, port: int):
     async with lock:
         try:
             await zk.connect()
-            await zk.sync_time()
+            await zk.sync_time(reference_time)
             await zk.clear_attendance_logs()
             logger.info(f"[RESET] ✅ {ip} complete")
         except Exception as e:
@@ -217,6 +219,41 @@ async def reset_device(ip: str, port: int):
                 await zk.force_reset()
             except Exception as e:
                 logger.debug(f"[{ip}] force_reset cleanup failed (non-fatal): {e}")
+
+
+async def sync_device_time_only(ip: str, port: int, reference_time: datetime):
+    """Time-sync a single device, without touching its attendance logs."""
+    if not await is_reachable(ip, port):
+        logger.warning(f"[TIME_SYNC] {ip} unreachable, skipped")
+        return
+
+    lock = get_lock(ip)
+    zk = ZKReader(device_ip=ip, device_port=port)
+
+    async with lock:
+        try:
+            await zk.connect()
+            await zk.sync_time(reference_time)
+            logger.info(f"[TIME_SYNC] ✅ {ip} synced")
+        except Exception as e:
+            logger.error(f"[TIME_SYNC] ❌ {ip} failed: {e}")
+        finally:
+            try:
+                await zk.force_reset()
+            except Exception as e:
+                logger.debug(f"[{ip}] force_reset cleanup failed (non-fatal): {e}")
+
+
+async def hourly_time_sync_loop():
+    """Sync every device's clock to the DB server's time, once per hour."""
+    while True:
+        logger.info("⏱️  HOURLY TIME SYNC STARTED")
+        reference_time = await get_reference_time()
+        devices = await fetch_active_devices()
+        for ip, port in devices:
+            await sync_device_time_only(ip, port, reference_time)
+        logger.info(f"⏱️  HOURLY TIME SYNC DONE — next in {HOURLY_SYNC_INTERVAL / 3600:.0f}h")
+        await asyncio.sleep(HOURLY_SYNC_INTERVAL)
 
 
 async def daily_reset_loop():
@@ -230,9 +267,12 @@ async def daily_reset_loop():
         logger.info(f"⏰ Daily reset in {wait / 3600:.1f}h")
         await asyncio.sleep(wait)
         logger.info("⏰ DAILY RESET STARTED")
+
+        reference_time = await get_reference_time()
         devices = await fetch_active_devices()
         for ip, port in devices:
-            await reset_device(ip, port)
+            await reset_device(ip, port, reference_time)
+
         logger.info("⏰ DAILY RESET DONE")
 
 
@@ -260,6 +300,26 @@ async def start_all_syncs():
         if new_count:
             logger.info(f"✅ {len(sync_tasks)} sync task(s) running ({new_count} new)")
         await asyncio.sleep(300)  # re-check for new devices every 5 minutes
+
+
+async def get_reference_time() -> datetime:
+    """
+    Authoritative time for device sync, sourced directly from the
+    PostgreSQL server (192.168.8.211) via SQL NOW() — not a separate
+    NTP query. Guarantees the devices match whatever clock the
+    database itself is already using for all its own timestamps.
+    """
+    try:
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(text("SELECT NOW()"))
+            ref_time = result.scalar()
+            # Postgres returns a tz-aware datetime; ZK devices expect naive local time
+            ref_time = ref_time.replace(tzinfo=None)
+            logger.info(f"⏱️  Reference time from DB (192.168.8.211): {ref_time}")
+            return ref_time
+    except Exception as e:
+        logger.warning(f"⏱️  DB time query failed ({e!r}), using local clock as fallback")
+        return datetime.now()
 
 
 # --------------------------------------------------
@@ -293,6 +353,7 @@ async def main():
     logger.info("✅ Database ready")
     await asyncio.gather(
         start_all_syncs(),
+        hourly_time_sync_loop(),
         daily_reset_loop(),
         heartbeat_loop(),
     )
