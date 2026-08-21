@@ -56,3 +56,9 @@ frontend/test-results/
 test-results/
 *.backup
 *_backup.py
+
+bulk_device_sweep.py
+check_employee_on_device.py
+delete_remaining.py
+app/delete_zk_user.py
+app/verify_zk_user.py
