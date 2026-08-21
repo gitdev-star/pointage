@@ -1,8 +1,19 @@
-from django.db.models.signals import post_save, post_delete
-from django.dispatch import receiver
+# django_hr/employees/signals.py
+import requests
+from django.conf import settings
 from django.core.cache import cache
-from .models import Factory, Department, Section
+from django.db.models.signals import pre_save, post_save, post_delete
+from django.dispatch import receiver
 
+from .models import Factory, Department, Section, Employee
+from alerts.email_utils import notify_resiliation
+
+ATTENDANCE_SERVICE_URL = getattr(settings, "ATTENDANCE_SERVICE_URL", "http://localhost:8000")
+
+
+# --------------------------------------------------
+# Cache invalidation (unchanged)
+# --------------------------------------------------
 @receiver([post_save, post_delete], sender=Factory)
 def clear_factory_cache(sender, **kwargs):
     cache.delete("factories_list")
@@ -18,11 +29,17 @@ def clear_section_cache(sender, **kwargs):
     cache.delete("departments_list")
 
 
-
-from django.db.models.signals import post_save
-from django.dispatch import receiver
-from .models import Employee
-from alerts.email_utils import notify_resiliation
+# --------------------------------------------------
+# Employee termination handling
+# --------------------------------------------------
+@receiver(pre_save, sender=Employee)
+def stash_old_status(sender, instance, **kwargs):
+    if instance.pk:
+        instance._old_status = (
+            Employee.objects.filter(pk=instance.pk).values_list("status", flat=True).first()
+        )
+    else:
+        instance._old_status = None
 
 
 @receiver(post_save, sender=Employee)
@@ -30,11 +47,16 @@ def employee_termination_signal(sender, instance, created, **kwargs):
     if created:
         return  # New employee → ignore
 
-    # Only send if terminated AND motif exists
-    if instance.status == "TERMINATED" and instance.motif_depart:
-        print(f"[SIGNAL] Employee terminated: {instance}")
-        print(f"[SIGNAL] Motif: {instance.motif_depart}")
+    old_status = getattr(instance, "_old_status", None)
+    became_terminated = old_status != "TERMINATED" and instance.status == "TERMINATED"
 
+    if not became_terminated:
+        return  # not a fresh transition to TERMINATED → skip (avoids re-firing on every save)
+
+    print(f"[SIGNAL] Employee terminated: {instance}")
+
+    if instance.motif_depart:
+        print(f"[SIGNAL] Motif: {instance.motif_depart}")
         try:
             notify_resiliation(
                 instance,
@@ -49,3 +71,15 @@ def employee_termination_signal(sender, instance, created, **kwargs):
             sentry_sdk.capture_exception(e)
             print(f"[SIGNAL ERROR] {e}")
             traceback.print_exc()
+
+    if instance.device_user_id:
+        try:
+            resp = requests.delete(
+                f"{ATTENDANCE_SERVICE_URL}/devices/users/{instance.device_user_id}",
+                timeout=60,  # safety net only — real speed fix is parallelizing device calls in FastAPI (see device_admin.py)
+            )
+            print(f"[SIGNAL] Device deletion for user_id={instance.device_user_id}: {resp.status_code} {resp.json()}")
+        except Exception as e:
+            import sentry_sdk
+            sentry_sdk.capture_exception(e)
+            print(f"[SIGNAL ERROR] Device deletion failed for user_id={instance.device_user_id}: {e!r}")
