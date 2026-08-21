@@ -1,4 +1,5 @@
 # django_hr/employees/signals.py
+import os
 import requests
 from django.conf import settings
 from django.core.cache import cache
@@ -76,6 +77,7 @@ def employee_termination_signal(sender, instance, created, **kwargs):
         try:
             resp = requests.delete(
                 f"{ATTENDANCE_SERVICE_URL}/devices/users/{instance.device_user_id}",
+                headers={"X-Service-Key": os.getenv("SERVICE_INTERNAL_KEY")},
                 timeout=60,  # safety net only — real speed fix is parallelizing device calls in FastAPI (see device_admin.py)
             )
             print(f"[SIGNAL] Device deletion for user_id={instance.device_user_id}: {resp.status_code} {resp.json()}")
