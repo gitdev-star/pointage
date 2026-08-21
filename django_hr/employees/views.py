@@ -43,6 +43,7 @@ from alerts.email_utils import (
     notify_bulk_resiliation,
 )
 from accounts.permissions import get_hr_profile
+INTERNAL_SERVICE_KEY = getattr(settings, "FASTAPI_SERVICE_KEY", None)
 
 ATTENDANCE_SERVICE_URL = getattr(settings, "ATTENDANCE_SERVICE_URL", "http://localhost:8000")
 
@@ -167,6 +168,25 @@ def _get_section(name, department):
 
 def _get_department(name, factory):
     return Department.objects.filter(name=name, factory=factory).first()
+
+
+
+def _delete_from_devices(device_user_id):
+    """Best-effort device cleanup; failures are logged, never block the HR flow."""
+    if not device_user_id:
+        return
+    try:
+        resp = requests.post(
+            f"{ATTENDANCE_SERVICE_URL}/devices/delete-user/{device_user_id}",
+            headers={"X-Service-Key": INTERNAL_SERVICE_KEY},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        print(f"[DEVICE DELETE] device_user_id={device_user_id} -> {resp.json().get('results')}")
+    except Exception as exc:
+        import sentry_sdk
+        sentry_sdk.capture_exception(exc)
+        print(f"[DEVICE DELETE ERROR] device_user_id={device_user_id}: {exc}")
 
 
 def _parse_row(row, row_num):
@@ -432,6 +452,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         old_status = serializer.instance.status
+        old_device_user_id = serializer.instance.device_user_id
         old_data = snapshot(serializer.instance)
 
         employee = serializer.save()
@@ -442,6 +463,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             log_action(self.request, employee, "UPDATE", changes)
 
         if old_status != "TERMINATED" and employee.status == "TERMINATED":
+            _delete_from_devices(old_device_user_id)
             try:
                 profile = get_hr_profile(self.request)
                 triggered_by = profile.username if profile else "Inconnu"
@@ -458,8 +480,10 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 traceback.print_exc()
 
     def perform_destroy(self, instance):
+        _delete_from_devices(instance.device_user_id)
         log_action(self.request, instance, "DELETE")
         super().perform_destroy(instance)
+
 
         
 
@@ -708,6 +732,9 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         ]
         if terminated_in_import:
             notify_bulk_resiliation(terminated_in_import, triggered_by="Import CSV")
+            for e in to_create:
+                if e.status == "TERMINATED" and e.device_user_id:
+                    _delete_from_devices(e.device_user_id)
 
         return Response({
             "summary": {
