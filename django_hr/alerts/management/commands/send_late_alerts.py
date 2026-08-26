@@ -66,17 +66,19 @@ class Command(BaseCommand):
             for uid, reason in skipped:
                 self.stdout.write(f"  - device_user_id={uid}: {reason}")
 
-        assignments = LateAlertAssignment.objects.filter(is_active=True).select_related("department")
-        recipients_by_dept = {}
+        # LateAlertAssignment is scoped by factory, not department — resolve
+        # each department's factory to find its recipients.
+        assignments = LateAlertAssignment.objects.filter(is_active=True).select_related("factory")
+        recipients_by_factory = {}
         for a in assignments:
-            recipients_by_dept.setdefault(a.department_id, []).append(a.email)
+            recipients_by_factory.setdefault(a.factory_id, []).append(a.email)
 
         sent = 0
         for dept_id, dept_employees in by_department.items():
-            recipients = recipients_by_dept.get(dept_id)
+            department = dept_objects[dept_id]
+            recipients = recipients_by_factory.get(department.factory_id)
             if not recipients:
                 continue
-            department = dept_objects[dept_id]
             notify_late_employees(department, dept_employees, recipients=recipients)
             sent += len(recipients)
 
