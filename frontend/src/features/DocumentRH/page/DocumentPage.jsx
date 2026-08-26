@@ -12,11 +12,13 @@ import EmployeeDocumentTable from "../component/EmployeDocumentListe";
 // Champs supplémentaires à saisir manuellement pour certains documents
 // (mêmes valeurs appliquées à tous les employés sélectionnés)
 const DOC_EXTRA_FIELDS = {
+  
   attestation: [
     { key: "usage", label: "Motif de l'attestation (usage)", type: "text" },
   ],
+
   certificat: [
-    { key: "date_fin", label: "Date de fin (d�bauche)", type: "date" },
+    { key: "date_fin", label: "Date de fin (d�bauche)", type: "date" },
   ],
   convocation_cdd: [
     { key: "date_abandon",           label: "Date d'abandon de poste",   type: "date" },

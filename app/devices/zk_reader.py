@@ -1,6 +1,10 @@
 # app/devices/zk_reader.py
+import asyncio
 import logging
-from typing import List
+import zlib
+from typing import List, Optional
+from datetime import datetime
+from functools import partial
 
 from zk import ZK
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,8 +37,9 @@ class ZKReader:
     async def connect(self) -> None:
         if self.connection:
             return
+        loop = asyncio.get_running_loop()
         try:
-            self.connection = self.zk.connect()
+            self.connection = await loop.run_in_executor(None, self.zk.connect)
             logger.debug(f"[ZK] Connected to {self.device_ip}")
         except Exception as e:
             self.connection = None
@@ -98,18 +103,19 @@ class ZKReader:
         for log in logs:
             try:
                 user_id = int(log.user_id)
-                timestamp = log.timestamp
+                device_timestamp = log.timestamp
                 uid = getattr(log, "uid", None)
                 if uid is None:
-                    uid = int(f"{user_id}{int(timestamp.timestamp())}")
+                    uid = zlib.crc32(f"{user_id}-{device_timestamp.isoformat()}".encode()) % 2147483647
                 else:
                     uid = int(uid)
                 values.append({
                     "uid": uid,
                     "user_id": user_id,
-                    "timestamp": timestamp,
-                    "date": timestamp.date(),
+                    "device_timestamp": device_timestamp,
+                    "date": device_timestamp.date(),
                     "device_ip": self.device_ip,
+                    # created_at intentionally omitted — DB sets it automatically
                 })
             except Exception as e:
                 logger.warning(f"[ZK] {self.device_ip} bad log skipped: {e}")
@@ -123,7 +129,7 @@ class ZKReader:
             for i in range(0, len(values), BATCH_SIZE):
                 chunk = values[i:i + BATCH_SIZE]
                 stmt = insert(Attendance.__table__).values(chunk)
-                stmt = stmt.on_conflict_do_nothing(index_elements=["user_id", "timestamp", "date"])
+                stmt = stmt.on_conflict_do_nothing(index_elements=["user_id", "device_timestamp", "date"])
                 await db.execute(stmt)
                 await db.commit()
                 total_inserted += len(chunk)
@@ -134,3 +140,90 @@ class ZKReader:
             logger.error(f"[ZK] {self.device_ip} bulk insert failed: {e!r}", exc_info=True)
             await db.rollback()
             return 0
+
+    # ----------------------------
+    # Time sync device clockers and the server's reference time
+    # ----------------------------
+    async def _sync_time_attempt(self, target: datetime, use_disable_enable: bool):
+        """
+        One isolated attempt on a FRESH connection: connect, write target
+        time, read back, disconnect. A fresh connection per attempt is
+        required — reusing the same session for a retry after a failed
+        write was found to make even a normally-working strategy silently
+        fail (confirmed via diagnose_device_time.py).
+        """
+        await self.disconnect()
+        await self.connect()
+        conn = self.connection
+
+        before = conn.get_time()
+        if use_disable_enable:
+            conn.disable_device()
+        try:
+            conn.set_time(target)
+        finally:
+            if use_disable_enable:
+                conn.enable_device()
+
+        await asyncio.sleep(1)
+        after = conn.get_time()
+        residual = abs((after - target).total_seconds())
+        return before, after, residual
+
+    async def sync_time(self, reference_time: Optional[datetime] = None) -> None:
+        """
+        Push reference_time onto this device's onboard clock.
+
+        Different ZK platforms need different write strategies -- some
+        only accept the write while active, others only while explicitly
+        disabled -- so a plain set_time() is tried first, and
+        disable_device()/enable_device() is used as a fallback only if
+        the plain write didn't stick. Each attempt uses a fresh
+        connection; retrying on the same session was found to make the
+        fallback unreliable even on devices where it should otherwise work.
+
+        If reference_time is not given, falls back to local system time
+        (only safe if this server's clock is itself correctly synced).
+        """
+        try:
+            target = reference_time or datetime.now()
+
+            before, after, residual = await self._sync_time_attempt(target, use_disable_enable=False)
+            drift = abs((before - target).total_seconds())
+            strategy = "plain"
+
+            if residual >= 2:
+                before2, after, residual = await self._sync_time_attempt(target, use_disable_enable=True)
+                strategy = "disable_enable"
+
+            if residual >= 2:
+                logger.warning(
+                    f"[ZK] {self.device_ip} time sync had NO EFFECT with either strategy: "
+                    f"before={before} target={target} after={after} (still off by {residual:.1f}s)"
+                )
+            else:
+                logger.info(
+                    f"[ZK] {self.device_ip} time synced via {strategy}: before={before} "
+                    f"target={target} after={after} drift_corrected={drift:.1f}s residual={residual:.1f}s"
+                )
+        except Exception as e:
+            logger.error(f"[ZK] {self.device_ip} time sync failed: {e}")
+            raise
+        
+    async def delete_user(self, device_user_id: int) -> bool:
+        if not self.connection:
+            await self.connect()
+        loop = asyncio.get_running_loop()
+        try:
+            await loop.run_in_executor(None, self.connection.disable_device)
+            try:
+                await loop.run_in_executor(
+                    None, partial(self.connection.delete_user, user_id=str(device_user_id))
+                )
+            finally:
+                await loop.run_in_executor(None, self.connection.enable_device)
+            logger.info(f"[ZK] {self.device_ip} deleted device_user_id={device_user_id}")
+            return True
+        except Exception as e:
+            logger.error(f"[ZK] {self.device_ip} delete_user failed for {device_user_id}: {e}")
+            raise

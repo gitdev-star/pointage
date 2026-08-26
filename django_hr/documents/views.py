@@ -389,7 +389,7 @@ def replace_mergefields(doc, field_map):
     """Remplace les champs MERGEFIELD Word (complexes ET simples) par du texte statique."""
     root = doc.element
 
-    # â”€â”€ 1. Champs simples : <w:fldSimple w:instr=" MERGEFIELD X "> ... </w:fldSimple>
+    # ── 1. Champs simples : <w:fldSimple w:instr=" MERGEFIELD X "> ... </w:fldSimple>
     fld_simples = root.findall('.//' + qn('w:fldSimple'))
     for fs in fld_simples:
         instr = fs.get(qn('w:instr')) or ""
@@ -414,7 +414,7 @@ def replace_mergefields(doc, field_map):
             fs.remove(child)
         fs.append(new_r)
 
-    # â”€â”€ 2. Champs complexes : fldChar begin/instrText/separate/end â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── 2. Champs complexes : fldChar begin/instrText/separate/end ──────────
     paragraphs = root.findall('.//' + qn('w:p'))
     for p in paragraphs:
         runs = list(p.findall(qn('w:r')))

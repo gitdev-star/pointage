@@ -69,6 +69,7 @@ services:
       - LDAP_BASE_DN=${LDAP_BASE_DN}
       - LDAP_SEARCH_BASE=${LDAP_SEARCH_BASE}
       - SERVICE_INTERNAL_KEY=${SERVICE_INTERNAL_KEY}
+      - DJANGO_HR_URL=http://django-hr:8002
       - GLITCHTIP_DSN=${GLITCHTIP_DSN_DJANGO_AUTH}
     volumes:
       - ./django_auth:/app

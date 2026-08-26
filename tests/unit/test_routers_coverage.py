@@ -143,7 +143,7 @@ class TestHrRoutes:
         today = date.today()
         test_session.add(Attendance(
             uid=9001, user_id=901,
-            timestamp=datetime.combine(today, time(8, 0)),
+            device_timestamp=datetime.combine(today, time(8, 0)),
             date=today, device_ip="10.9.0.1"
         ))
         await test_session.commit()
@@ -161,7 +161,7 @@ class TestHrRoutes:
         today = date.today()
         test_session.add(Attendance(
             uid=9002, user_id=902,
-            timestamp=datetime.combine(today, time(9, 0)),
+            device_timestamp=datetime.combine(today, time(9, 0)),
             date=today, device_ip="10.9.0.2"
         ))
         await test_session.commit()
@@ -180,7 +180,7 @@ class TestHrRoutes:
         today = date.today()
         test_session.add(Attendance(
             uid=9003, user_id=903,
-            timestamp=datetime.combine(today, time(8, 0)),
+            device_timestamp=datetime.combine(today, time(8, 0)),
             date=today, device_ip="10.9.0.3"
         ))
         await test_session.commit()
@@ -215,7 +215,7 @@ class TestHrRoutes:
         today = date.today()
         test_session.add(Attendance(
             uid=9004, user_id=904,
-            timestamp=datetime.combine(today, time(8, 0)),
+            device_timestamp=datetime.combine(today, time(8, 0)),
             date=today, device_ip="10.9.0.4"
         ))
         await test_session.commit()
@@ -234,7 +234,7 @@ class TestHrRoutes:
         today = date.today()
         test_session.add(Attendance(
             uid=9005, user_id=905,
-            timestamp=datetime.combine(today, time(8, 0)),
+            device_timestamp=datetime.combine(today, time(8, 0)),
             date=today, device_ip="10.9.0.5"
         ))
         await test_session.commit()
@@ -252,7 +252,7 @@ class TestHrRoutes:
         today = date.today()
         test_session.add(Attendance(
             uid=9006, user_id=906,
-            timestamp=datetime.combine(today, time(8, 0)),
+            device_timestamp=datetime.combine(today, time(8, 0)),
             date=today, device_ip="10.9.0.6"
         ))
         await test_session.commit()
@@ -277,7 +277,7 @@ class TestAttendanceRoutesBranches:
         today = date.today()
         test_session.add(Attendance(
             uid=8001, user_id=800,
-            timestamp=datetime.combine(today, time(8, 0)),
+            device_timestamp=datetime.combine(today, time(8, 0)),
             date=today, device_ip="10.8.0.1"
         ))
         await test_session.commit()
@@ -316,7 +316,7 @@ class TestAttendanceRoutesBranches:
         today = date.today()
         test_session.add(Attendance(
             uid=8002, user_id=801,
-            timestamp=datetime.combine(today, time(9, 0)),
+            device_timestamp=datetime.combine(today, time(9, 0)),
             date=today, device_ip="10.8.0.2"
         ))
         await test_session.commit()
@@ -331,7 +331,7 @@ class TestAttendanceRoutesBranches:
         today = date.today()
         test_session.add(Attendance(
             uid=8003, user_id=802,
-            timestamp=datetime.combine(today, time(9, 0)),
+            device_timestamp=datetime.combine(today, time(9, 0)),
             date=today, device_ip="10.8.0.3"
         ))
         await test_session.commit()
@@ -354,7 +354,7 @@ class TestAttendanceRoutesBranches:
         today = date.today()
         test_session.add(Attendance(
             uid=8004, user_id=803,
-            timestamp=datetime.combine(today, time(8, 0)),
+            device_timestamp=datetime.combine(today, time(8, 0)),
             date=today, device_ip="10.8.0.4"
         ))
         await test_session.commit()
@@ -392,7 +392,8 @@ class TestAttendanceRoutesBranches:
         today = date.today()
         test_session.add(Attendance(
             uid=8010, user_id=810,
-            timestamp=datetime.combine(today, time(8, 0)),  # after 07:40 = late
+            device_timestamp=datetime.combine(today, time(8, 0)),  # after 07:40 = late
+            timestamp=datetime.combine(today, time(8, 0)),  # KPI logic reads `timestamp`, not device_timestamp
             date=today, device_ip="10.8.0.10"
         ))
         await test_session.commit()
@@ -408,7 +409,7 @@ class TestAttendanceRoutesBranches:
         today = date.today()
         test_session.add(Attendance(
             uid=8011, user_id=811,
-            timestamp=datetime.combine(today, time(8, 0)),
+            device_timestamp=datetime.combine(today, time(8, 0)),
             date=today, device_ip="10.8.0.11"
         ))
         await test_session.commit()
@@ -423,7 +424,7 @@ class TestAttendanceRoutesBranches:
         today = date.today()
         test_session.add(Attendance(
             uid=8012, user_id=812,
-            timestamp=datetime.combine(today, time(8, 0)),
+            device_timestamp=datetime.combine(today, time(8, 0)),
             date=today, device_ip="192.168.99.1"
         ))
         await test_session.commit()
@@ -440,40 +441,40 @@ class TestAttendanceRoutesBranches:
 class TestAttendanceModel:
 
     @pytest.mark.asyncio
-    async def test_repr(self, test_session):
+    async def test_repr(self, pg_session):
         """Attendance __repr__ works."""
         a = Attendance(
             uid=7001, user_id=700,
-            timestamp=datetime.now(), date=date.today(),
+            device_timestamp=datetime.now(), date=date.today(),
             device_ip="10.7.0.1"
         )
-        test_session.add(a)
-        await test_session.commit()
+        pg_session.add(a)
+        await pg_session.commit()
         assert "700" in repr(a)
         assert "10.7.0.1" in repr(a)
 
     @pytest.mark.asyncio
-    async def test_insert_attendance_classmethod(self, test_session):
+    async def test_insert_attendance_classmethod(self, pg_session):
         """insert_attendance classmethod inserts a record."""
         await Attendance.insert_attendance(
-            session=test_session,
+            session=pg_session,
             user_id=701,
-            timestamp=datetime.now(),
+            device_timestamp=datetime.now(),
             date=date.today(),
             device_ip="10.7.0.2",
             uid=7002,
         )
         from sqlalchemy import select
-        result = await test_session.execute(
+        result = await pg_session.execute(
             select(Attendance).where(Attendance.user_id == 701)
         )
         assert result.scalars().first() is not None
 
     @pytest.mark.asyncio
-    async def test_insert_attendance_duplicate_skipped(self, test_session):
+    async def test_insert_attendance_duplicate_skipped(self, pg_session):
         """insert_attendance skips duplicate without raising."""
         ts = datetime.now()
-        kwargs = dict(session=test_session, user_id=702, timestamp=ts,
+        kwargs = dict(session=pg_session, user_id=702, device_timestamp=ts,
                       date=date.today(), device_ip="10.7.0.3", uid=7003)
         await Attendance.insert_attendance(**kwargs)
         # Second insert should not raise

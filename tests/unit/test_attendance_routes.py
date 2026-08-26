@@ -64,7 +64,7 @@ async def test_attendance_minimal_endpoint(test_client, test_session, auth_heade
     attendance = Attendance(
         uid=2001,
         user_id=200,
-        timestamp=datetime.combine(date.today(), time(8, 0)),
+        device_timestamp=datetime.combine(date.today(), time(8, 0)),
         date=date.today(),
         device_ip="10.0.0.1"
     )
@@ -88,7 +88,7 @@ async def test_available_device_ips_endpoint(test_client, test_session):
     attendance = Attendance(
         uid=2002,
         user_id=201,
-        timestamp=datetime.combine(date.today(), time(8, 30)),
+        device_timestamp=datetime.combine(date.today(), time(8, 30)),
         date=date.today(),
         device_ip="10.0.0.2"
     )
@@ -107,7 +107,7 @@ async def test_daily_attendance_endpoint(test_client, test_session, auth_headers
     attendance = Attendance(
         uid=2003,
         user_id=202,
-        timestamp=datetime.combine(today, time(9, 0)),
+        device_timestamp=datetime.combine(today, time(9, 0)),
         date=today,
         device_ip="10.0.0.3"
     )
@@ -130,7 +130,8 @@ async def test_kpi_endpoint(test_client, test_session, auth_headers):
     attendance = Attendance(
         uid=2004,
         user_id=203,
-        timestamp=datetime.combine(today, time(7, 0)),
+        device_timestamp=datetime.combine(today, time(7, 0)),
+        timestamp=datetime.combine(today, time(7, 0)),  # KPI logic reads `timestamp`, not device_timestamp
         date=today,
         device_ip="10.0.0.4"
     )
@@ -151,14 +152,14 @@ async def test_grouped_attendance_endpoint(test_client, test_session, auth_heade
     attendance1 = Attendance(
         uid=2005,
         user_id=204,
-        timestamp=datetime.combine(today, time(8, 0)),
+        device_timestamp=datetime.combine(today, time(8, 0)),
         date=today,
         device_ip="10.0.0.5"
     )
     attendance2 = Attendance(
         uid=2006,
         user_id=204,
-        timestamp=datetime.combine(today, time(16, 0)),
+        device_timestamp=datetime.combine(today, time(16, 0)),
         date=today,
         device_ip="10.0.0.5"
     )

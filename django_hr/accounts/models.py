@@ -56,7 +56,13 @@ class HRProfile(models.Model):
     perm_horaire_read      = models.BooleanField(default=False)
     perm_horaire_write     = models.BooleanField(default=False)
     perm_audit_logs_read   = models.BooleanField(default=False)
-    last_seen = models.DateTimeField(null=True, blank=True) 
+    last_seen = models.DateTimeField(null=True, blank=True)
+    perm_dashboard_read = models.BooleanField(default=False)
+    perm_presence_read  = models.BooleanField(default=False)
+    perm_presence_write = models.BooleanField(default=False)
+    perm_retard_read    = models.BooleanField(default=False)
+    perm_devices_read   = models.BooleanField(default=False)
+    perm_devices_write  = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["username"]
@@ -91,7 +97,7 @@ class HRProfile(models.Model):
                 "employees", "payroll", "leaves", "reports", "shifts",
                 "recruitment", "contracts", "sanctions", "retraite",
                 "pay_events", "alerts", "organisation", "hr_events", "hr_users",
-                "transport", "cantine", "horaire", "audit_logs", 
+                "transport", "cantine", "horaire", "audit_logs", "dashboard", "presence", "retard", "devices"
             ]
         modules = []
         if self.perm_employees_read:
@@ -130,4 +136,12 @@ class HRProfile(models.Model):
             modules.append("horaire")    
         if self.perm_audit_logs_read:
             modules.append("audit_logs")  
+        if self.perm_dashboard_read:
+            modules.append("dashboard")
+        if self.perm_presence_read:
+            modules.append("presence")
+        if self.perm_retard_read:
+            modules.append("retard")
+        if self.perm_devices_read:
+            modules.append("devices")
         return modules

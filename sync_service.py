@@ -8,14 +8,16 @@ import logging
 import socket
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple
+from sqlalchemy import text
 
 import httpx
 
-from app.database import AsyncSessionLocal, engine
-from app.models.attendance import Base
+from app.database import AsyncSessionLocal, init_db
 from app.devices.zk_reader import ZKReader
 import sentry_sdk
 from sentry_sdk.integrations.logging import LoggingIntegration
+from sqlalchemy import select
+from app.models.device_sync import DeviceSyncState
 
 # --------------------------------------------------
 # CONFIG
@@ -24,6 +26,28 @@ CLOCKERS_API_URL = os.getenv("DJANGO_AUTH_URL", "http://django-auth:8000/api/clo
 SYNC_INTERVAL        = 60    # seconds between syncs when active
 IDLE_INTERVAL        = 120   # seconds between syncs when no new logs
 DEVICE_STAGGER       = 10    # seconds between starting each device task
+HOURLY_SYNC_INTERVAL  = 3600  # seconds — 1 hour, for clock sync
+
+# --------------------------------------------------
+# PUSH-AWARENESS
+# --------------------------------------------------
+PUSH_ACTIVE_WINDOW = 300   # seconds — if device pushed within this window, treat push as healthy
+PUSH_BACKOFF_SLEEP = 180   # seconds — how long to wait before re-checking when push is healthy
+
+async def is_push_active(ip: str) -> bool:
+    """True if this device has pushed data recently — pull should stand down."""
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(DeviceSyncState.last_push_at).where(DeviceSyncState.device_ip == ip)
+        )
+        last_push = result.scalar()
+        if last_push is None:
+            return False
+        age = (datetime.utcnow().replace(tzinfo=last_push.tzinfo) - last_push).total_seconds()
+        return age < PUSH_ACTIVE_WINDOW
+
+
+
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -111,15 +135,24 @@ async def fetch_active_devices() -> List[Tuple[str, int]]:
 # - on_conflict_do_nothing (no duplicates)
 # --------------------------------------------------
 async def sync_device_loop(ip: str, port: int):
-    """Runs forever for one device: connect → fetch → bulk insert → sleep → repeat."""
+    """Runs forever for one device: connect → fetch → bulk insert → sleep → repeat.
+    Backs off entirely while push is confirmed healthy for this device —
+    pull only takes over as a fallback if push goes quiet."""
     lock = get_lock(ip)
-    logger.info(f"[{ip}] 🔄 Starting sync loop")
+    logger.info(f"[{ip}] 🔄 Starting sync loop (fallback mode)")
 
     consecutive_errors = 0
     idle_cycles = 0
 
     while True:
-        # Check reachability first to avoid long timeouts
+        # NEW: if push is alive for this device, don't contend for the socket at all
+        if await is_push_active(ip):
+            logger.debug(f"[{ip}] 💤 Push active — pull standing down for {PUSH_BACKOFF_SLEEP}s")
+            await asyncio.sleep(PUSH_BACKOFF_SLEEP)
+            continue
+
+        logger.info(f"[{ip}] ⚠️  No recent push seen — pull taking over as fallback")
+
         if not await is_reachable(ip, port):
             consecutive_errors += 1
             logger.warning(f"[{ip}] ⚠️  Unreachable [{consecutive_errors}], retrying in 30s")
@@ -129,11 +162,9 @@ async def sync_device_loop(ip: str, port: int):
         zk = ZKReader(device_ip=ip, device_port=port)
 
         try:
-            # Connect
             async with lock:
                 await zk.connect()
 
-            # Fetch + bulk insert using zk_reader.process_logs()
             async with AsyncSessionLocal() as db:
                 async with lock:
                     saved = await zk.process_logs(db)
@@ -141,12 +172,12 @@ async def sync_device_loop(ip: str, port: int):
             if saved and saved > 0:
                 consecutive_errors = 0
                 idle_cycles = 0
-                logger.debug(f"[{ip}] ✅ {saved} logs inserted")
+                logger.debug(f"[{ip}] ✅ {saved} logs inserted via fallback pull")
             else:
                 idle_cycles += 1
-                logger.debug(f"[{ip}] No new logs (idle #{idle_cycles})")
+                logger.debug(f"[{ip}] No new logs via pull (idle #{idle_cycles})")
 
-            consecutive_errors = 0  # reset on successful cycle
+            consecutive_errors = 0
 
         except Exception as e:
             consecutive_errors += 1
@@ -155,23 +186,19 @@ async def sync_device_loop(ip: str, port: int):
                 logger.error(f"[{ip}] 🛑 Too many errors, stopping")
                 break
         finally:
-            # Always clean up device connection
             try:
                 await zk.force_reset()
             except Exception as e:
                 logger.debug(f"[{ip}] force_reset cleanup failed (non-fatal): {e}")
 
-        # Smart sleep: slow down when idle to reduce DB pressure
         sleep_time = IDLE_INTERVAL if idle_cycles >= 3 else SYNC_INTERVAL
-        logger.debug(f"[{ip}] 💤 Next sync in {sleep_time}s")
+        logger.debug(f"[{ip}] 💤 Next check in {sleep_time}s")
         await asyncio.sleep(sleep_time)
-
-
 # --------------------------------------------------
 # RESET LOGIC
 # --------------------------------------------------
-async def reset_device(ip: str, port: int):
-    """Daily reset: sync device time + clear old logs."""
+async def reset_device(ip: str, port: int, reference_time: datetime):
+    """Daily reset: sync device time only (no log clearing)."""
     if not await is_reachable(ip, port):
         logger.warning(f"[RESET] {ip} unreachable, skipped")
         return
@@ -182,9 +209,8 @@ async def reset_device(ip: str, port: int):
     async with lock:
         try:
             await zk.connect()
-            await zk.sync_time()
-            await zk.clear_attendance_logs()
-            logger.info(f"[RESET] ✅ {ip} complete")
+            await zk.sync_time(reference_time)
+            logger.info(f"[RESET] ✅ {ip} time synced")
         except Exception as e:
             logger.error(f"[RESET] ❌ {ip} failed: {e}")
         finally:
@@ -192,6 +218,42 @@ async def reset_device(ip: str, port: int):
                 await zk.force_reset()
             except Exception as e:
                 logger.debug(f"[{ip}] force_reset cleanup failed (non-fatal): {e}")
+
+
+async def sync_device_time_only(ip: str, port: int, reference_time: datetime):
+    """Time-sync a single device, without touching its attendance logs."""
+    if not await is_reachable(ip, port):
+        logger.warning(f"[TIME_SYNC] {ip} unreachable, skipped")
+        return
+
+    lock = get_lock(ip)
+    zk = ZKReader(device_ip=ip, device_port=port)
+
+    async with lock:
+        try:
+            await zk.connect()
+            await zk.sync_time(reference_time)
+            logger.info(f"[TIME_SYNC] ✅ {ip} synced")
+        except Exception as e:
+            logger.error(f"[TIME_SYNC] ❌ {ip} failed: {e}")
+        finally:
+            try:
+                await zk.force_reset()
+            except Exception as e:
+                logger.debug(f"[{ip}] force_reset cleanup failed (non-fatal): {e}")
+
+
+async def hourly_time_sync_loop():
+    """Sync every device's clock to the DB server's time, once per hour."""
+    while True:
+        logger.info("⏱️  HOURLY TIME SYNC STARTED")
+        reference_time = await get_reference_time()
+        devices = await fetch_active_devices()
+        for ip, port in devices:
+            await sync_device_time_only(ip, port, reference_time)
+        logger.info(f"⏱️  HOURLY TIME SYNC DONE — next in {HOURLY_SYNC_INTERVAL / 3600:.0f}h")
+        await asyncio.sleep(HOURLY_SYNC_INTERVAL)
+
 
 
 async def daily_reset_loop():
@@ -205,9 +267,12 @@ async def daily_reset_loop():
         logger.info(f"⏰ Daily reset in {wait / 3600:.1f}h")
         await asyncio.sleep(wait)
         logger.info("⏰ DAILY RESET STARTED")
+
+        reference_time = await get_reference_time()  # ← now async, awaited
         devices = await fetch_active_devices()
         for ip, port in devices:
-            await reset_device(ip, port)
+            await reset_device(ip, port, reference_time)
+
         logger.info("⏰ DAILY RESET DONE")
 
 
@@ -237,6 +302,28 @@ async def start_all_syncs():
         await asyncio.sleep(300)  # re-check for new devices every 5 minutes
 
 
+
+async def get_reference_time() -> datetime:
+    """
+    Authoritative time for device sync, sourced directly from the
+    PostgreSQL server (192.168.8.211) via SQL NOW() — not a separate
+    NTP query. Guarantees the devices match whatever clock the
+    database itself is already using for all its own timestamps.
+    """
+    try:
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(text("SELECT NOW()"))
+            ref_time = result.scalar()
+            # Postgres returns a tz-aware datetime; ZK devices expect naive local time
+            ref_time = ref_time.replace(tzinfo=None)
+            logger.info(f"⏱️  Reference time from DB (192.168.8.211): {ref_time}")
+            return ref_time
+    except Exception as e:
+        logger.warning(f"⏱️  DB time query failed ({e!r}), using local clock as fallback")
+        return datetime.now()
+
+
+
 # --------------------------------------------------
 # GLITCHTIP HEARTBEAT MONITOR
 # --------------------------------------------------
@@ -264,15 +351,15 @@ async def main():
     logger.info("=" * 50)
 
     # Ensure DB tables exist
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    await init_db()
     logger.info("✅ Database ready")
-
     await asyncio.gather(
         start_all_syncs(),
+        hourly_time_sync_loop(),
         daily_reset_loop(),
         heartbeat_loop(),
     )
+
 
 
 if __name__ == "__main__":

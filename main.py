@@ -4,13 +4,14 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.database import engine
-from app.models.attendance import Base
+from app.database import init_db
 from app.routers import attendance_routes, hr_routes
 from app.routers.late_report import router as late_report_router
 from app.routers.devices import router as devices_router
 import sentry_sdk
 from sentry_sdk.integrations.fastapi import FastApiIntegration
+from app.routers import adms_routes
+
 
 
 logging.basicConfig(level=logging.DEBUG)
@@ -37,8 +38,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     logger.info("🚀 FastAPI starting...")
     if os.getenv("ENVIRONMENT") != "test":
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+        await init_db()
         logger.info("✅ Database ready")
     logger.info("🎯 API is LIVE on :8080 — sync handled by sync_service.py")
     yield
@@ -86,6 +86,7 @@ app.include_router(attendance_routes.router, prefix="/attendance")
 app.include_router(hr_routes.router)
 app.include_router(late_report_router)
 app.include_router(devices_router)
+app.include_router(adms_routes.router)
 
 @app.get("/")
 async def root():
