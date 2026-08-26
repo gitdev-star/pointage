@@ -255,7 +255,7 @@ function AssignmentTab({ hrClient, profiles, factories, departments }) {
 
 
 
-const EMPTY_LATE_FORM = { email: "", username: "", factory: "", is_active: true };
+const EMPTY_LATE_FORM = { email: "", username: "", factory: "", recipient_type: "to", is_active: true };
 
 function LateAssignmentTab({ hrClient, factories }) {
   const [assignments, setAssignments] = useState([]);
@@ -287,10 +287,11 @@ function LateAssignmentTab({ hrClient, factories }) {
 
   const openEdit = (item) => {
     setForm({
-      email:     item.email,
-      username:  item.username || "",
-      factory:   item.factory,
-      is_active: item.is_active,
+      email:          item.email,
+      username:       item.username || "",
+      factory:        item.factory,
+      recipient_type: item.recipient_type || "to",
+      is_active:      item.is_active,
     });
     setEditItem(item);
     setDialog(true);
@@ -305,7 +306,8 @@ function LateAssignmentTab({ hrClient, factories }) {
     try {
       const payload = {
         email: form.email, username: form.username,
-        factory: form.factory, is_active: form.is_active,
+        factory: form.factory, recipient_type: form.recipient_type,
+        is_active: form.is_active,
       };
       if (editItem) {
         await hrClient.patch(`alerts/late-notifications/${editItem.id}/`, payload);
@@ -356,15 +358,16 @@ function LateAssignmentTab({ hrClient, factories }) {
               <TableCell><strong>Usine</strong></TableCell>
               <TableCell><strong>Email</strong></TableCell>
               <TableCell><strong>Nom</strong></TableCell>
+              <TableCell><strong>Type</strong></TableCell>
               <TableCell><strong>Statut</strong></TableCell>
               <TableCell><strong>Actions</strong></TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3 }}><CircularProgress size={24} /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} align="center" sx={{ py: 3 }}><CircularProgress size={24} /></TableCell></TableRow>
             ) : assignments.length === 0 ? (
-              <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3, color: "text.secondary" }}>
+              <TableRow><TableCell colSpan={6} align="center" sx={{ py: 3, color: "text.secondary" }}>
                 Aucun destinataire — cliquez sur Ajouter
               </TableCell></TableRow>
             ) : assignments.map(a => (
@@ -372,6 +375,13 @@ function LateAssignmentTab({ hrClient, factories }) {
                 <TableCell><Chip label={a.factory_name} color="info" size="small" /></TableCell>
                 <TableCell>{a.email}</TableCell>
                 <TableCell>{a.username || "—"}</TableCell>
+                <TableCell>
+                  <Chip
+                    label={a.recipient_type === "cc" ? "Cc" : "À (To)"}
+                    color={a.recipient_type === "cc" ? "warning" : "default"}
+                    size="small"
+                  />
+                </TableCell>
                 <TableCell>
                   <Chip label={a.is_active ? "Actif" : "Inactif"} color={a.is_active ? "success" : "default"} size="small" />
                 </TableCell>
@@ -409,6 +419,14 @@ function LateAssignmentTab({ hrClient, factories }) {
             <TextField size="small" label="Email *" value={form.email}
               onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
               type="email" helperText="Email où l'alerte retards sera envoyée" />
+            <FormControl size="small" fullWidth>
+              <InputLabel>Type de destinataire</InputLabel>
+              <Select value={form.recipient_type || "to"} label="Type de destinataire"
+                onChange={e => setForm(p => ({ ...p, recipient_type: e.target.value }))}>
+                <MenuItem value="to">À (To)</MenuItem>
+                <MenuItem value="cc">Cc</MenuItem>
+              </Select>
+            </FormControl>
             <TextField size="small" label="Nom (optionnel)" value={form.username}
               onChange={e => setForm(p => ({ ...p, username: e.target.value }))} />
             <FormControlLabel

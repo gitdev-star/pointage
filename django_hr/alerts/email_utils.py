@@ -33,7 +33,8 @@ def _base_html(title: str, body_html: str) -> str:
     </html>"""
 
 
-def _send(subject: str, html: str, text: str, recipients: list[str]):
+
+def _send(subject: str, html: str, text: str, recipients: list[str], cc: list[str] = None):
     """Core send helper — never raises, logs errors instead."""
     try:
         msg = EmailMultiAlternatives(
@@ -41,12 +42,12 @@ def _send(subject: str, html: str, text: str, recipients: list[str]):
             body=text,
             from_email=settings.DEFAULT_FROM_EMAIL,
             to=recipients,
+            cc=cc or [],          # ← NEW
         )
         msg.attach_alternative(html, "text/html")
         msg.send()
     except Exception as exc:
-        print(f"[EMAIL ERROR] {subject} → {recipients}: {exc}")
-
+        print(f"[EMAIL ERROR] {subject} → {recipients} (cc={cc}): {exc}")
 
 # ─────────────────────────────────────────────────────────────
 # CDD Alert notifications
@@ -568,7 +569,7 @@ def notify_maternity_extended(maternity, triggered_by: str = "Inconnu"):
 
 
 
-def notify_late_employees(factory, late_employees: list, recipients: list):
+def notify_late_employees(factory, late_employees: list, recipients: list, cc: list = None):
     """late_employees: list of dicts {full_name, employee_id, department, job_title, arrival_time, minutes_late}
     recipients: list of email addresses — all get the SAME email (multiple 'To')."""
     count = len(late_employees)
@@ -600,5 +601,5 @@ def notify_late_employees(factory, late_employees: list, recipients: list):
         rows, "</table>",
     ])
     html = _base_html(f"Retards du jour — {factory.name}", body_html)
-    _send(subject, html, text, recipients)
+    _send(subject, html, text, recipients, cc=cc)   # ← was: _send(subject, html, text, recipients)
     _notify_inapp(subject, f"{factory.name} | {count} retard(s)", level="warning", category="attendance")

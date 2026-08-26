@@ -12,7 +12,7 @@ ATTENDANCE_SERVICE_URL = os.environ.get("ATTENDANCE_SERVICE_URL", "http://fastap
 
 
 class Command(BaseCommand):
-    help = "Send the daily 'employees late today' email per department (run at 10:00)."
+    help = "Send the daily 'employees late today' email per factory (run at 10:00)."
 
     def handle(self, *args, **options):
         today = timezone.now().date()
@@ -70,15 +70,16 @@ class Command(BaseCommand):
         assignments = LateAlertAssignment.objects.filter(is_active=True).select_related("factory")
         recipients_by_factory = {}
         for a in assignments:
-            recipients_by_factory.setdefault(a.factory_id, []).append(a.email)
+            recipients_by_factory.setdefault(a.factory_id, {"to": [], "cc": []})
+            recipients_by_factory[a.factory_id][a.recipient_type].append(a.email)
 
         sent = 0
         for factory_id, factory_employees in by_factory.items():
-            recipients = recipients_by_factory.get(factory_id)
-            if not recipients:
+            entry = recipients_by_factory.get(factory_id)
+            if not entry or not entry["to"]:
                 continue
             factory = factory_objects[factory_id]
-            notify_late_employees(factory, factory_employees, recipients=recipients)
-            sent += len(recipients)
+            notify_late_employees(factory, factory_employees, recipients=entry["to"], cc=entry["cc"])
+            sent += len(entry["to"]) + len(entry["cc"])
 
         self.stdout.write(self.style.SUCCESS(f"Alertes envoyees a {sent} destinataire(s), groupe(s) par usine."))

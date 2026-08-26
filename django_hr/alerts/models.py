@@ -94,12 +94,19 @@ class InAppNotification(models.Model):
 
 class LateAlertAssignment(models.Model):
     """Config: who receives the 'late today' email, per usine (factory)."""
-    factory    = models.ForeignKey("employees.Factory", on_delete=models.CASCADE,
-                                    related_name="late_alert_assignments")
-    email      = models.EmailField()
-    username   = models.CharField(max_length=150, blank=True, default="")
-    is_active  = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+
+    class RecipientType(models.TextChoices):
+        TO = "to", "À (To)"
+        CC = "cc", "Cc"
+
+    factory        = models.ForeignKey("employees.Factory", on_delete=models.CASCADE,
+                                        related_name="late_alert_assignments")
+    email          = models.EmailField()
+    username       = models.CharField(max_length=150, blank=True, default="")
+    recipient_type = models.CharField(max_length=3, choices=RecipientType.choices,
+                                       default=RecipientType.TO)
+    is_active      = models.BooleanField(default=True)
+    created_at     = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         unique_together = ("factory", "email")
@@ -107,4 +114,4 @@ class LateAlertAssignment(models.Model):
         verbose_name_plural = "Destinataires alertes retards"
 
     def __str__(self):
-        return f"{self.email} ← {self.factory.name}"
+        return f"{self.email} ({self.recipient_type}) ← {self.factory.name}"
