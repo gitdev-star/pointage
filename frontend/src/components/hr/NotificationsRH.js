@@ -10,6 +10,7 @@ import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import hrClient from "../../api/hrClient";
+import DirectoryUserPicker from "../DirectoryUserPicker";
 
 const EMPTY_FORM = {
   _profile_id: "", auth_user_id: "", username: "", email: "",
@@ -267,6 +268,8 @@ function LateAssignmentTab({ hrClient, factories }) {
   const [saving, setSaving]           = useState(false);
   const [deleteDialog, setDeleteDialog] = useState(null);
   const [deleting, setDeleting]         = useState(false);
+  const [pickerOpen, setPickerOpen]     = useState(false);
+  const [pickerSource, setPickerSource] = useState("ldap");
 
   const fetchAssignments = useCallback(async () => {
     setLoading(true);
@@ -416,9 +419,32 @@ function LateAssignmentTab({ hrClient, factories }) {
                 {factories.map(f => <MenuItem key={f.id} value={f.id}>{f.name}</MenuItem>)}
               </Select>
             </FormControl>
+            <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
+              <Button size="small" variant="outlined"
+                onClick={() => { setPickerSource("ldap"); setPickerOpen(true); }}>
+                Depuis AD
+              </Button>
+              <Button size="small" variant="outlined"
+                onClick={() => { setPickerSource("entra"); setPickerOpen(true); }}>
+                Depuis Entra ID
+              </Button>
+              <Typography variant="caption" color="text.secondary">
+                ou saisissez un email externe ci-dessous
+              </Typography>
+            </Box>
             <TextField size="small" label="Email *" value={form.email}
               onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
               type="email" helperText="Email où l'alerte retards sera envoyée" />
+            <DirectoryUserPicker
+              open={pickerOpen}
+              onClose={() => setPickerOpen(false)}
+              source={pickerSource}
+              onSelect={(u) => setForm(p => ({
+                ...p,
+                email: u.email || "",
+                username: u.cn || u.username || "",
+              }))}
+            />
             <FormControl size="small" fullWidth>
               <InputLabel>Type de destinataire</InputLabel>
               <Select value={form.recipient_type || "to"} label="Type de destinataire"
