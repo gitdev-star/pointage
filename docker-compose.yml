@@ -148,6 +148,7 @@ services:
       - DJANGO_AUTH_URL=http://django-auth:8000/api/clockers/
       - DJANGO_HR_URL=http://django-hr:8002
       - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - DJANGO_SETTINGS_MODULE=config.settings
       - HR_DB_HOST=${POSTGRES_HOST}
       - HR_DB_PORT=${POSTGRES_PORT}
       - HR_DB_NAME=${HR_DB_NAME}

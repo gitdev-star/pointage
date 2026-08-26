@@ -127,6 +127,7 @@ export default function EmployeeList() {
   const [total,       setTotal]       = useState(0);
   const [loading,     setLoading]     = useState(false);
   const [classifications, setClassifications] = useState([]);
+  const [eventTypes, setEventTypes] = useState([]);
 
   // ── Filtres ───────────────────────────────────────────────────────────────────
   const {
@@ -214,6 +215,9 @@ hrClient.get("employees/postes/?page_size=500&is_active=true")
       setPostes(r.data.results || r.data || []);
     })
     .catch(() => {});
+hrClient.get("leaves/types/?page_size=50")
+  .then((r) => setEventTypes(r.data.results || r.data || []))
+  .catch(() => {});
 }, []);
 
   // ─── Modal helpers ────────────────────────────────────────────────────────────
@@ -338,25 +342,76 @@ const handleSave = async () => {
     closeModal();
     fetchEmployees();
 
-  } catch (err) {
-    console.error("❌ erreur complète:", err);
-    console.error("❌ response data:", err.response?.data);
-    console.error("❌ status:", err.response?.status);
+} catch (err) {
+  const status = err.response?.status;
+  const data = err.response?.data;
 
-    const data = err.response?.data;
-    if (data && typeof data === "object") {
-      const be = {};
-      Object.entries(data).forEach(([k, v]) => {
-        be[k] = Array.isArray(v) ? v.join(" ") : v;
-      });
-      setFormErrors(be);
-      setAlert({ type: "error", msg: "Erreur de validation : voir les champs en rouge." });
-    } else {
-      setAlert({ type: "error", msg: "Erreur lors de la sauvegarde." });
-    }
-  } finally {
-    setSaving(false);
+  console.error("Erreur sauvegarde employ� :", {
+    status,
+    data,
+  });
+
+  // V�ritable erreur de validation Django REST Framework
+  if (status === 400 && data && typeof data === "object") {
+    const backendErrors = {};
+
+    Object.entries(data).forEach(([field, messages]) => {
+      backendErrors[field] = Array.isArray(messages)
+        ? messages.join(" ")
+        : String(messages);
+    });
+
+    setFormErrors(backendErrors);
+
+    const nonFieldMessage =
+      backendErrors.non_field_errors ||
+      backendErrors.detail ||
+      "Veuillez vérifier les champs indiqués en rouge.";
+
+    setAlert({
+      type: "error",
+      msg: nonFieldMessage,
+    });
+
+  } else if (status === 429) {
+    setAlert({
+      type: "error",
+      msg: "Trop de requêtes successives. Veuillez patienter quelques instants.",
+    });
+
+  } else if (status === 401) {
+    setAlert({
+      type: "error",
+      msg: "Votre session a expiré. Veuillez vous reconnecter.",
+    });
+
+  } else if (status === 403) {
+    setAlert({
+      type: "error",
+      msg: "Vous n’avez pas la permission d’ajouter un employé.",
+    });
+
+  } else if (status >= 500) {
+    setAlert({
+      type: "error",
+      msg: data?.detail || "Une erreur interne est survenue sur le serveur.",
+    });
+
+  } else if (!err.response) {
+    setAlert({
+      type: "error",
+      msg: "Impossible de communiquer avec le serveur.",
+    });
+
+  } else {
+    setAlert({
+      type: "error",
+      msg: data?.detail || "Erreur lors de la sauvegarde.",
+    });
   }
+} finally {
+  setSaving(false);
+}
 };
 
   // ─── Delete ───────────────────────────────────────────────────────────────────
@@ -604,6 +659,7 @@ function LastActionCell({ action, at, by }) {
         setPhotoPreview={setPhotoPreview}
         classifications={classifications}
         postes={postes}
+	eventTypes={eventTypes}
       />
 
       {/* ── Dialog suppression ── */}
