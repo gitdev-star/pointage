@@ -95,7 +95,7 @@
     photoPreview,
     setPhotoFile,
     setPhotoPreview,
-    classifications, postes
+    classifications, postes, eventTypes,
   }) {
     useEffect(() => {
       return () => {
@@ -123,7 +123,7 @@
       <Dialog
         open={open}
         onClose={onClose}
-        maxWidth="sm"
+        maxWidth="lg"
         fullWidth
         PaperProps={{ sx: { borderRadius: "14px" } }}
       >
@@ -203,7 +203,18 @@
             </Box>
           </Box>
 
-          {/* ── Identité ── */}
+{/* ----------------------------------- */}
+
+  <Box
+    sx={{
+      display: "grid",
+      gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+      gap: "0 32px",
+      alignItems: "start",
+    }}
+  >
+    {/* Colonne gauche */}
+    <Box>
           <Section icon={<BadgeOutlinedIcon fontSize="inherit" />} label="Identité">
             <Row>
               <TextField
@@ -281,8 +292,7 @@
             </Row>
           </Section>
 
-          {/* ── Contact ── */}
-          <Section icon={<ContactMailOutlinedIcon fontSize="inherit" />} label="Contact">
+       <Section icon={<ContactMailOutlinedIcon fontSize="inherit" />} label="Contact">
             <Row cols="1fr 1fr">
               <TextField
                 {...sm}
@@ -345,9 +355,11 @@
                 />
               </Row>
           </Section>
+    </Box>
 
-          {/* ── Organisation & Emploi ── */}
-          <Section icon={<BusinessOutlinedIcon fontSize="inherit" />} label="Organisation & Emploi">
+    {/* Colonne droite */}
+    <Box>
+        <Section icon={<BusinessOutlinedIcon fontSize="inherit" />} label="Organisation & Emploi">
             <Row>
               <FormControl {...sm}>
                 <InputLabel>Usine *</InputLabel>
@@ -469,7 +481,7 @@
                   ))}
                 </Select>
               </FormControl>
-  		<TextField
+                <TextField
                   {...sm}
                   label="CNAPS"
                   value={formData.cnaps || ""}
@@ -477,49 +489,79 @@
                   InputProps={{ sx: inputSx }}
                 />
             </Row>
-            <Row>
-                <TextField
-                {...sm}
-                label="Numéro RH"
-                value={formData.n_rh || ""}
-                onChange={(e) => handleFormChange("n_rh", e.target.value)}
-                InputProps={{ sx: inputSx }}
-              />
-              <TextField
-                {...sm}
-                label="Date d'embauche"
-                type="date"
-                InputLabelProps={{ shrink: true }}
-                value={formData.hire_date || ""}
-                onChange={(e) => handleFormChange("hire_date", e.target.value)}
-                InputProps={{ sx: inputSx }}
-                required
-              />
-              <TextField
-                {...sm}
-                label="Fin de contrat"
-                type="date"
-                InputLabelProps={{ shrink: true }}
-                value={formData.termination_date || ""}
-                onChange={(e) => handleFormChange("termination_date", e.target.value)}
-                InputProps={{ sx: inputSx }}
-                required
-              />
-              <FormControl {...sm}>
-                <InputLabel>Statut</InputLabel>
-                <Select
-                  value={formData.status || ""}
-                  label="Statut"
-                  onChange={(e) => handleFormChange("status", e.target.value)}
-                  sx={inputSx}
-                >
-                  {Object.entries(STATUS_LABELS).map(([k, v]) => (
-                    <MenuItem key={k} value={k}>{v}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Row>
+      <Row>
+          <TextField
+            {...sm}
+            label="Numéro RH"
+            value={formData.n_rh || ""}
+            onChange={(e) => handleFormChange("n_rh", e.target.value)}
+            InputProps={{ sx: inputSx }}
+          />
+          <TextField
+            {...sm}
+            label="Date d'embauche"
+            type="date"
+            InputLabelProps={{ shrink: true }}
+            value={formData.hire_date || ""}
+            onChange={(e) => handleFormChange("hire_date", e.target.value)}
+            InputProps={{ sx: inputSx }}
+            required
+          />
+          <FormControl {...sm}>
+            <InputLabel>Statut</InputLabel>
+            <Select
+              value={formData.status || ""}
+              label="Statut"
+              onChange={(e) => handleFormChange("status", e.target.value)}
+              sx={inputSx}
+            >
+              {Object.entries(STATUS_LABELS).map(([k, v]) => (
+                <MenuItem key={k} value={k}>{v}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+      </Row>
+
+{/* Champs affichés uniquement si l'employé est marqué "Parti" */}
+{formData.status === "TERMINATED" && (
+  <Row cols="1fr 1fr">
+    <TextField
+      {...sm}
+      label="Date de départ *"
+      type="date"
+      InputLabelProps={{ shrink: true }}
+      value={formData.termination_date || ""}
+      onChange={(e) => handleFormChange("termination_date", e.target.value)}
+      error={!!formErrors.termination_date}
+      helperText={formErrors.termination_date}
+      InputProps={{ sx: inputSx }}
+      required
+    />
+  <FormControl {...sm} required>
+    <InputLabel>Motif de départ *</InputLabel>
+    <Select
+      value={formData.motif_depart || ""}
+      label="Motif de départ *"
+      onChange={(e) => handleFormChange("motif_depart", e.target.value)}
+      sx={inputSx}
+    >
+      {(eventTypes || [])
+        .filter((t) => t.is_active)
+        .map((t) => (
+          <MenuItem key={t.id} value={t.name}>
+            {t.name}
+          </MenuItem>
+        ))}
+    </Select>
+    {formErrors.motif_depart && (
+      <FormHelperText error>{formErrors.motif_depart}</FormHelperText>
+    )}
+  </FormControl>
+  </Row>
+)}
           </Section>
+    </Box>
+  </Box>
 
         </DialogContent>
 
