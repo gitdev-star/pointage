@@ -568,35 +568,37 @@ def notify_maternity_extended(maternity, triggered_by: str = "Inconnu"):
 
 
 
-def notify_late_employees(department, late_employees: list, recipients: list):
-    """late_employees: list of dicts {full_name, employee_id, job_title, arrival_time, minutes_late}
+def notify_late_employees(factory, late_employees: list, recipients: list):
+    """late_employees: list of dicts {full_name, employee_id, department, job_title, arrival_time, minutes_late}
     recipients: list of email addresses — all get the SAME email (multiple 'To')."""
     count = len(late_employees)
-    subject = f"[RH] Retards du jour — {department.name} ({count})"
+    subject = f"[RH] Retards du jour — {factory.name} ({count})"
 
     rows = "".join(
         "<tr>"
         f"<td style='padding:6px;border-bottom:1px solid #eee;'>{e['full_name']}</td>"
         f"<td style='padding:6px;border-bottom:1px solid #eee;'>{e['employee_id']}</td>"
+        f"<td style='padding:6px;border-bottom:1px solid #eee;'>{e.get('department','—')}</td>"
         f"<td style='padding:6px;border-bottom:1px solid #eee;'>{e.get('job_title','—')}</td>"
         f"<td style='padding:6px;border-bottom:1px solid #eee;color:#c62828;font-weight:bold;'>{e.get('arrival_time','—')}</td>"
         f"<td style='padding:6px;border-bottom:1px solid #eee;'>{e.get('minutes_late','—')} min</td>"
         "</tr>"
         for e in late_employees
     )
-    text = "\n".join([f"Retards du jour — {department.name}", f"Nombre : {count}"] + [
-        f"- {e['full_name']} ({e['employee_id']}) : {e.get('minutes_late','?')} min de retard"
+    text = "\n".join([f"Retards du jour — {factory.name}", f"Nombre : {count}"] + [
+        f"- {e['full_name']} ({e['employee_id']}) [{e.get('department','—')}] : {e.get('minutes_late','?')} min de retard"
         for e in late_employees
     ])
     body_html = "".join([
-        f"<p><strong>{count}</strong> employé(s) en retard aujourd'hui pour <strong>{department.name}</strong>.</p>",
+        f"<p><strong>{count}</strong> employé(s) en retard aujourd'hui pour <strong>{factory.name}</strong>.</p>",
         "<table style='border-collapse:collapse;width:100%;'>",
         "<tr style='background:#1565c0;color:#fff;'>",
         "<th style='padding:8px;text-align:left;'>Nom</th><th style='padding:8px;text-align:left;'>Matricule</th>",
-        "<th style='padding:8px;text-align:left;'>Poste</th><th style='padding:8px;text-align:left;'>Heure pointage</th>",
+        "<th style='padding:8px;text-align:left;'>Département</th><th style='padding:8px;text-align:left;'>Poste</th>",
+        "<th style='padding:8px;text-align:left;'>Heure pointage</th>",
         "<th style='padding:8px;text-align:left;'>Retard</th></tr>",
         rows, "</table>",
     ])
-    html = _base_html(f"Retards du jour — {department.name}", body_html)
+    html = _base_html(f"Retards du jour — {factory.name}", body_html)
     _send(subject, html, text, recipients)
-    _notify_inapp(subject, f"{department.name} | {count} retard(s)", level="warning", category="attendance")
+    _notify_inapp(subject, f"{factory.name} | {count} retard(s)", level="warning", category="attendance")
