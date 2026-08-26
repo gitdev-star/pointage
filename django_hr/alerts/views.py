@@ -24,6 +24,9 @@ from .email_utils import (
     notify_bulk_sent,
 )
 
+from .models import LateAlertAssignment
+from .serializers import LateAlertAssignmentSerializer
+
 
 class CDDAlertViewSet(viewsets.ModelViewSet):
     queryset = CDDAlert.objects.select_related(
@@ -362,3 +365,12 @@ class InAppNotificationViewSet(viewsets.ModelViewSet):
             is_read=False,
         ).count()
         return Response({"count": count})
+
+
+
+
+class LateAlertAssignmentViewSet(viewsets.ModelViewSet):
+    queryset = LateAlertAssignment.objects.select_related("factory").all()
+    serializer_class = LateAlertAssignmentSerializer
+    filter_backends  = [DjangoFilterBackend]
+    filterset_fields = ["factory", "is_active"]

@@ -210,6 +210,51 @@ class ZKReader:
             logger.error(f"[ZK] {self.device_ip} time sync failed: {e}")
             raise
         
+    # ----------------------------
+    # Device info (serial, firmware, capacity)
+    # ----------------------------
+    async def get_device_info(self) -> dict:
+        """
+        Fetch static/near-static device metadata: serial, firmware,
+        platform, MAC, plus current usage vs capacity (users, fingers,
+        records, faces). Requires a live connection -- much heavier than
+        a ping, so callers should cache this, not poll it every request.
+        """
+        if not self.connection:
+            await self.connect()
+        conn = self.connection
+        loop = asyncio.get_running_loop()
+
+        try:
+            def _read():
+                conn.read_sizes()
+                return {
+                    "serial_number": conn.get_serialnumber(),
+                    "firmware_version": conn.get_firmware_version(),
+                    "platform": conn.get_platform(),
+                    "device_name": conn.get_device_name(),
+                    "mac_address": conn.get_mac(),
+                    "user_count": conn.users,
+                    "user_capacity": conn.users_cap,
+                    "fingerprint_count": conn.fingers,
+                    "fingerprint_capacity": conn.fingers_cap,
+                    "record_count": conn.records,
+                    "record_capacity": conn.rec_cap,
+                    "face_count": conn.faces,
+                    "face_capacity": conn.faces_cap,
+                }
+
+            info = await loop.run_in_executor(None, _read)
+            self.consecutive_errors = 0
+            logger.debug(f"[ZK] {self.device_ip} device info: {info}")
+            return info
+        except Exception as e:
+            self.consecutive_errors += 1
+            logger.error(f"[ZK] {self.device_ip} get_device_info failed: {e}")
+            if self.consecutive_errors >= 3:
+                await self._force_cleanup()
+            raise
+
     async def delete_user(self, device_user_id: int) -> bool:
         if not self.connection:
             await self.connect()
@@ -227,3 +272,4 @@ class ZKReader:
         except Exception as e:
             logger.error(f"[ZK] {self.device_ip} delete_user failed for {device_user_id}: {e}")
             raise
+        

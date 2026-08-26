@@ -1,5 +1,6 @@
 import React from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import AuthCallback from './pages/AuthCallback';
 import LoginPage from "./components/LoginPage";
 import DeviceStatus from "./components/DeviceStatus";
 import ProfilePage from "./components/ProfilePage";
@@ -44,6 +45,7 @@ function App() {
     <Router>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
           <Route path="/"                   element={<ProtectedRoute module="dashboard"><PresenceDashboard /></ProtectedRoute>} />
           <Route path="attendance"          element={<ProtectedRoute module="presence"><HRAttendanceDashboard /></ProtectedRoute>} />

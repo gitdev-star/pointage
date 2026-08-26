@@ -10,6 +10,8 @@ from .permissions import IsDirector, get_hr_profile, is_service_request
 from .authentication import HRTokenAuthentication, ServiceAuthentication
 
 
+
+
 class HRProfileViewSet(viewsets.ModelViewSet):
     queryset = HRProfile.objects.select_related("factory", "department").all()
     serializer_class = HRProfileSerializer
@@ -57,3 +59,4 @@ class MeHRView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
         return Response(HRProfileSerializer(profile).data)
+

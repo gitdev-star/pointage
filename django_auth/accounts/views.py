@@ -1,3 +1,5 @@
+import logging
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import generics
@@ -7,6 +9,16 @@ from .serializers import UserSerializer, RegisterSerializer
 from .models import User
 from .permissions import IsAdmin, IsHR, IsEmployee
 from .ldap_service import list_ldap_users, authenticate_ldap_user
+
+
+from .entra_service import (
+    get_auth_url, acquire_token_by_code,
+    extract_username_from_claims, list_entra_users,
+)
+from django.shortcuts import redirect
+from django.conf import settings
+
+logger = logging.getLogger(__name__)
 
 
 class RegisterView(generics.CreateAPIView):
@@ -228,3 +240,139 @@ class HRUserDeleteView(APIView):
         except User.DoesNotExist:
             return Response({"detail": "Utilisateur introuvable."}, status=404)
 
+
+
+
+#django_auth/accounts/views.py
+# =====================================================
+# CONCERNING ENTRA ID / MICROSOFT LOGIN
+# =====================================================
+#    LDAPLoginView and friends are untouched — this is
+#    purely additive, so LDAP keeps working exactly as
+#    it does today.
+# =====================================================
+
+
+class EntraLoginView(APIView):
+    """
+    Step 1 of the Entra ID login flow.
+    Frontend links/redirects the browser here; we bounce
+    it straight to Microsoft's login page.
+    """
+    permission_classes = []
+
+    def get(self, request):
+        try:
+            return redirect(get_auth_url())
+        except RuntimeError as e:
+            return Response({"detail": str(e)}, status=500)
+
+
+class EntraCallbackView(APIView):
+    """
+    Step 2 of the Entra ID login flow.
+    Microsoft redirects the browser back here with ?code=...
+    after the user authenticates. We exchange that code for
+    the user's identity, check they're already provisioned
+    locally (same admin-approval model as LDAP), then issue
+    the same JWT shape LDAPLoginView produces — so FastAPI's
+    get_current_user needs zero changes.
+    """
+    permission_classes = []
+
+    def get(self, request):
+        code = request.GET.get("code")
+        error = request.GET.get("error")
+
+        if error:
+            logger.error(f"Entra ID login error: {error} - {request.GET.get('error_description')}")
+            return Response({"detail": "Authentification Entra ID annulée ou refusée."}, status=401)
+
+        if not code:
+            return Response({"detail": "Code manquant."}, status=400)
+
+        claims = acquire_token_by_code(code)
+        if not claims:
+            return Response({"detail": "Échec authentification Entra ID."}, status=401)
+
+        username = extract_username_from_claims(claims)
+        if not username:
+            return Response({"detail": "Identifiant Entra ID introuvable."}, status=401)
+
+        # Same admin-pre-approval model as LDAP: user must
+        # already exist locally, imported by an admin.
+        try:
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            return Response(
+                {"detail": "Accès refusé. Votre compte n'a pas été activé par un administrateur."},
+                status=401
+            )
+        if not user.is_active:
+            return Response({"detail": "Compte désactivé."}, status=401)
+
+        refresh = RefreshToken.for_user(user)
+        refresh["role"] = user.role
+        refresh["username"] = user.username
+        refresh["email"] = user.email
+
+        # Hand tokens back to the SPA. Using a redirect with a short-lived
+        # code exchange page is more robust than raw tokens in the URL —
+        # but to keep this a drop-in parallel to your existing flow, this
+        # redirects with tokens directly. Consider hardening later (e.g.
+        # a one-time server-side code the frontend exchanges via POST).
+        frontend_url = (
+            f"{settings.FRONTEND_URL}/auth/callback"
+            f"?access={refresh.access_token}&refresh={refresh}"
+        )
+        return redirect(frontend_url)
+
+
+class EntraUserListView(APIView):
+    """List all users from the Entra ID tenant — ADMIN only."""
+    permission_classes = [IsAuthenticated, IsAdmin]
+
+    def get(self, request):
+        users = list_entra_users()
+        existing = set(User.objects.values_list("username", flat=True))
+        for u in users:
+            u["already_imported"] = u["username"] in existing
+        return Response(users)
+
+
+class EntraImportUserView(APIView):
+    """
+    Import a user from Entra ID into django_auth.
+    POST { username, role }
+    The user will authenticate via Microsoft login going forward.
+    """
+    permission_classes = [IsAuthenticated, IsAdmin]
+
+    def post(self, request):
+        username = request.data.get("username")
+        role = request.data.get("role", "HR")
+
+        if not username:
+            return Response({"detail": "username requis."}, status=400)
+
+        if User.objects.filter(username=username).exists():
+            return Response({"detail": f"L'utilisateur {username} existe déjà."}, status=400)
+
+        users = list_entra_users()
+        entra_user = next((u for u in users if u["username"] == username), None)
+
+        if not entra_user:
+            return Response({"detail": f"Utilisateur {username} introuvable dans Entra ID."}, status=404)
+
+        user = User.objects.create(
+            username=entra_user["username"],
+            email=entra_user["email"],
+            first_name=entra_user["first_name"],
+            last_name=entra_user["last_name"],
+            role=role,
+            is_active=True,
+        )
+        user.set_unusable_password()  # No local password — Entra ID auth only
+        user.save()
+
+        return Response(UserSerializer(user).data, status=201)

@@ -1,0 +1,76 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<h1>Importer depuis Entra ID</h1>
+<p>Sélectionnez un utilisateur Entra ID (Microsoft) pour l'importer dans le système.</p>
+
+{% if messages %}
+  {% for message in messages %}
+    <div class="alert" style="padding:10px; margin:10px 0; background:{% if message.tags == 'success' %}#d4edda{% elif message.tags == 'error' %}#f8d7da{% else %}#d1ecf1{% endif %}; border-radius:4px;">
+      {{ message }}
+    </div>
+  {% endfor %}
+{% endif %}
+
+<input type="text" id="search" placeholder="Rechercher..."
+  style="padding:8px; width:300px; margin-bottom:15px; border:1px solid #ccc; border-radius:4px;"
+  onkeyup="filterTable()">
+
+<table id="entraTable" style="width:100%; border-collapse:collapse;">
+  <thead>
+    <tr style="background:#f5f5f5;">
+      <th style="padding:8px; text-align:left; border:1px solid #ddd;">Nom complet</th>
+      <th style="padding:8px; text-align:left; border:1px solid #ddd;">Login Entra ID</th>
+      <th style="padding:8px; text-align:left; border:1px solid #ddd;">Email</th>
+      <th style="padding:8px; text-align:left; border:1px solid #ddd;">Département</th>
+      <th style="padding:8px; text-align:left; border:1px solid #ddd;">Statut</th>
+      <th style="padding:8px; text-align:left; border:1px solid #ddd;">Action</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for user in entra_users %}
+    <tr style="border:1px solid #ddd; {% if user.already_imported %}background:#f9f9f9; color:#999;{% endif %}">
+      <td style="padding:8px;">{{ user.cn }}</td>
+      <td style="padding:8px; font-family:monospace;">{{ user.username }}</td>
+      <td style="padding:8px;">{{ user.email }}</td>
+      <td style="padding:8px;">{{ user.department }}</td>
+      <td style="padding:8px;">
+        {% if user.already_imported %}
+          <span style="color:green;">✅ Importé</span>
+        {% else %}
+          <span style="color:orange;">En attente</span>
+        {% endif %}
+      </td>
+      <td style="padding:8px;">
+        {% if not user.already_imported %}
+        <form method="post" style="display:inline;">
+          {% csrf_token %}
+          <input type="hidden" name="username"   value="{{ user.username }}">
+          <input type="hidden" name="first_name" value="{{ user.first_name }}">
+          <input type="hidden" name="last_name"  value="{{ user.last_name }}">
+          <input type="hidden" name="email"      value="{{ user.email }}">
+          <select name="role" style="padding:4px; margin-right:5px;">
+            <option value="HR">HR</option>
+            <option value="ADMIN">ADMIN</option>
+          </select>
+          <button type="submit" style="padding:4px 10px; background:#417690; color:white; border:none; border-radius:3px; cursor:pointer;">
+            Importer
+          </button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<script>
+function filterTable() {
+  const input  = document.getElementById("search").value.toLowerCase();
+  const rows   = document.getElementById("entraTable").getElementsByTagName("tr");
+  for (let i = 1; i < rows.length; i++) {
+    const text = rows[i].textContent.toLowerCase();
+    rows[i].style.display = text.includes(input) ? "" : "none";
+  }
+}
+</script>
+{% endblock %}

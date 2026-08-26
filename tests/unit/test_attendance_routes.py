@@ -185,3 +185,75 @@ async def test_analysis_endpoint_returns_404_for_missing_user(test_client, auth_
         headers=auth_headers
     )
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_kpi_endpoint_handles_tz_aware_schedule_start(test_client, test_session, monkeypatch):
+    """Regression test: rules.standard_start with tzinfo must not raise
+    'can't compare offset-naive and offset-aware datetimes' on /attendance/kpi.
+    """
+    from datetime import time, timezone as dt_timezone
+    from app.models.attendance import Attendance
+    import app.routers.attendance_routes as attendance_routes
+
+    today = date.today()
+    attendance = Attendance(
+        uid=3001,
+        user_id=301,
+        device_timestamp=datetime.combine(today, time(8, 0)),
+        timestamp=datetime.combine(today, time(8, 0)),
+        date=today,
+        device_ip="10.0.0.9",
+    )
+    test_session.add(attendance)
+    await test_session.commit()
+
+    class FakeRules:
+        standard_start = time(7, 30, tzinfo=dt_timezone.utc)
+
+    monkeypatch.setattr(
+        attendance_routes, "get_schedules_bulk",
+        lambda user_ids, kpi_date: {301: FakeRules()}
+    )
+    monkeypatch.setattr(attendance_routes, "_default_rules", lambda: FakeRules())
+
+    response = await test_client.get(f"/attendance/kpi?target_date={today.isoformat()}")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["presents"] == 1
+    assert data["late"] == 1  # 8:00 arrival vs 7:30 + 7min threshold
+
+
+@pytest.mark.asyncio
+async def test_late_today_handles_tz_aware_schedule_start(test_client, test_session, monkeypatch):
+    """Same regression, for /attendance/late-today."""
+    from datetime import time, timezone as dt_timezone
+    from app.models.attendance import Attendance
+    import app.routers.attendance_routes as attendance_routes
+
+    today = date.today()
+    attendance = Attendance(
+        uid=3002,
+        user_id=302,
+        device_timestamp=datetime.combine(today, time(8, 15)),
+        timestamp=datetime.combine(today, time(8, 15)),
+        date=today,
+        device_ip="10.0.0.10",
+    )
+    test_session.add(attendance)
+    await test_session.commit()
+
+    class FakeRules:
+        standard_start = time(7, 30, tzinfo=dt_timezone.utc)
+
+    monkeypatch.setattr(
+        attendance_routes, "get_schedules_bulk",
+        lambda user_ids, kpi_date: {302: FakeRules()}
+    )
+    monkeypatch.setattr(attendance_routes, "_default_rules", lambda: FakeRules())
+
+    response = await test_client.get(f"/attendance/late-today?target_date={today.isoformat()}")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["user_id"] == 302

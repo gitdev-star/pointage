@@ -1,4 +1,6 @@
 """
+django_auth/config/settings.py
+django_auth Django settings for config project.
 Django settings for config project.
 """
 import logging
@@ -187,3 +189,18 @@ LOGGING = {
         "level": "INFO",
     },
 }
+
+#django_auth/config/settings.py
+
+# ── Entra ID (Microsoft) ──────────────────────────────
+AZURE_CLIENT_ID     = os.environ.get("AZURE_CLIENT_ID")
+AZURE_CLIENT_SECRET = os.environ.get("AZURE_CLIENT_SECRET")
+AZURE_TENANT_ID     = os.environ.get("AZURE_TENANT_ID")
+AZURE_REDIRECT_URI  = os.environ.get("AZURE_REDIRECT_URI")
+FRONTEND_URL         = os.environ.get("FRONTEND_URL", "https://192.168.8.217")
+
+# NOTE: unlike LDAP_SERVER_URI etc., these are NOT hard-required at
+# import time (no raise ValueError like SECRET_KEY/JWT_SECRET_KEY) —
+# entra_service._check_config() raises a clear RuntimeError only when
+# the Entra login is actually attempted, so a missing/incomplete Entra
+# config never breaks LDAP logins or the rest of the app

@@ -538,7 +538,8 @@ async def get_daily_kpi(
     late = 0
     for row in rows:
         rules = schedules.get(row.user_id, default_rules)
-        threshold = datetime.combine(kpi_date, rules.standard_start) + timedelta(minutes=7)
+        standard_start = rules.standard_start.replace(tzinfo=None) if rules.standard_start.tzinfo else rules.standard_start
+        threshold = datetime.combine(kpi_date, standard_start) + timedelta(minutes=7)
         first_punch = row.first_punch.astimezone(MADAGASCAR_TZ).replace(tzinfo=None) if row.first_punch and row.first_punch.tzinfo else row.first_punch
         if first_punch >= threshold:
             late += 1
@@ -586,7 +587,8 @@ async def get_late_today(
     late_rows = []
     for row in all_rows:
         rules = schedules.get(row.user_id, default_rules)
-        threshold = datetime.combine(kpi_date, rules.standard_start) + timedelta(minutes=7)
+        standard_start = rules.standard_start.replace(tzinfo=None) if rules.standard_start.tzinfo else rules.standard_start
+        threshold = datetime.combine(kpi_date, standard_start) + timedelta(minutes=7)
         first_punch = row.first_punch.astimezone(MADAGASCAR_TZ).replace(tzinfo=None) if row.first_punch and row.first_punch.tzinfo else row.first_punch
         if first_punch >= threshold:
             late_rows.append((row.user_id, first_punch, threshold))

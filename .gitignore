@@ -62,3 +62,5 @@ check_employee_on_device.py
 delete_remaining.py
 app/delete_zk_user.py
 app/verify_zk_user.py
+config_additions_ENTRA_ID.txt
+test_clocker.py
