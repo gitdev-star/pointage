@@ -265,7 +265,10 @@ jobs:
           pytest tests/integration/test_django_hr_real.py \
           -v --tb=short \
           -m real_cross_service \
-          --no-cov
+          --no-cov -p no:django
+
+        env:
+          PYTHONPATH: /app/django_hr
 
 
       - name: HR Integration
@@ -276,8 +279,10 @@ jobs:
           pytest tests/integration/test_cross_service_real.py \
           -v --tb=short \
           -m real_cross_service \
-          --no-cov
+          --no-cov -p no:django
 
+        env:
+          PYTHONPATH: /app/django_hr
 
 
       - name: End To End Integration
@@ -288,7 +293,10 @@ jobs:
           pytest tests/integration/test_nginx_routing_real.py \
           -v --tb=short \
           -m real_cross_service \
-          --no-cov
+          --no-cov -p no:django
+        
+        env:
+          PYTHONPATH: /app/django_hr
 
 
 
@@ -300,7 +308,8 @@ jobs:
           -m real_cross_service \
           --no-cov
 
-
+        env:
+          PYTHONPATH: /app/django_auth
 
       - name: Late Report HR-DB Schema Integration
 
@@ -310,8 +319,10 @@ jobs:
           pytest tests/integration/test_late_report_hr_db_real.py \
           -v --tb=short \
           -m real_cross_service \
-          --no-cov
+          --no-cov -p no:django
 
+        env:
+          PYTHONPATH: /app/django_hr
 
 
 
