@@ -15,5 +15,5 @@ pytest-cov
 sentry-sdk
 
 # microsoft entra_id
-msal>=1.28.0msal>=1.28.0
+msal>=1.28.0
 httpx
