@@ -20,9 +20,9 @@ class Attendance(Base):
     timestamp = Column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=text("now()"),   # DB-generated, same instant as created_at — no app code needed
+        server_default=text("now()"),
     )
-    device_timestamp = Column(DateTime, nullable=False)     # raw device clock — dedup key only
+    device_timestamp = Column(DateTime, nullable=False)
     date = Column(Date, nullable=False)
     device_ip = Column(String, nullable=False)
 
@@ -33,63 +33,59 @@ class Attendance(Base):
     def __repr__(self):
         return f"<Attendance(id={self.id}, user_id={self.user_id}, device_ip={self.device_ip})>"
 
+    @classmethod
+    async def insert_attendance(
+        cls,
+        session: AsyncSession,
+        user_id: int,
+        device_timestamp: datetime,
+        date,
+        device_ip: str,
+        uid: int,
+        timestamp: datetime | None = None,
+    ) -> int:
+        """
+        Insert one attendance record, skipping silently if it's a duplicate.
 
-@classmethod
-async def insert_attendance(
-    cls,
-    session: AsyncSession,
-    user_id: int,
-    device_timestamp: datetime,
-    date,
-    device_ip: str,
-    uid: int,
-    timestamp: datetime | None = None,
-) -> int:
-    """
-    Insert one attendance record, skipping silently if it's a duplicate.
+        PUSH: timestamp omitted -> server_default now() applies.
+        PULL: timestamp=device_timestamp passed explicitly, since the
+        fetch can happen long after the actual punch.
 
-    `timestamp` — heure réelle de l'événement, utilisée pour tous les
-    calculs métier (retards, présence).
-      - PUSH : ne pas passer `timestamp` → server_default now() s'applique.
-        Le push étant quasi temps réel, now() ≈ heure réelle du pointage.
-      - PULL : passer `timestamp=device_timestamp` explicitement, car le
-        fetch peut avoir lieu bien après le pointage réel — now() serait
-        alors faux (heure du fetch, pas du pointage).
+        device_timestamp is used only as the dedup key (unchanged).
+        """
+        values = dict(
+            uid=uid,
+            user_id=user_id,
+            device_timestamp=device_timestamp,
+            date=date,
+            device_ip=device_ip,
+        )
+        if timestamp is not None:
+            values["timestamp"] = timestamp
 
-    `device_timestamp` — heure brute lue sur l'appareil, utilisée
-    uniquement comme clé de dédoublonnage (push vs pull), inchangé.
+        stmt = insert(Attendance.__table__).values(**values).on_conflict_do_nothing(
+            index_elements=["user_id", "device_timestamp", "date"]
+        )
 
-    Uses ON CONFLICT DO NOTHING on (user_id, device_timestamp, date) —
-    ce comportement est indépendant de la valeur de `timestamp`, donc
-    aucun risque de duplication introduit par ce changement.
-    """
-    values = dict(
-        uid=uid,
-        user_id=user_id,
-        device_timestamp=device_timestamp,
-        date=date,
-        device_ip=device_ip,
-    )
-    if timestamp is not None:
-        values["timestamp"] = timestamp
-    # sinon: clé absente du dict -> server_default now() s'applique (cas push)
+        try:
+            result = await session.execute(stmt)
+            await session.commit()
+        except Exception as e:
+            logger.error(f"[Attendance] insert failed for user_id={user_id}: {e!r}", exc_info=True)
+            await session.rollback()
+            raise
 
-    stmt = insert(Attendance.__table__).values(**values).on_conflict_do_nothing(
-        index_elements=["user_id", "device_timestamp", "date"]
-    )
+        inserted = result.rowcount
+        if inserted:
+            ts_source = "device" if timestamp else "now()"
+            logger.debug(
+                f"[Attendance] user_id={user_id} uid={uid} inserted from "
+                f"{device_ip} (timestamp={ts_source})"
+            )
+        else:
+            logger.debug(
+                f"[Attendance] user_id={user_id} device_timestamp={device_timestamp} "
+                f"duplicate, skipped"
+            )
 
-    try:
-        result = await session.execute(stmt)
-        await session.commit()
-    except Exception as e:
-        logger.error(f"[Attendance] insert failed for user_id={user_id}: {e!r}", exc_info=True)
-        await session.rollback()
-        raise
-
-    inserted = result.rowcount
-    if inserted:
-        logger.debug(f"[Attendance] user_id={user_id} uid={uid} inserted from {device_ip} (timestamp={'device' if timestamp else 'now()'})")
-    else:
-        logger.debug(f"[Attendance] user_id={user_id} device_timestamp={device_timestamp} duplicate, skipped")
-
-    return inserted
+        return inserted
