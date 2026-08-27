@@ -97,13 +97,13 @@ const fetchScheduleMap = useCallback(async () => {
   const debouncedUserId = useDebounce(filters.user_id, 400);
 
 const fetchEmployeeMap = useCallback(async () => {
-  const CACHE_KEY = 'empMap_v3'; // ⚠️ bump la clé de cache car on change la structure
+  const CACHE_KEY = 'empMap_v3';
   try {
-    // const cached = sessionStorage.getItem(CACHE_KEY);
-    // if (cached) {
-    //   setEmployeeMap(JSON.parse(cached));
-    //   return;
-    // }
+    const cached = sessionStorage.getItem(CACHE_KEY);
+    if (cached) {
+      setEmployeeMap(JSON.parse(cached));
+      return;
+    }
   } catch (_) {}
 
   setLoadingEmployees(true);

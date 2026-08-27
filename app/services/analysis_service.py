@@ -78,18 +78,15 @@ def _rules_from_schedule(ws) -> ScheduleRules:
         schedule_name            = ws.name,
     )
 
-def get_schedule_for_employee(employee_id: int, on_date: date) -> ScheduleRules:
-    """
-    `employee_id` ici est le user_id de la table Attendance, qui correspond
-    au device_user_id de l'employé — PAS au pk Django (Employee.id).
-    Il faut donc d'abord résoudre l'Employee via device_user_id.
 
-    Priority (highest -> lowest):
-      1. Schedule assigned directly to this employee
-      2. Schedule assigned to the employee's section
-      3. Schedule assigned to the employee's department
-      4. Global defaults (constants above)
-    """
+_django_import_broken = False  # NEW: remember failure across calls in this process
+
+def get_schedule_for_employee(employee_id: int, on_date: date) -> ScheduleRules:
+    global _django_import_broken
+
+    if _django_import_broken:
+        return _default_rules()   # skip the expensive attempt entirely
+
     try:
         from django_hr.employees.models import WorkSchedule, Employee
         from django.db.models import Q as models_Q
@@ -117,24 +114,27 @@ def get_schedule_for_employee(employee_id: int, on_date: date) -> ScheduleRules:
                 .first()
             )
 
-        # 1. Employee-level (utilise le pk Django résolu, pas device_user_id)
         ws = _qs({"employee_id": emp.id})
         if ws:
             return _rules_from_schedule(ws)
 
-        # 2. Section-level
         if emp.section_id:
             ws = _qs({"section_id": emp.section_id, "employee__isnull": True})
             if ws:
                 return _rules_from_schedule(ws)
 
-        # 3. Department-level
         if emp.department_id:
             ws = _qs({"department_id": emp.department_id,
                       "section__isnull": True, "employee__isnull": True})
             if ws:
                 return _rules_from_schedule(ws)
 
+    except ModuleNotFoundError as e:
+        # Django settings genuinely unreachable from this process —
+        # don't keep retrying, it will never succeed until the env is fixed.
+        logger.error(f"Django import permanently broken in this process, disabling schedule lookups: {e}")
+        _django_import_broken = True
+        return _default_rules()
     except Exception as e:
         logger.exception(f"Schedule rule lookup failed for employee {employee_id}, using defaults: {e}")
 
@@ -352,6 +352,11 @@ def _analyze_day(row, rules: ScheduleRules) -> DayRecord:
         schedule_name  = rules.schedule_name,
     )
 
+
+
+
+_bulk_import_broken = False  # remember failure across calls in this process
+
 def get_schedules_bulk(user_ids: list[int], on_date: date) -> dict[int, ScheduleRules]:
     """
     Résout les règles d'horaire pour une liste d'employés en une seule fois.
@@ -359,7 +364,12 @@ def get_schedules_bulk(user_ids: list[int], on_date: date) -> dict[int, Schedule
     `user_ids` correspond aux device_user_id (valeurs de Attendance.user_id),
     PAS aux pk Django. Retourne un dict {device_user_id: ScheduleRules}.
     """
+    global _bulk_import_broken
     result: dict[int, ScheduleRules] = {}
+
+    if _bulk_import_broken:
+        return result  # skip the expensive attempt entirely — everyone falls back to defaults
+
     try:
         from django_hr.employees.models import WorkSchedule, Employee
         from django.db.models import Q as models_Q
@@ -376,8 +386,6 @@ def get_schedules_bulk(user_ids: list[int], on_date: date) -> dict[int, Schedule
         )
         pks = [e.id for e in employees]
         device_id_by_pk = {e.id: e.device_user_id for e in employees}
-
-        pks = [e.id for e in employees]
 
         # 1. Horaires assignés directement à un employé (par pk Django)
         employee_schedules = {
@@ -425,18 +433,27 @@ def get_schedules_bulk(user_ids: list[int], on_date: date) -> dict[int, Schedule
             if device_id is not None:
                 result[device_id] = _rules_from_schedule(ws)
 
+    except ModuleNotFoundError as e:
+        # Django settings genuinely unreachable from this process —
+        # don't keep retrying, it will never succeed until the env is fixed.
+        logger.error(f"Django import permanently broken in this process, disabling bulk schedule lookups: {e}")
+        _bulk_import_broken = True
     except Exception as e:
-        import traceback
-        print(f"[SCHEDULE DEBUG] Erreur résolution horaire bulk: {e}")
-        traceback.print_exc()
+        logger.exception(f"Bulk schedule resolution failed: {e}")
 
     return result
+
+
+
+
+
 
 async def compute_user_analysis(
     db: AsyncSession,
     user_id: int,
     date_from: date,
     date_to: date,
+    schedule_rules: Optional[ScheduleRules] = None,  # NEW: pass in pre-resolved rules
 ) -> Optional[UserAnalysis]:
 
     result = await db.execute(
@@ -461,11 +478,10 @@ async def compute_user_analysis(
     if not rows:
         return None
 
-    # Resolve rules once per day (schedule may have validity window)
-    days = [
-        _analyze_day(row, get_schedule_for_employee(user_id, row.date))
-        for row in rows
-    ]
+    # Use the rules resolved once for this employee, instead of
+    # re-resolving (and re-triggering the failed Django import) per day.
+    rules = schedule_rules or _default_rules()
+    days = [_analyze_day(row, rules) for row in rows]
 
     total_hours         = sum(d.hours_worked   for d in days if d.hours_worked)
     total_overtime      = sum(d.overtime_hours  for d in days)
@@ -490,3 +506,31 @@ async def compute_user_analysis(
         average_hours_per_day  = avg_hours,
         days                   = days,
     )
+
+
+async def compute_analysis_bulk(
+    db: AsyncSession,
+    user_ids: list[int],
+    date_from: date,
+    date_to: date,
+) -> dict[int, UserAnalysis]:
+    """
+    Batch entry point for 'all employees this month'. Resolves every
+    employee's schedule in ONE pass (get_schedules_bulk), then runs
+    compute_user_analysis per employee without touching Django again.
+    """
+    # single bulk schedule resolution for the whole batch —
+    # reference date can be date_to, or split by month if the range
+    # spans a schedule validity boundary
+    schedules = get_schedules_bulk(user_ids, date_to)
+
+    results: dict[int, UserAnalysis] = {}
+    for uid in user_ids:
+        analysis = await compute_user_analysis(
+            db, uid, date_from, date_to,
+            schedule_rules=schedules.get(uid),  # falls back to defaults if not found
+        )
+        if analysis:
+            results[uid] = analysis
+
+    return results

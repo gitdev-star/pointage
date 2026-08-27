@@ -1,3 +1,4 @@
+//frontend/src/features/Retard/page/RetardPage.js
 import React, {useState, useMemo} from "react";
 import { AlertTriangle, Download, Loader, Search } from "lucide-react";
 import useRetard from "../hook/useRetard";
@@ -12,7 +13,7 @@ export default function RetardPage() {
     filters, setYear, setMonth, setMinLate, setClassification,
     classifications,
     data, sortedEmployees, getEmployeeName,
-    exporting, error,
+    loading, exporting, error,
     search, setSearch,
     sortBy, sortDir, toggleSort,
     fetchReport, exportReport, employeeMap
@@ -20,7 +21,7 @@ export default function RetardPage() {
 
   // Pointages du jour uniquement — pas de stats/kpi/employeeMap dupliqué
   // const { allLateRecords, kpi, loading, page, setPage } = useTodayAttendance();
-  const { allLateRecords, kpi, loading } = useTodayAttendance();
+  const { allLateRecords, kpi, loading: todayLoading } = useTodayAttendance();
   const [selectedFactory, setSelectedFactory] = useState("ALL");
   // const PAGE_SIZE = 10;
 
@@ -106,6 +107,19 @@ console.log("employeeMap sample PBI1:",
         loading={loading}
         onSearch={fetchReport}
       />
+
+      {/* ── Chargement rapport ── */}
+      {loading && (
+        <div className="flex flex-col items-center gap-3 py-16 text-center text-gray-400">
+          <Loader size={32} className="animate-spin text-orange-500" />
+          <p className="text-sm">
+            Analyse en cours pour {filters.month}/{filters.year}…
+          </p>
+          <p className="text-xs opacity-70">
+            Cela peut prendre un moment sur un mois complet.
+          </p>
+        </div>
+      )}
 
       {/* ── Erreur ── */}
       {error && (
@@ -195,6 +209,7 @@ console.log("employeeMap sample PBI1:",
         <TodayLateList
           lateRecords={filteredLateRecords}
           kpi={kpi}
+          loading={todayLoading}
           getEmployeeName={getEmployeeName}
           countOverride={
             selectedFactory === "ALL"
