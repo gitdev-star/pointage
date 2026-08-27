@@ -115,6 +115,7 @@ class ZKReader:
                     "device_timestamp": device_timestamp,
                     "date": device_timestamp.date(),
                     "device_ip": self.device_ip,
+                    "timestamp": device_timestamp,
                     # created_at intentionally omitted — DB sets it automatically
                 })
             except Exception as e:
