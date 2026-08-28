@@ -698,6 +698,13 @@ class TestZKReaderProcessLogs:
         await reader.connect()
 
         db = AsyncMock()
+        # db.execute() is awaited for the watermark query too — its
+        # result must expose a plain (sync) .scalar(), not another
+        # AsyncMock, or the datetime comparison against it blows up.
+        watermark_result = MagicMock()
+        watermark_result.scalar.return_value = None
+        db.execute.return_value = watermark_result
+
         with patch("app.devices.zk_reader.insert") as mock_insert:
             mock_stmt = MagicMock()
             mock_insert.return_value.values.return_value = mock_stmt
@@ -729,6 +736,10 @@ class TestZKReaderProcessLogs:
         await reader.connect()
 
         db = AsyncMock()
+        watermark_result = MagicMock()
+        watermark_result.scalar.return_value = None
+        db.execute.return_value = watermark_result
+
         with patch("app.devices.zk_reader.insert") as mock_insert:
             mock_stmt = MagicMock()
             mock_insert.return_value.values.return_value = mock_stmt
