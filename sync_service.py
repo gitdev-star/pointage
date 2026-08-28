@@ -245,15 +245,18 @@ async def sync_device_time_only(ip: str, port: int, reference_time: datetime):
 
 
 async def hourly_time_sync_loop():
-    """Sync every device's clock to the DB server's time, once per hour."""
+    """Sync every device's clock to the DB server's time, once per hour.
+
+    DISABLED: clock sync is now owned by clocker-time-daemon.service.
+    Keeping this in-code loop active caused write contention with the
+    systemd daemon (both writing device time in the same ~30-40s window),
+    producing large random clock drift. This coroutine is kept as a
+    no-op so it can stay in the existing gather()/task list without
+    touching the call site.
+    """
+    logger.info("⏱️  HOURLY TIME SYNC DISABLED — clock sync owned by clocker-time-daemon.service")
     while True:
-        logger.info("⏱️  HOURLY TIME SYNC STARTED")
-        reference_time = await get_reference_time()
-        devices = await fetch_active_devices()
-        for ip, port in devices:
-            await sync_device_time_only(ip, port, reference_time)
-        logger.info(f"⏱️  HOURLY TIME SYNC DONE — next in {HOURLY_SYNC_INTERVAL / 3600:.0f}h")
-        await asyncio.sleep(HOURLY_SYNC_INTERVAL)
+        await asyncio.sleep(3600)
 
 
 async def daily_reset_loop():
