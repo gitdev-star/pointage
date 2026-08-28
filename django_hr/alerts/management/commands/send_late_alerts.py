@@ -79,7 +79,10 @@ class Command(BaseCommand):
             if not entry or not entry["to"]:
                 continue
             factory = factory_objects[factory_id]
-            notify_late_employees(factory, factory_employees, recipients=entry["to"], cc=entry["cc"])
-            sent += len(entry["to"]) + len(entry["cc"])
+            ok = notify_late_employees(factory, factory_employees, recipients=entry["to"], cc=entry["cc"])
+            if ok:
+                sent += len(entry["to"]) + len(entry["cc"])
+            else:
+                self.stderr.write(self.style.ERROR(f"Failed to send for {factory.name}"))
 
         self.stdout.write(self.style.SUCCESS(f"Alertes envoyees a {sent} destinataire(s), groupe(s) par usine."))
