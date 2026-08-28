@@ -34,20 +34,22 @@ def _base_html(title: str, body_html: str) -> str:
 
 
 
-def _send(subject: str, html: str, text: str, recipients: list[str], cc: list[str] = None):
-    """Core send helper — never raises, logs errors instead."""
+def _send(subject: str, html: str, text: str, recipients: list[str], cc: list[str] = None) -> bool:
+    """Core send helper — returns True/False, logs errors instead of raising."""
     try:
         msg = EmailMultiAlternatives(
             subject=subject,
             body=text,
             from_email=settings.DEFAULT_FROM_EMAIL,
             to=recipients,
-            cc=cc or [],          # ← NEW
+            cc=cc or [],
         )
         msg.attach_alternative(html, "text/html")
         msg.send()
+        return True
     except Exception as exc:
         print(f"[EMAIL ERROR] {subject} → {recipients} (cc={cc}): {exc}")
+        return False
 
 # ─────────────────────────────────────────────────────────────
 # CDD Alert notifications
