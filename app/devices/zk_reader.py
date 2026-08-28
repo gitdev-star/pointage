@@ -6,12 +6,15 @@ from typing import List, Optional
 from datetime import datetime
 from functools import partial
 
+from zoneinfo import ZoneInfo
+
 from zk import ZK
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.postgresql import insert
 
 logger = logging.getLogger(__name__)
 YEAR_CUTOFF = 2026
+LOCAL_TZ = ZoneInfo("Indian/Antananarivo")  # UTC+3, matches ZK devices
 
 
 class ZKReader:
@@ -94,32 +97,55 @@ class ZKReader:
         Returns number of saved records.
         """
         from app.models.attendance import Attendance
+        from sqlalchemy import select, func
 
         logs = await self.fetch_attendance_logs()
         if not logs:
             return 0
 
+        # Watermark: never re-attempt a log older than or equal to the
+        # max device_timestamp already recorded for this device. Prevents
+        # manually-deleted rows from being silently re-inserted on the
+        # next pull cycle.
+        watermark_result = await db.execute(
+            select(func.max(Attendance.device_timestamp)).where(
+                Attendance.device_ip == self.device_ip
+            )
+        )
+        watermark = watermark_result.scalar()
+
         values = []
+        skipped_old = 0
         for log in logs:
             try:
-                user_id = int(log.user_id)
                 device_timestamp = log.timestamp
+                if watermark is not None and device_timestamp <= watermark:
+                    skipped_old += 1
+                    continue
+
+                user_id = int(log.user_id)
                 uid = getattr(log, "uid", None)
                 if uid is None:
                     uid = zlib.crc32(f"{user_id}-{device_timestamp.isoformat()}".encode()) % 2147483647
                 else:
                     uid = int(uid)
+                # Attach local tz so timestamptz stores the SAME wall-clock
+                # numbers as device_timestamp, instead of asyncpg silently
+                # assuming naive == UTC and shifting the display.
+                localized_timestamp = device_timestamp.replace(tzinfo=LOCAL_TZ)
                 values.append({
                     "uid": uid,
                     "user_id": user_id,
                     "device_timestamp": device_timestamp,
                     "date": device_timestamp.date(),
                     "device_ip": self.device_ip,
-                    "timestamp": device_timestamp,
+                    "timestamp": localized_timestamp,
                     # created_at intentionally omitted — DB sets it automatically
                 })
             except Exception as e:
                 logger.warning(f"[ZK] {self.device_ip} bad log skipped: {e}")
+
+        logger.debug(f"[ZK] {self.device_ip} skipped {skipped_old} logs <= watermark {watermark}")
 
         if not values:
             return 0
