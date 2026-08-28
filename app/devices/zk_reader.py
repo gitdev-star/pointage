@@ -106,13 +106,19 @@ class ZKReader:
         # Watermark: never re-attempt a log older than or equal to the
         # max device_timestamp already recorded for this device. Prevents
         # manually-deleted rows from being silently re-inserted on the
-        # next pull cycle.
-        watermark_result = await db.execute(
-            select(func.max(Attendance.device_timestamp)).where(
-                Attendance.device_ip == self.device_ip
+        # next pull cycle. Wrapped so a DB hiccup here degrades gracefully
+        # instead of crashing the whole sync cycle for this device.
+        try:
+            watermark_result = await db.execute(
+                select(func.max(Attendance.device_timestamp)).where(
+                    Attendance.device_ip == self.device_ip
+                )
             )
-        )
-        watermark = watermark_result.scalar()
+            watermark = watermark_result.scalar()
+        except Exception as e:
+            logger.error(f"[ZK] {self.device_ip} watermark query failed: {e!r}", exc_info=True)
+            await db.rollback()
+            return 0
 
         values = []
         skipped_old = 0
