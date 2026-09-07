@@ -20,7 +20,10 @@ from django.db.models.functions import Cast
 from audit_log.models import AuditLog
 from audit_log.utils import log_action, diff_dict, snapshot
 
-from .models import LeaveType, LeaveBalance, LeaveRequest, MaternityLeave, PROTECTED_LEAVE_CODES, AUTO_APPROVE_LEAVE_CODES
+from .models import (
+    LeaveType, LeaveBalance, LeaveRequest, MaternityLeave,
+    PROTECTED_LEAVE_CODES, AUTO_APPROVE_LEAVE_CODES,
+)
 from .serializers import (
     LeaveTypeSerializer,
     LeaveBalanceSerializer,
@@ -270,7 +273,9 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
             return
 
         old_balance_type, old_days = resolve_balance_impact(old_leave_type, old_duration, old_days_raw)
-        new_balance_type, new_days = resolve_balance_impact(leave.leave_type, leave.duration_hours, leave.days_requested)
+        new_balance_type, new_days = resolve_balance_impact(
+            leave.leave_type, leave.duration_hours, leave.days_requested
+        )
         new_year = leave.start_date.year
 
         if old_balance_type.id == new_balance_type.id and old_year == new_year:
