@@ -64,8 +64,8 @@ def replace_in_paragraph(para, reps):
     if not full or not reps:
         return
 
-    # Trie les clés par longueur décroissante pour éviter qu'une clé courte
-    # ("04") ne matche avant une clé plus longue et plus spécifique.
+    # Trie les clÃ©s par longueur dÃ©croissante pour Ã©viter qu'une clÃ© courte
+    # ("04") ne matche avant une clÃ© plus longue et plus spÃ©cifique.
     keys = sorted((k for k in reps if k), key=len, reverse=True)
     if not keys:
         return
@@ -75,9 +75,9 @@ def replace_in_paragraph(para, reps):
         val = reps.get(m.group(0))
         return str(val) if val is not None else "\u2014"
 
-    # Une seule passe simultanée sur le texte ORIGINAL : une valeur qui
-    # vient d'être insérée ne peut donc jamais être re-matchée par une
-    # autre clé du même dictionnaire (contrairement aux .replace() enchaînés).
+    # Une seule passe simultanÃ©e sur le texte ORIGINAL : une valeur qui
+    # vient d'Ãªtre insÃ©rÃ©e ne peut donc jamais Ãªtre re-matchÃ©e par une
+    # autre clÃ© du mÃªme dictionnaire (contrairement aux .replace() enchaÃ®nÃ©s).
     new = pattern.sub(_repl, full)
     if new == full:
         return

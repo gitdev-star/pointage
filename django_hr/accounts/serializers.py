@@ -75,8 +75,8 @@ class HRProfileSerializer(
             )
         )
 
-        # Première recherche :
-        # identifiant du compte d’authentification.
+        # PremiÃ¨re recherche :
+        # identifiant du compte dâ€™authentification.
         employe = (
             employes
             .filter(
@@ -87,7 +87,7 @@ class HRProfileSerializer(
             .first()
         )
 
-        # Deuxième recherche :
+        # DeuxiÃ¨me recherche :
         # adresse e-mail AD.
         if (
             not employe
@@ -104,7 +104,7 @@ class HRProfileSerializer(
             )
 
         # Si username contient directement
-        # l’adresse e-mail AD.
+        # lâ€™adresse e-mail AD.
         if (
             not employe
             and profil.username
@@ -121,7 +121,7 @@ class HRProfileSerializer(
             )
 
         # Si username contient seulement
-        # la partie située avant le @.
+        # la partie situÃ©e avant le @.
         if (
             not employe
             and profil.username

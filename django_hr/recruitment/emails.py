@@ -15,7 +15,6 @@ from django.db import models
 from accounts.models import HRProfile
 
 from .models import (
-    CompteRenduEntretienCadre,
     Embauche,
     TachePreparationEmbauche,
 )

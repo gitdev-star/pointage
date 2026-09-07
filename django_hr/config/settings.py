@@ -278,7 +278,7 @@ DEFAULT_FROM_EMAIL = os.getenv(
     EMAIL_HOST_USER or "noreply@example.com",
 )
 
-# Adresse du directeur qui reçoit les nouvelles demandes.
+# Adresse du directeur qui reÃ§oit les nouvelles demandes.
 RECRUITMENT_DIRECTOR_EMAIL = os.getenv(
     "RECRUITMENT_DIRECTOR_EMAIL",
     "",

@@ -92,7 +92,6 @@ from .serializers import (
     EmbaucheSerializer,
     CompteRenduEntretienCadreSerializer,
     TachePreparationEmbaucheSerializer,
-    creer_employe_depuis_embauche,
 )
 
 
