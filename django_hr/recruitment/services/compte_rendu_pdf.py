@@ -8,7 +8,6 @@ from django.utils.formats import (
 from reportlab.lib import colors
 from reportlab.lib.enums import (
     TA_CENTER,
-    TA_LEFT,
 )
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import (
