@@ -5,9 +5,7 @@ const HR_BASE_URL = process.env.REACT_APP_HR_URL
   : process.env.REACT_APP_HR_URL + "/";
 
 const hrClient = axios.create({
-  baseURL: HR_BASE_URL,
-  headers: { "Content-Type": "application/json" },
-});
+  baseURL: HR_BASE_URL,});
 
 hrClient.interceptors.request.use(
   (config) => {

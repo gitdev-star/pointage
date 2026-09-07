@@ -2782,6 +2782,7 @@ class DocumentCandidatViewSet(
     http_method_names = [
         "get",
         "post",
+        "patch",
         "head",
         "options",
     ]

@@ -492,6 +492,29 @@ export default function EtapeEmbauche({
     };
   }, [candidats.length, embauches]);
 
+  const colonnesDocumentsOuvriers =
+    useMemo(() => {
+      if (estCadre) {
+        return [];
+      }
+
+      const libelles = new Set();
+
+      candidats.forEach((candidat) => {
+        const documents =
+          embauches[candidat.id]
+            ?.documents || [];
+
+        documents.forEach((document) => {
+          if (document.libelle) {
+            libelles.add(document.libelle);
+          }
+        });
+      });
+
+      return Array.from(libelles);
+    }, [candidats, embauches, estCadre]);
+
   const toutesLesEmbauchesConfirmees =
     candidats.length > 0 &&
     candidats.every(
@@ -1006,7 +1029,7 @@ export default function EtapeEmbauche({
   return (
     <form
       onSubmit={terminerProcessus}
-      className="min-w-0 max-w-full space-y-4 px-0 sm:px-1"
+      className="min-w-0 max-w-full space-y-4 px-1 sm:px-2"
     >
       {message && (
         <div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
@@ -1103,7 +1126,7 @@ export default function EtapeEmbauche({
               Checklist d’embauche et d’onboarding des cadres
             </h3>
             <p className="mt-1 text-xs text-slate-500">
-              Une ligne correspond à un candidat. Le RI et le Code société
+              Une ligne correspond �  un candidat. Le RI et le Code société
               sont validés automatiquement après leur envoi par e-mail.
             </p>
             <p className="mt-1 text-[11px] font-medium text-blue-600 lg:hidden">
@@ -1117,7 +1140,7 @@ export default function EtapeEmbauche({
             role="region"
             aria-label="Checklist d’embauche scrollable horizontalement"
           >
-            <table className="w-full min-w-[1050px] border-collapse text-sm">
+            <table className="w-max min-w-[980px] border-collapse text-sm">
               <thead className="bg-slate-100">
                 <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
                   <th className="sticky left-0 z-10 min-w-[180px] border-r border-slate-200 bg-slate-100 px-2.5 py-2.5">
@@ -1281,7 +1304,7 @@ export default function EtapeEmbauche({
 
                             {embauche.checklistOnboardingComplete && (
                               <p className="flex items-center justify-center gap-1 text-xs font-semibold text-emerald-700">
-                                <CheckCircle2 size={14} /> Prêt à clôturer
+                                <CheckCircle2 size={14} /> Prêt �  clôturer
                               </p>
                             )}
 
@@ -1308,7 +1331,386 @@ export default function EtapeEmbauche({
         </div>
       )}
 
-      {!estCadre && (
+      {!estCadre && candidats.length > 0 && (
+        <section className="w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 px-4 py-3 sm:px-5">
+            <h3 className="font-semibold text-slate-900">
+              Dossiers d’embauche des ouvriers
+            </h3>
+
+            <p className="mt-1 text-xs text-slate-500">
+              Une ligne correspond �  un candidat et une colonne �  une pièce du dossier.
+            </p>
+
+            <p className="mt-1 text-[11px] font-medium text-blue-600">
+              Faites défiler horizontalement pour consulter toutes les pièces.
+            </p>
+          </div>
+
+          <div
+            className="block w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain pb-1"
+            tabIndex={0}
+            role="region"
+            aria-label="Dossiers d’embauche des ouvriers"
+          >
+            <table className="w-max min-w-full border-collapse text-sm">
+              <thead className="bg-slate-100">
+                <tr className="text-left text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+                  <th className="sticky left-0 z-20 min-w-[190px] border-r border-slate-200 bg-slate-100 px-3 py-3">
+                    Candidat
+                  </th>
+
+                  <th className="min-w-[145px] px-2 py-3">
+                    Vérification
+                  </th>
+
+                  <th className="min-w-[150px] px-2 py-3">
+                    Vérificateur
+                  </th>
+
+                  {colonnesDocumentsOuvriers.map(
+                    (libelle) => (
+                      <th
+                        key={libelle}
+                        title={libelle}
+                        className="min-w-[130px] max-w-[160px] px-2 py-3 text-center normal-case"
+                      >
+                        <span className="line-clamp-3 leading-4">
+                          {libelle}
+                        </span>
+                      </th>
+                    )
+                  )}
+
+                  <th className="min-w-[110px] px-2 py-3">
+                    Contrat
+                  </th>
+
+                  <th className="min-w-[145px] px-2 py-3">
+                    Prise de poste
+                  </th>
+
+                  <th className="min-w-[105px] px-2 py-3 text-center">
+                    Signature candidat
+                  </th>
+
+                  <th className="min-w-[105px] px-2 py-3 text-center">
+                    Signature employeur
+                  </th>
+
+                  <th className="min-w-[190px] px-2 py-3">
+                    Remarque
+                  </th>
+
+                  <th className="sticky right-0 z-20 min-w-[180px] border-l border-slate-200 bg-slate-100 px-3 py-3">
+                    Action
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-slate-200">
+                {candidats.map((candidat) => {
+                  const embauche =
+                    embauches[candidat.id];
+
+                  if (!embauche) {
+                    return null;
+                  }
+
+                  const traitement =
+                    candidatEnCours ===
+                    candidat.id;
+
+                  const verrouille =
+                    embauche.confirmee ||
+                    traitement;
+
+                  const nombrePiecesRecues =
+                    embauche.documents.filter(
+                      (document) =>
+                        document.recu
+                    ).length;
+
+                  return (
+                    <tr
+                      key={candidat.id}
+                      className={
+                        embauche.confirmee
+                          ? "bg-emerald-50/40"
+                          : "hover:bg-slate-50"
+                      }
+                    >
+                      <td className={`sticky left-0 z-10 border-r border-slate-200 px-3 py-3 ${
+                        embauche.confirmee
+                          ? "bg-emerald-50"
+                          : "bg-white"
+                      }`}>
+                        <p className="font-semibold text-slate-900">
+                          {obtenirNomCandidat(
+                            candidat
+                          )}
+                        </p>
+
+                        <p className="mt-1 text-xs text-slate-500">
+                          {nombrePiecesRecues}/
+                          {embauche.documents.length}{" "}
+                          pièces reçues
+                        </p>
+
+                        <span className={`mt-2 inline-flex rounded-full px-2 py-1 text-[11px] font-semibold ${
+                          embauche.confirmee
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-amber-100 text-amber-700"
+                        }`}>
+                          {embauche.confirmee
+                            ? "Embauché"
+                            : "À compléter"}
+                        </span>
+                      </td>
+
+                      <td className="px-2 py-3">
+                        <input
+                          type="date"
+                          value={
+                            embauche.dateVerification
+                          }
+                          disabled={verrouille}
+                          onChange={(event) =>
+                            modifierEmbauche(
+                              candidat.id,
+                              "dateVerification",
+                              event.target.value
+                            )
+                          }
+                          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs disabled:bg-slate-100"
+                        />
+                      </td>
+
+                      <td className="px-2 py-3">
+                        <input
+                          value={embauche.verificateur}
+                          disabled={verrouille}
+                          onChange={(event) =>
+                            modifierEmbauche(
+                              candidat.id,
+                              "verificateur",
+                              event.target.value
+                            )
+                          }
+                          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs disabled:bg-slate-100"
+                        />
+                      </td>
+
+                      {colonnesDocumentsOuvriers.map(
+                        (libelle) => {
+                          const document =
+                            embauche.documents.find(
+                              (item) =>
+                                item.libelle ===
+                                libelle
+                            );
+
+                          return (
+                            <td
+                              key={libelle}
+                              className="px-2 py-3 text-center"
+                              title={
+                                document?.remarque ||
+                                libelle
+                              }
+                            >
+                              {document ? (
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(
+                                    document.recu
+                                  )}
+                                  disabled={verrouille}
+                                  onChange={(event) =>
+                                    modifierDocument(
+                                      candidat.id,
+                                      document.id,
+                                      "recu",
+                                      event.target.checked
+                                    )
+                                  }
+                                  aria-label={`${libelle} reçu pour ${obtenirNomCandidat(
+                                    candidat
+                                  )}`}
+                                  className="h-5 w-5 rounded border-slate-300 text-blue-600 disabled:opacity-60"
+                                />
+                              ) : (
+                                <span className="text-slate-300">
+                                  —
+                                </span>
+                              )}
+                            </td>
+                          );
+                        }
+                      )}
+
+                      <td className="px-2 py-3">
+                        <select
+                          value={embauche.typeContrat}
+                          disabled={verrouille}
+                          onChange={(event) =>
+                            modifierEmbauche(
+                              candidat.id,
+                              "typeContrat",
+                              event.target.value
+                            )
+                          }
+                          className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs disabled:bg-slate-100"
+                        >
+                          <option value="">
+                            Choisir
+                          </option>
+
+                          {Number(
+                            demande.nombre_cdi ??
+                              recrutement?.nombre_cdi ??
+                              0
+                          ) > 0 && (
+                            <option value="CDI">
+                              CDI
+                            </option>
+                          )}
+
+                          {Number(
+                            demande.nombre_cdd ??
+                              recrutement?.nombre_cdd ??
+                              0
+                          ) > 0 && (
+                            <option value="CDD">
+                              CDD
+                            </option>
+                          )}
+                        </select>
+                      </td>
+
+                      <td className="px-2 py-3">
+                        <input
+                          type="date"
+                          value={
+                            embauche.dateDebutContrat
+                          }
+                          disabled={verrouille}
+                          onChange={(event) =>
+                            modifierEmbauche(
+                              candidat.id,
+                              "dateDebutContrat",
+                              event.target.value
+                            )
+                          }
+                          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs disabled:bg-slate-100"
+                        />
+                      </td>
+
+                      <td className="px-2 py-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(
+                            embauche.signeCandidat
+                          )}
+                          disabled={verrouille}
+                          onChange={(event) =>
+                            modifierEmbauche(
+                              candidat.id,
+                              "signeCandidat",
+                              event.target.checked
+                            )
+                          }
+                          className="h-5 w-5 rounded border-slate-300 text-blue-600 disabled:opacity-60"
+                        />
+                      </td>
+
+                      <td className="px-2 py-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(
+                            embauche.signeEmployeur
+                          )}
+                          disabled={verrouille}
+                          onChange={(event) =>
+                            modifierEmbauche(
+                              candidat.id,
+                              "signeEmployeur",
+                              event.target.checked
+                            )
+                          }
+                          className="h-5 w-5 rounded border-slate-300 text-blue-600 disabled:opacity-60"
+                        />
+                      </td>
+
+                      <td className="px-2 py-3">
+                        <textarea
+                          value={
+                            embauche.remarqueGenerale
+                          }
+                          disabled={verrouille}
+                          onChange={(event) =>
+                            modifierEmbauche(
+                              candidat.id,
+                              "remarqueGenerale",
+                              event.target.value
+                            )
+                          }
+                          rows={2}
+                          placeholder="Remarque..."
+                          className="w-full resize-none rounded-lg border border-slate-300 px-2 py-1.5 text-xs disabled:bg-slate-100"
+                        />
+                      </td>
+
+                      <td className={`sticky right-0 z-10 border-l border-slate-200 px-3 py-3 ${
+                        embauche.confirmee
+                          ? "bg-emerald-50"
+                          : "bg-white"
+                      }`}>
+                        {embauche.confirmee ? (
+                          <div className="flex items-center justify-center gap-1 text-xs font-semibold text-emerald-700">
+                            <CheckCircle2 size={15} />
+                            Confirmée
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              confirmerEmbaucheCandidat(
+                                candidat
+                              )
+                            }
+                            disabled={traitement}
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                          >
+                            {traitement ? (
+                              <Loader2
+                                size={15}
+                                className="animate-spin"
+                              />
+                            ) : (
+                              <UserCheck size={15} />
+                            )}
+
+                            Confirmer
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {!estCadre && candidats.length === 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-8 text-center text-sm text-amber-700">
+          Aucun candidat ouvrier n’est disponible pour l’embauche.
+        </div>
+      )}
+
+      {false && !estCadre && (
       <div className="space-y-5">
         {candidats.map(
           (candidat) => {
