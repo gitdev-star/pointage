@@ -14,13 +14,16 @@ from accounts.permissions import require_perm
 import csv
 
 
-from employees.models import WorkSchedule
+from employees.models import WorkSchedule, Employee
 from django.db.models import OuterRef, Subquery, CharField
 from django.db.models.functions import Cast
 from audit_log.models import AuditLog
 from audit_log.utils import log_action, diff_dict, snapshot
 
-from .models import LeaveType, LeaveBalance, LeaveRequest, MaternityLeave
+from .models import (
+    LeaveType, LeaveBalance, LeaveRequest, MaternityLeave,
+    PROTECTED_LEAVE_CODES, AUTO_APPROVE_LEAVE_CODES,
+)
 from .serializers import (
     LeaveTypeSerializer,
     LeaveBalanceSerializer,
@@ -28,6 +31,7 @@ from .serializers import (
     LeaveApprovalSerializer,
     MaternityLeaveSerializer,
 )
+from rest_framework.exceptions import PermissionDenied
 
 STATUS_LABELS_FR = {
     "PENDING":   "En attente",
@@ -35,6 +39,8 @@ STATUS_LABELS_FR = {
     "REJECTED":  "Rejeté",
     "CANCELLED": "Annulé",
 }
+
+HOURS_PER_DAY = 8.0
 
 BREASTFEEDING_START             = "07:30"
 BREASTFEEDING_END               = "15:30"
@@ -76,18 +82,46 @@ from alerts.email_utils import (
 )
 
 
+
+
+def resolve_balance_impact(leave_type, duration_hours, days_requested):
+    """
+    Normally a leave request debits its own leave_type's balance.
+    Permissions en heure (PM) are the exception: they're recorded under PM
+    for history, but the day-equivalent (hours / 8) is deducted from the
+    employee's CD (congé) balance instead.
+    """
+    if leave_type.code == "PM":
+        cd_type = LeaveType.objects.filter(code="CD").first()
+        hours = duration_hours or 0
+        days_amount = round(float(hours) / HOURS_PER_DAY, 1)
+        return (cd_type or leave_type), days_amount
+    return leave_type, days_requested
+
+
+
 class LeaveTypeViewSet(viewsets.ModelViewSet):
     ordering = ["id"]
     queryset = LeaveType.objects.filter(is_active=True).only(
         "id", "code", "name", "days_per_year",
-        "is_paid", "requires_document", "color", "is_active",
+        "is_paid", "requires_document", "color", "is_active", "is_protected",
     )
     serializer_class = LeaveTypeSerializer
-    
+
     def get_permissions(self):
         write_actions = {"create", "update", "partial_update", "destroy"}
         perm_key = "leaves_write" if self.action in write_actions else "leaves_read"
         return [require_perm(perm_key)()]
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.code in PROTECTED_LEAVE_CODES:
+            raise PermissionDenied(
+                f"Le type « {instance.name} » est protégé et ne peut pas être supprimé."
+            )
+        return super().destroy(request, *args, **kwargs)
+
+
 
 
 class LeaveBalanceViewSet(viewsets.ModelViewSet):
@@ -104,6 +138,20 @@ class LeaveBalanceViewSet(viewsets.ModelViewSet):
     serializer_class = LeaveBalanceSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["employee", "leave_type", "year"]
+
+    def list(self, request, *args, **kwargs):
+        employee_id = request.query_params.get("employee")
+        year = request.query_params.get("year")
+        if employee_id and year:
+            employee = Employee.objects.filter(pk=employee_id).first()
+            if employee:
+                existing_ids = set(
+                    LeaveBalance.objects.filter(employee=employee, year=year)
+                    .values_list("leave_type_id", flat=True)
+                )
+                for lt in LeaveType.objects.filter(is_active=True).exclude(id__in=existing_ids):
+                    LeaveBalance.get_or_create_for(employee, lt, int(year))
+        return super().list(request, *args, **kwargs)
     
     def get_permissions(self):
         write_actions = {"create", "update", "partial_update", "destroy"}
@@ -172,9 +220,29 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
             last_action_by=Subquery(latest_log.values("username")[:1]),
         )
         return qs
-    
+
+
+
     def perform_create(self, serializer):
         leave = serializer.save()
+
+        balance_type, balance_days = resolve_balance_impact(
+            leave.leave_type, leave.duration_hours, leave.days_requested
+        )
+        balance = LeaveBalance.get_or_create_for(leave.employee, balance_type, leave.start_date.year)
+
+        if leave.leave_type.code in AUTO_APPROVE_LEAVE_CODES:
+            leave.status = "APPROVED"
+            leave.approved_by = self.request.user.id
+            leave.approved_at = timezone.now()
+            leave.save(update_fields=["status", "approved_by", "approved_at"])
+
+            balance.used_days += balance_days
+            balance.save(update_fields=["used_days"])
+        else:
+            balance.pending_days += balance_days
+            balance.save(update_fields=["pending_days"])
+
         log_action(self.request, leave, "CREATE")
         try:
             name = get_hr_name(self.request)
@@ -182,17 +250,65 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
         except Exception as e:
             print(f"[NOTIFY] leave_created error: {e}")
 
+
     def perform_update(self, serializer):
-        old_data = snapshot(serializer.instance)
+        instance = serializer.instance
+        old_data = snapshot(instance)
+
+        old_leave_type = instance.leave_type
+        old_year       = instance.start_date.year
+        old_duration   = instance.duration_hours
+        old_days_raw   = instance.days_requested
+        status         = instance.status
+
         leave = serializer.save()
+
         new_data = snapshot(leave)
         changes = diff_dict(old_data, new_data)
         if changes:
             log_action(self.request, leave, "UPDATE", changes)
 
+        field = {"PENDING": "pending_days", "APPROVED": "used_days"}.get(status)
+        if field is None:
+            return
+
+        old_balance_type, old_days = resolve_balance_impact(old_leave_type, old_duration, old_days_raw)
+        new_balance_type, new_days = resolve_balance_impact(
+            leave.leave_type, leave.duration_hours, leave.days_requested
+        )
+        new_year = leave.start_date.year
+
+        if old_balance_type.id == new_balance_type.id and old_year == new_year:
+            balance = LeaveBalance.get_or_create_for(leave.employee, new_balance_type, new_year)
+            delta = new_days - old_days
+            setattr(balance, field, max(0, getattr(balance, field) + delta))
+            balance.save(update_fields=[field])
+        else:
+            old_balance = LeaveBalance.get_or_create_for(leave.employee, old_balance_type, old_year)
+            setattr(old_balance, field, max(0, getattr(old_balance, field) - old_days))
+            old_balance.save(update_fields=[field])
+
+            new_balance = LeaveBalance.get_or_create_for(leave.employee, new_balance_type, new_year)
+            setattr(new_balance, field, getattr(new_balance, field) + new_days)
+            new_balance.save(update_fields=[field])
+
+
     def perform_destroy(self, instance):
+        balance_type, balance_days = resolve_balance_impact(
+            instance.leave_type, instance.duration_hours, instance.days_requested
+        )
+        balance = LeaveBalance.get_or_create_for(instance.employee, balance_type, instance.start_date.year)
+
+        if instance.status == "PENDING":
+            balance.pending_days = max(0, balance.pending_days - balance_days)
+            balance.save(update_fields=["pending_days"])
+        elif instance.status == "APPROVED":
+            balance.used_days = max(0, balance.used_days - balance_days)
+            balance.save(update_fields=["used_days"])
+
         log_action(self.request, instance, "DELETE")
         super().perform_destroy(instance)
+            
 
     @action(detail=False, methods=["get"])
     def export(self, request):
@@ -238,42 +354,41 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
         leave = self.get_object()
 
         if leave.status != "PENDING":
-            return Response(
-                {"detail": "Only pending requests can be actioned."}, status=400
-            )
+            return Response({"detail": "Only pending requests can be actioned."}, status=400)
 
         serializer = LeaveApprovalSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         action_type = serializer.validated_data["action"]
 
+        balance_type, balance_days = resolve_balance_impact(
+            leave.leave_type, leave.duration_hours, leave.days_requested
+        )
+        balance = LeaveBalance.get_or_create_for(leave.employee, balance_type, leave.start_date.year)
         if action_type == "approve":
             leave.status = "APPROVED"
             leave.approved_by = request.user.id
             leave.approved_at = timezone.now()
+
+            balance.used_days += balance_days
+            balance.pending_days = max(0, balance.pending_days - balance_days)
+            balance.save(update_fields=["used_days", "pending_days"])
+
             try:
                 name = get_hr_name(request)
                 notify_leave_approved(leave, approved_by=name)
             except Exception as e:
                 print(f"[NOTIFY] leave_approved error: {e}")
-            try:
-                balance = LeaveBalance.objects.get(
-                    employee=leave.employee,
-                    leave_type=leave.leave_type,
-                    year=leave.start_date.year,
-                )
-                balance.used_days += leave.days_requested
-                balance.pending_days = max(0, balance.pending_days - leave.days_requested)
-                balance.save(update_fields=["used_days", "pending_days"])
-            except LeaveBalance.DoesNotExist:
-                pass
 
             leave.save(update_fields=["status", "approved_by", "approved_at"])
-            log_action(request, leave, "APPROVE", {
-                "status": {"old": "PENDING", "new": "APPROVED"}
-            })
+            log_action(request, leave, "APPROVE", {"status": {"old": "PENDING", "new": "APPROVED"}})
+
         else:
             leave.status = "REJECTED"
             leave.rejection_reason = serializer.validated_data.get("rejection_reason", "")
+
+            balance.pending_days = max(0, balance.pending_days - balance_days)
+            balance.save(update_fields=["pending_days"])
+
             try:
                 name = get_hr_name(request)
                 notify_leave_rejected(leave, rejected_by=name, reason=leave.rejection_reason)
@@ -287,6 +402,119 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
             })
 
         return Response(LeaveRequestSerializer(leave).data)
+
+
+
+    @action(detail=False, methods=["get"], url_path="balance-history")
+    def balance_history(self, request):
+        employee_id   = request.query_params.get("employee")
+        leave_type_id = request.query_params.get("leave_type")
+        year          = request.query_params.get("year")
+
+        if not (employee_id and leave_type_id and year):
+            return Response(
+                {"detail": "employee, leave_type et year sont requis."}, status=400
+            )
+
+        balance  = LeaveBalance.objects.filter(
+            employee_id=employee_id, leave_type_id=leave_type_id, year=year
+        ).first()
+        entitled = balance.entitled_days if balance else 0
+
+        requests = (
+            LeaveRequest.objects
+            .filter(employee_id=employee_id, leave_type_id=leave_type_id, start_date__year=year)
+            .order_by("created_at")
+        )
+
+        running_used, running_pending = 0, 0
+        history = []
+        for r in requests:
+            if r.status == "APPROVED":
+                running_used += r.days_requested
+            elif r.status == "PENDING":
+                running_pending += r.days_requested
+            # REJECTED / CANCELLED shown for the trace, but don't move the balance
+
+            history.append({
+                "id": r.id,
+                "start_date": r.start_date,
+                "end_date": r.end_date,
+                "days_requested": r.days_requested,
+                "status": r.status,
+                "created_at": r.created_at,     # date + heure de la demande
+                "approved_at": r.approved_at,   # date + heure de l'approbation, si applicable
+                "remaining_days_after": entitled - running_used - running_pending,
+            })
+
+        return Response({
+            "employee_id": employee_id,
+            "leave_type_id": leave_type_id,
+            "year": year,
+            "entitled_days": entitled,
+            "used_days": running_used,
+            "pending_days": running_pending,
+            "remaining_days": entitled - running_used - running_pending,
+            "history": history,
+        })
+
+
+
+    @action(detail=False, methods=["get"], url_path="employee-overview")
+    def employee_overview(self, request):
+        today = timezone.now().date()
+        year  = request.query_params.get("year", today.year)
+
+        employee_id = request.query_params.get("employee")
+        balances_qs = LeaveBalance.objects.filter(year=year).select_related("leave_type", "employee")
+        if employee_id:
+            balances_qs = balances_qs.filter(employee_id=employee_id)
+
+        current_qs = LeaveRequest.objects.filter(
+            status="APPROVED", start_date__lte=today, end_date__gte=today
+        ).select_related("leave_type")
+        upcoming_qs = LeaveRequest.objects.filter(
+            status="APPROVED", start_date__gt=today
+        ).select_related("leave_type").order_by("start_date")
+
+        current_by_emp, upcoming_by_emp = {}, {}
+        for r in current_qs:
+            current_by_emp.setdefault(r.employee_id, []).append({
+                "leave_type": r.leave_type.name,
+                "start_date": r.start_date,
+                "end_date": r.end_date,
+            })
+        for r in upcoming_qs:
+            upcoming_by_emp.setdefault(r.employee_id, []).append({
+                "leave_type": r.leave_type.name,
+                "start_date": r.start_date,
+                "end_date": r.end_date,
+            })
+
+        by_employee = {}
+        for b in balances_qs:
+            emp = by_employee.setdefault(b.employee_id, {
+                "employee_id": b.employee_id,
+                "employee_name": b.employee.full_name,
+                "status": "present",
+                "currently_on": current_by_emp.get(b.employee_id, []),
+                "upcoming": upcoming_by_emp.get(b.employee_id, []),
+                "balances": [],
+            })
+            emp["balances"].append({
+                "leave_type": b.leave_type.name,
+                "leave_type_code": b.leave_type.code,
+                "entitled_days": b.entitled_days,
+                "used_days": b.used_days,
+                "pending_days": b.pending_days,
+                "remaining_days": b.remaining_days,
+            })
+            if b.employee_id in current_by_emp:
+                emp["status"] = "absent"
+            elif b.employee_id in upcoming_by_emp and emp["status"] != "absent":
+                emp["status"] = "upcoming"
+
+        return Response(list(by_employee.values()))
 
 
 class MaternityLeaveViewSet(viewsets.ModelViewSet):

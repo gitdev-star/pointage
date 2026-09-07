@@ -92,7 +92,6 @@ from .serializers import (
     EmbaucheSerializer,
     CompteRenduEntretienCadreSerializer,
     TachePreparationEmbaucheSerializer,
-    creer_employe_depuis_embauche,
 )
 
 
@@ -2782,7 +2781,6 @@ class DocumentCandidatViewSet(
     http_method_names = [
         "get",
         "post",
-        "patch",
         "head",
         "options",
     ]

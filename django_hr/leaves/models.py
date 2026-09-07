@@ -6,6 +6,17 @@ from django.db import models
 from employees.models import Employee
 
 
+
+HOURS_PER_DAY = 8.0
+
+PROTECTED_LEAVE_CODES = {
+    "CD", "PAT", "PEF", "PRM", "REM", "ACT", "HP", "DPP", "DEM", "LIC", "INP",
+}
+AUTO_APPROVE_LEAVE_CODES = {
+    "FCD", "ENC", "ADP", "MP", "AJT", "FON",
+}
+
+
 class LeaveType(models.Model):
     name = models.CharField(max_length=100, unique=True)
     code = models.CharField(max_length=20, unique=True)
@@ -17,7 +28,11 @@ class LeaveType(models.Model):
     requires_document = models.BooleanField(default=False)
     color = models.CharField(max_length=7, default="#3B82F6", help_text="Hex color for calendar")
     is_active = models.BooleanField(default=True)
-
+    is_protected = models.BooleanField(
+        default=False,
+        help_text="If True, this type cannot be deleted through the app (API or admin)."
+    )
+    
     def __str__(self):
         return f"{self.code} — {self.name}"
 
@@ -41,6 +56,17 @@ class LeaveBalance(models.Model):
     @property
     def remaining_days(self):
         return self.entitled_days - self.used_days - self.pending_days
+
+    @classmethod
+    def get_or_create_for(cls, employee, leave_type, year):
+        balance, _ = cls.objects.get_or_create(
+            employee=employee,
+            leave_type=leave_type,
+            year=year,
+            defaults={"entitled_days": leave_type.days_per_year or 0},
+        )
+        return balance
+
 
     def __str__(self):
         return f"{self.employee} / {self.leave_type.code} / {self.year}"
