@@ -2780,6 +2780,7 @@ class DocumentCandidatViewSet(
     # lors de la création du Retour RH.
     http_method_names = [
         "get",
+        "patch",
         "post",
         "head",
         "options",
