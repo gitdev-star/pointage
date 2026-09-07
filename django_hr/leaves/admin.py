@@ -3,15 +3,19 @@
 # =====================================================
 
 from django.contrib import admin
-from .models import LeaveType, LeaveBalance, LeaveRequest
+from .models import LeaveType, LeaveBalance, LeaveRequest, PROTECTED_LEAVE_CODES
 
 
 @admin.register(LeaveType)
 class LeaveTypeAdmin(admin.ModelAdmin):
-    list_display = ["code", "name", "days_per_year", "is_paid", "requires_document", "is_active"]
-    list_filter = ["is_paid", "is_active"]
+    list_display = ["code", "name", "days_per_year", "is_paid", "requires_document", "is_active", "is_protected"]
+    list_filter = ["is_paid", "is_active", "is_protected"]
     search_fields = ["name", "code"]
 
+    def has_delete_permission(self, request, obj=None):
+        if obj is not None and obj.code in PROTECTED_LEAVE_CODES:
+            return False
+        return super().has_delete_permission(request, obj)
 
 @admin.register(LeaveBalance)
 class LeaveBalanceAdmin(admin.ModelAdmin):

@@ -1,3 +1,7 @@
+//==========================================================
+//frontend/src/features/Employe/page/EmployeFiche.jsx
+//==========================================================
+
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate }                  from "react-router-dom";
 import {
@@ -105,6 +109,7 @@ function RegistreView() {
   const [loading,     setLoading]     = useState(false);
   const [factories,   setFactories]   = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [absentToday, setAbsentToday] = useState({});
 
   // const { exporting, exportCSV, exportError } = useExportCSV(filters, "registre_personnel");
 
@@ -113,6 +118,16 @@ function RegistreView() {
       .then((r) => setFactories(r.data.results ?? r.data)).catch(() => {});
     hrClient.get("employees/departments/?page_size=500")
       .then((r) => setDepartments(r.data.results ?? r.data)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    hrClient.get("leaves/requests/presence-status/")
+      .then((r) => {
+        const map = {};
+        (r.data.currently_absent || []).forEach((a) => { map[a.employee_id] = a; });
+        setAbsentToday(map);
+      })
+      .catch(() => {});
   }, []);
 
   
@@ -229,7 +244,20 @@ function RegistreView() {
                   >
                     <TableCell sx={{ fontSize: 12 }}>{page * DEFAULT_PAGE_SIZE + i + 1}</TableCell>
                     <TableCell sx={{ fontSize: 12, fontFamily: "monospace", color: "#1565c0" }}>{e.employee_id}</TableCell>
-                    <TableCell sx={{ fontSize: 12, fontWeight: 600 }}>{e.last_name}</TableCell>
+                    <TableCell sx={{ fontSize: 12, fontWeight: 600 }}>
+                      {e.last_name}
+                      {absentToday[e.id] && (
+                        <Chip
+                          label={absentToday[e.id].leave_type}
+                          size="small"
+                          sx={{
+                            ml: 1, height: 18, fontSize: 10, fontWeight: 700,
+                            bgcolor: "#fb8c00", color: "#fff",
+                          }}
+                          title={`Absent jusqu'au ${absentToday[e.id].end_date}`}
+                        />
+                      )}
+                    </TableCell>
                     <TableCell sx={{ fontSize: 12 }}>{e.first_name}</TableCell>
                     <TableCell sx={{ fontSize: 12 }}>{e.sexe || "—"}</TableCell>
                     <TableCell sx={{ fontSize: 12 }}>{e.birth_date || "—"}</TableCell>
@@ -281,6 +309,7 @@ function FicheDetail() {
   const [payslips,  setPayslips]  = useState(null);
   const [shifts,    setShifts]    = useState(null);
   const [maternity, setMaternity] = useState(null);
+  const [balances,  setBalances]  = useState(null);
   const fetchedTabs = React.useRef(new Set());
   const [sanctions, setSanctions] = useState(null);
   const [contractPdfUrl, setContractPdfUrl] = useState(null);
@@ -295,6 +324,14 @@ function FicheDetail() {
       .catch(() => setError("Erreur chargement de la fiche employé."))
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (!employee) return;
+    const currentYear = new Date().getFullYear();
+    hrClient.get(`leaves/balances/?employee=${id}&year=${currentYear}`)
+      .then((r) => setBalances(r.data.results || r.data))
+      .catch(() => setBalances([]));
+  }, [employee, id]);
 
   useEffect(() => {
     if (!employee) return;
@@ -347,7 +384,7 @@ function FicheDetail() {
   useEffect(() => {
     if (!employee) return;
 
-    if (tab === 2 && !fetchedTabs.current.has(2)) {
+    if (!fetchedTabs.current.has(2)) {
       fetchedTabs.current.add(2);
       Promise.all([
         hrClient.get(`leaves/requests/?employee=${id}&page_size=50`),
@@ -390,6 +427,14 @@ function FicheDetail() {
   const goToAnalysis = () =>
     navigate(`/attendance/analysis?user_id=${attendanceId}&name=${encodeURIComponent(fullName)}`);
 
+  const today = new Date().toISOString().slice(0, 10);
+  const currentAbsence = leaves?.find(
+    (l) => l.status === "APPROVED" && l.start_date <= today && l.end_date >= today
+  );
+
+  const cdBalance = balances?.find((b) => b.leave_type_code === "CD");
+  const cdRemaining = cdBalance ? Number(cdBalance.remaining_days) : null;
+
     // console.log("employe fiche:", employee
 
   return (
@@ -424,12 +469,37 @@ function FicheDetail() {
                   <Chip label={employee.factory_name}    size="small" color="primary"   variant="outlined" />
                   <Chip label={employee.department_name} size="small" color="secondary" variant="outlined" />
                   <Chip label={employee.classification_name || "-"} size="small" color="secondary" variant="outlined" />
+                  {currentAbsence ? (
+                    <Chip
+                      label={`Absent — ${currentAbsence.leave_type_name} (jusqu'au ${currentAbsence.end_date})`}
+                      size="small"
+                      color="error"
+                    />
+                  ) : (
+                    <Chip label="Présent" size="small" color="success" />
+                  )}
                 </div>
               </div>
-              <div className="text-right">
-                <p className="text-xs text-gray-400">Ancienneté</p>
-                <p className="text-xl font-bold text-blue-600">{seniority}</p>
-                <p className="text-xs text-gray-400">Depuis le {employee.hire_date}</p>
+              <div className="flex gap-6">
+                <div className="text-right">
+                  <p className="text-xs text-gray-400">Solde congé (CD)</p>
+                  <p
+                    className="text-xl font-bold"
+                    style={{ color: cdRemaining === null ? "#9e9e9e" : cdRemaining > 0 ? "#2e7d32" : "#c62828" }}
+                  >
+                    {cdBalance ? `${cdBalance.remaining_days}j` : "0j"}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    {cdBalance
+                      ? `${cdBalance.entitled_days}j acquis − ${cdBalance.used_days}j pris${Number(cdBalance.pending_days) > 0 ? ` − ${cdBalance.pending_days}j en attente` : ""}`
+                      : "0j acquis"}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-gray-400">Ancienneté</p>
+                  <p className="text-xl font-bold text-blue-600">{seniority}</p>
+                  <p className="text-xs text-gray-400">Depuis le {employee.hire_date}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -538,48 +608,81 @@ function FicheDetail() {
 
       {tab === 2 && (
         leaves === null ? <TabSpinner /> : (
-          <TableContainer component={Paper} elevation={1}>
-            <Table size="small">
-              <TableHead>
-                <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
-                  {["Type","Du","Au","Jours","Statut"].map((h) => (
-                    <TableCell key={h}><strong>{h}</strong></TableCell>
+          <>
+            <TableContainer component={Paper} elevation={1}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
+                    {["Type","Du","Au","Jours","Statut"].map((h) => (
+                      <TableCell key={h}><strong>{h}</strong></TableCell>
+                    ))}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {maternity.map((m) => (
+                    <TableRow key={`mat-${m.id}`} hover sx={{ bgcolor: "#fce4ec" }}>
+                      <TableCell><strong style={{ color: "#c62828" }}>🤰 Maternité</strong></TableCell>
+                      <TableCell>{m.leave_start_date}</TableCell>
+                      <TableCell>{m.leave_end_date}</TableCell>
+                      <TableCell>98j</TableCell>
+                      <TableCell>
+                        <Chip label={m.status} size="small"
+                          color={m.status === "RETURNED" ? "success" : m.status === "CANCELLED" ? "default" : "warning"} />
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {maternity.map((m) => (
-                  <TableRow key={`mat-${m.id}`} hover sx={{ bgcolor: "#fce4ec" }}>
-                    <TableCell><strong style={{ color: "#c62828" }}>🤰 Maternité</strong></TableCell>
-                    <TableCell>{m.leave_start_date}</TableCell>
-                    <TableCell>{m.leave_end_date}</TableCell>
-                    <TableCell>98j</TableCell>
-                    <TableCell>
-                      <Chip label={m.status} size="small"
-                        color={m.status === "RETURNED" ? "success" : m.status === "CANCELLED" ? "default" : "warning"} />
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {leaves.length === 0 && maternity.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} align="center" sx={{ py: 4, color: "text.secondary" }}>
-                      Aucun congé
-                    </TableCell>
-                  </TableRow>
-                ) : leaves.map((l) => (
-                  <TableRow key={l.id} hover>
-                    <TableCell>{l.leave_type_name}</TableCell>
-                    <TableCell>{l.start_date}</TableCell>
-                    <TableCell>{l.end_date}</TableCell>
-                    <TableCell>{l.days_requested}j</TableCell>
-                    <TableCell>
-                      <Chip label={l.status} color={LEAVE_STATUS_CHIP_COLORS[l.status]} size="small" />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                  {leaves.length === 0 && maternity.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} align="center" sx={{ py: 4, color: "text.secondary" }}>
+                        Aucun congé
+                      </TableCell>
+                    </TableRow>
+                  ) : leaves.map((l) => (
+                    <TableRow key={l.id} hover>
+                      <TableCell>{l.leave_type_name}</TableCell>
+                      <TableCell>{l.start_date}</TableCell>
+                      <TableCell>{l.end_date}</TableCell>
+                      <TableCell>{l.days_requested}j</TableCell>
+                      <TableCell>
+                        <Chip label={l.status} color={LEAVE_STATUS_CHIP_COLORS[l.status]} size="small" />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+
+            <Divider sx={{ my: 2 }} />
+            <p className="font-bold mb-3">Solde de congés — tous types</p>
+            {balances === null ? <TabSpinner /> : balances.length === 0 ? (
+              <p className="text-sm text-gray-500">Aucun solde enregistré pour {new Date().getFullYear()}.</p>
+            ) : (
+              <TableContainer component={Paper} elevation={0} variant="outlined">
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
+                      {["Type", "Acquis", "Utilisé", "En attente", "Restant"].map((h) => (
+                        <TableCell key={h}><strong>{h}</strong></TableCell>
+                      ))}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {balances.map((b) => (
+                      <TableRow key={b.id} hover>
+                        <TableCell>{b.leave_type_name}</TableCell>
+                        <TableCell>{b.entitled_days}j</TableCell>
+                        <TableCell>{b.used_days}j</TableCell>
+                        <TableCell>{b.pending_days}j</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: Number(b.remaining_days) > 0 ? "#2e7d32" : "#c62828" }}>
+                          {b.remaining_days}j
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </>
         )
       )}
 

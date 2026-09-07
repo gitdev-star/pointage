@@ -11,9 +11,18 @@ class LeaveTypeSerializer(serializers.ModelSerializer):
         model = LeaveType
         fields = "__all__"
 
+    def validate_code(self, value):
+        if self.instance and self.instance.is_protected and value != self.instance.code:
+            raise serializers.ValidationError(
+                f"Le code « {self.instance.code} » est protégé et ne peut pas être modifié — "
+                "il est référencé directement dans le code applicatif."
+            )
+        return value
+
 
 class LeaveBalanceSerializer(serializers.ModelSerializer):
     leave_type_name = serializers.CharField(source="leave_type.name", read_only=True)
+    leave_type_code = serializers.CharField(source="leave_type.code", read_only=True)
     remaining_days = serializers.DecimalField(max_digits=5, decimal_places=1, read_only=True)
 
     class Meta:
