@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     "hr_events",
     "audit_log",
     "testsupport",
+    "recruitment.apps.RecruitmentConfig",
 ]
 
 import dj_database_url
