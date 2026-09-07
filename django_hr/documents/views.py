@@ -61,9 +61,24 @@ def get_classif(emp):
 
 def replace_in_paragraph(para, reps):
     full = "".join(r.text for r in para.runs)
-    new  = full
-    for old, val in reps.items():
-        new = new.replace(old, str(val) if val is not None else "\u2014")
+    if not full or not reps:
+        return
+
+    # Trie les clés par longueur décroissante pour éviter qu'une clé courte
+    # ("04") ne matche avant une clé plus longue et plus spécifique.
+    keys = sorted((k for k in reps if k), key=len, reverse=True)
+    if not keys:
+        return
+    pattern = re.compile("|".join(re.escape(k) for k in keys))
+
+    def _repl(m):
+        val = reps.get(m.group(0))
+        return str(val) if val is not None else "\u2014"
+
+    # Une seule passe simultanée sur le texte ORIGINAL : une valeur qui
+    # vient d'être insérée ne peut donc jamais être re-matchée par une
+    # autre clé du même dictionnaire (contrairement aux .replace() enchaînés).
+    new = pattern.sub(_repl, full)
     if new == full:
         return
     if para.runs:

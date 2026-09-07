@@ -38,6 +38,13 @@ import TransportPage from "./features/Transport/page/TransportPage";
 import WorkSchedulePage from "./features/Horaire/page/HorairePage";
 import AuditLogPage from "./features/AuditLog/page/auditLogPage";
 import CantineDashboard from "./features/Cantine/cantinePage";
+import DashboardRecrutement from "./features/Recrutement/component/Dashboard";
+import ValidationDemandeRecrutement from "./features/Recrutement/component/ValidationDemandeRecrutement";
+import DemandeRecrutementPage from "./features/Recrutement/component/DemandeRecrutementPage";
+import ProcessusRecrutement from "./features/Recrutement/component/ProcessusRecrutement";
+import DetailProcessusRecrutement from "./features/Recrutement/component/DetailProceRecru";
+import CompteRenduEntretienCadre from "./features/Recrutement/component/CompteRendu";
+
 
 function App() {
   return (
@@ -75,7 +82,40 @@ function App() {
 	        <Route path="hr/work-schedules" element={<WorkSchedules />} />
           <Route path="hr/schedule-assignment" element={<ScheduleAssignment />} />
 	        <Route path="attendance/late-report" element={<ProtectedRoute module="retard"><RetardPage /></ProtectedRoute>} />
-        </Route>
+        <Route path="/hr/recrutement" element={<DashboardRecrutement />} />
+          <Route
+  path="/hr/recrutement/demande"
+  element={< DemandeRecrutementPage/>}
+/>
+
+<Route
+  path="/hr/recrutement/demandes/:id/validation"
+  element={<ValidationDemandeRecrutement />}
+/>
+
+<Route
+  path="/hr/recrutement/demandes/:id/approbation-drh"
+  element={
+    <ValidationDemandeRecrutement />
+  }
+/>
+
+<Route
+  path="/hr/recrutement/processus"
+  element={<ProcessusRecrutement />}
+/>
+
+<Route
+  path="/hr/recrutement/processus/:id"
+  element={<DetailProcessusRecrutement />}
+/>
+
+<Route
+  path="/hr/recrutement/comptes-rendus"
+  element={<CompteRenduEntretienCadre />}
+/>
+
+</Route>
       </Routes>
     </Router>
   );
