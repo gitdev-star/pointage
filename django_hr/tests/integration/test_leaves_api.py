@@ -122,16 +122,18 @@ class TestLeaveRejection:
         assert resp.data["status"] == "REJECTED"
         assert resp.data["rejection_reason"] == "Effectif insuffisant"
 
-    def test_reject_does_not_touch_balance(
+    def test_reject_releases_pending_days_without_touching_used(
         self, mock_notify, authenticated_client, pending_leave_request, leave_balance
     ):
+        """Rejecting a request should release its pending-days hold (set at
+        creation time) without ever touching used_days."""
         authenticated_client.post(
             f"/api/leaves/requests/{pending_leave_request.id}/approve_reject/",
             {"action": "reject"},
         )
         leave_balance.refresh_from_db()
         assert leave_balance.used_days == 0
-        assert leave_balance.pending_days == 5
+        assert leave_balance.pending_days == 0
 
 
 class TestLeaveActionGuards:
