@@ -3,7 +3,8 @@ from .views import (
     RegisterView, MeView, AdminOnlyView, HRView,
     EmployeeDashboardView, UserListView, UserDetailView,
     LDAPUserListView, LDAPImportUserView, LDAPLoginView,
-    HRUserDeleteView,
+    HRUserDeleteView,  EntraLoginView, EntraCallbackView,
+    EntraUserListView, EntraImportUserView,
 )
 from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -25,4 +26,13 @@ urlpatterns = [
     path('hr-only/',         HRView.as_view(),                name='hr_only'),
     path('employee/',        EmployeeDashboardView.as_view(), name='employee_dashboard'),
     path("users/<int:pk>/hr-delete/", HRUserDeleteView.as_view(), name="hr-user-delete"),
+    
+    # -----------------------------------------------------------------------------------
+    # MICROSOFT ENTRA ID (Azure AD) integration endpoints for the HR module.
+    # -----------------------------------------------------------------------------------
+
+    path('entra/login/',    EntraLoginView.as_view(),      name='entra_login'),
+    path('entra/callback/', EntraCallbackView.as_view(),   name='entra_callback'),
+    path('entra/users/',         EntraUserListView.as_view(),   name='entra-users'),
+    path('entra/import/',        EntraImportUserView.as_view(), name='entra-import'),
 ]

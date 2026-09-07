@@ -198,7 +198,7 @@ async def sync_device_loop(ip: str, port: int):
 # RESET LOGIC
 # --------------------------------------------------
 async def reset_device(ip: str, port: int, reference_time: datetime):
-    """Daily reset: sync device time only (no log clearing)."""
+    """Daily reset: sync device time + clear old logs."""
     if not await is_reachable(ip, port):
         logger.warning(f"[RESET] {ip} unreachable, skipped")
         return
@@ -210,7 +210,8 @@ async def reset_device(ip: str, port: int, reference_time: datetime):
         try:
             await zk.connect()
             await zk.sync_time(reference_time)
-            logger.info(f"[RESET] ✅ {ip} time synced")
+            await zk.clear_attendance_logs()
+            logger.info(f"[RESET] ✅ {ip} complete")
         except Exception as e:
             logger.error(f"[RESET] ❌ {ip} failed: {e}")
         finally:
@@ -244,16 +245,18 @@ async def sync_device_time_only(ip: str, port: int, reference_time: datetime):
 
 
 async def hourly_time_sync_loop():
-    """Sync every device's clock to the DB server's time, once per hour."""
-    while True:
-        logger.info("⏱️  HOURLY TIME SYNC STARTED")
-        reference_time = await get_reference_time()
-        devices = await fetch_active_devices()
-        for ip, port in devices:
-            await sync_device_time_only(ip, port, reference_time)
-        logger.info(f"⏱️  HOURLY TIME SYNC DONE — next in {HOURLY_SYNC_INTERVAL / 3600:.0f}h")
-        await asyncio.sleep(HOURLY_SYNC_INTERVAL)
+    """Sync every device's clock to the DB server's time, once per hour.
 
+    DISABLED: clock sync is now owned by clocker-time-daemon.service.
+    Keeping this in-code loop active caused write contention with the
+    systemd daemon (both writing device time in the same ~30-40s window),
+    producing large random clock drift. This coroutine is kept as a
+    no-op so it can stay in the existing gather()/task list without
+    touching the call site.
+    """
+    logger.info("⏱️  HOURLY TIME SYNC DISABLED — clock sync owned by clocker-time-daemon.service")
+    while True:
+        await asyncio.sleep(3600)
 
 
 async def daily_reset_loop():
@@ -268,7 +271,7 @@ async def daily_reset_loop():
         await asyncio.sleep(wait)
         logger.info("⏰ DAILY RESET STARTED")
 
-        reference_time = await get_reference_time()  # ← now async, awaited
+        reference_time = await get_reference_time()
         devices = await fetch_active_devices()
         for ip, port in devices:
             await reset_device(ip, port, reference_time)
@@ -302,7 +305,6 @@ async def start_all_syncs():
         await asyncio.sleep(300)  # re-check for new devices every 5 minutes
 
 
-
 async def get_reference_time() -> datetime:
     """
     Authoritative time for device sync, sourced directly from the
@@ -321,7 +323,6 @@ async def get_reference_time() -> datetime:
     except Exception as e:
         logger.warning(f"⏱️  DB time query failed ({e!r}), using local clock as fallback")
         return datetime.now()
-
 
 
 # --------------------------------------------------

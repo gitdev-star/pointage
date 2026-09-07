@@ -1,5 +1,7 @@
 from rest_framework import serializers
 from .models import CDDAlert, CDDNotificationAssignment, InAppNotification
+from .models import LateAlertAssignment
+
 
 
 class CDDAlertSerializer(serializers.ModelSerializer):
@@ -28,3 +30,11 @@ class InAppNotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model  = InAppNotification
         fields = ["id", "title", "message", "level", "category", "is_read", "created_at"]
+
+
+
+class LateAlertAssignmentSerializer(serializers.ModelSerializer):
+    factory_name = serializers.CharField(source="factory.name", read_only=True)
+    class Meta:
+        model  = LateAlertAssignment
+        fields = "__all__"

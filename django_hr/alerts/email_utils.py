@@ -33,20 +33,23 @@ def _base_html(title: str, body_html: str) -> str:
     </html>"""
 
 
-def _send(subject: str, html: str, text: str, recipients: list[str]):
-    """Core send helper — never raises, logs errors instead."""
+
+def _send(subject: str, html: str, text: str, recipients: list[str], cc: list[str] = None) -> bool:
+    """Core send helper — returns True/False, logs errors instead of raising."""
     try:
         msg = EmailMultiAlternatives(
             subject=subject,
             body=text,
             from_email=settings.DEFAULT_FROM_EMAIL,
             to=recipients,
+            cc=cc or [],
         )
         msg.attach_alternative(html, "text/html")
         msg.send()
+        return True
     except Exception as exc:
-        print(f"[EMAIL ERROR] {subject} → {recipients}: {exc}")
-
+        print(f"[EMAIL ERROR] {subject} → {recipients} (cc={cc}): {exc}")
+        return False
 
 # ─────────────────────────────────────────────────────────────
 # CDD Alert notifications
@@ -564,3 +567,41 @@ def notify_maternity_extended(maternity, triggered_by: str = "Inconnu"):
     html = _base_html("Prolongation congé maternité", body_html)
     _send(subject, html, text, recipients)
     _notify_inapp(subject, f"Employe: {emp.full_name} | Nouvelle fin: {maternity.extended_end_date}", level="warning", category="maternity")
+
+
+
+
+def notify_late_employees(factory, late_employees: list, recipients: list, cc: list = None):
+    """late_employees: list of dicts {full_name, employee_id, department, job_title, arrival_time, minutes_late}
+    recipients: list of email addresses — all get the SAME email (multiple 'To')."""
+    count = len(late_employees)
+    subject = f"[RH] Retards du jour — {factory.name} ({count})"
+
+    rows = "".join(
+        "<tr>"
+        f"<td style='padding:6px;border-bottom:1px solid #eee;'>{e['full_name']}</td>"
+        f"<td style='padding:6px;border-bottom:1px solid #eee;'>{e['employee_id']}</td>"
+        f"<td style='padding:6px;border-bottom:1px solid #eee;'>{e.get('department','—')}</td>"
+        f"<td style='padding:6px;border-bottom:1px solid #eee;'>{e.get('job_title','—')}</td>"
+        f"<td style='padding:6px;border-bottom:1px solid #eee;color:#c62828;font-weight:bold;'>{e.get('arrival_time','—')}</td>"
+        f"<td style='padding:6px;border-bottom:1px solid #eee;'>{e.get('minutes_late','—')} min</td>"
+        "</tr>"
+        for e in late_employees
+    )
+    text = "\n".join([f"Retards du jour — {factory.name}", f"Nombre : {count}"] + [
+        f"- {e['full_name']} ({e['employee_id']}) [{e.get('department','—')}] : {e.get('minutes_late','?')} min de retard"
+        for e in late_employees
+    ])
+    body_html = "".join([
+        f"<p><strong>{count}</strong> employé(s) en retard aujourd'hui pour <strong>{factory.name}</strong>.</p>",
+        "<table style='border-collapse:collapse;width:100%;'>",
+        "<tr style='background:#1565c0;color:#fff;'>",
+        "<th style='padding:8px;text-align:left;'>Nom</th><th style='padding:8px;text-align:left;'>Matricule</th>",
+        "<th style='padding:8px;text-align:left;'>Département</th><th style='padding:8px;text-align:left;'>Poste</th>",
+        "<th style='padding:8px;text-align:left;'>Heure pointage</th>",
+        "<th style='padding:8px;text-align:left;'>Retard</th></tr>",
+        rows, "</table>",
+    ])
+    html = _base_html(f"Retards du jour — {factory.name}", body_html)
+    _send(subject, html, text, recipients, cc=cc)   # ← was: _send(subject, html, text, recipients)
+    _notify_inapp(subject, f"{factory.name} | {count} retard(s)", level="warning", category="attendance")

@@ -73,6 +73,7 @@ export default function HRUsers() {
   const [ldapSearch, setLdapSearch]   = useState("");
   const [selectedLdap, setSelectedLdap] = useState(null);
   const [importing, setImporting]     = useState(false);
+  const [importSource, setImportSource] = useState("ldap"); // "ldap" | "entra"
 
   // Edit permissions dialog
   const [editDialog, setEditDialog]   = useState(null);
@@ -102,21 +103,21 @@ export default function HRUsers() {
     hrClient.get("employees/departments/?page_size=200").then(r => setDepartments(r.data.results || r.data)).catch(() => {});
   }, []);
 
-  // ── Load LDAP users ──────────────────────────────────────────────────
-  const openLdapDialog = async () => {
+  // ── Load AD or Entra ID users ────────────────────────────────────────
+  const openLdapDialog = async (source = "ldap") => {
+    setImportSource(source);
     setLdapDialog(true);
     setSelectedLdap(null);
     setLdapSearch("");
-    if (ldapUsers.length === 0) {
-      setLdapLoading(true);
-      try {
-        const res = await authClient.get("ldap/users/");
-        setLdapUsers(res.data);
-      } catch {
-        setAlert({ type: "error", msg: "Erreur chargement des utilisateurs AD." });
-      } finally {
-        setLdapLoading(false);
-      }
+    setLdapUsers([]);
+    setLdapLoading(true);
+    try {
+      const res = await authClient.get(`${source}/users/`);
+      setLdapUsers(res.data);
+    } catch {
+      setAlert({ type: "error", msg: `Erreur chargement des utilisateurs ${source === "ldap" ? "AD" : "Entra ID"}.` });
+    } finally {
+      setLdapLoading(false);
     }
   };
 
@@ -132,7 +133,7 @@ export default function HRUsers() {
     if (!selectedLdap) return;
     setImporting(true);
     try {
-      await authClient.post("ldap/import/", {
+      await authClient.post(`${importSource}/import/`, {
         username: selectedLdap.username,
         role: "HR",
       });
@@ -245,8 +246,11 @@ export default function HRUsers() {
         </Typography>
         <Box sx={{ display: "flex", gap: 1 }}>
           <Tooltip title="Actualiser"><IconButton onClick={fetchProfiles}><RefreshIcon /></IconButton></Tooltip>
-          <Button variant="contained" startIcon={<AddIcon />} onClick={openLdapDialog}>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={() => openLdapDialog("ldap")}>
             Ajouter depuis AD
+          </Button>
+          <Button variant="outlined" startIcon={<AddIcon />} onClick={() => openLdapDialog("entra")}>
+            Ajouter depuis Entra ID
           </Button>
         </Box>
       </Box>
@@ -318,7 +322,7 @@ export default function HRUsers() {
       {/* ── LDAP Picker Dialog (unchanged) ── */}
       <Dialog open={ldapDialog} onClose={() => setLdapDialog(false)} maxWidth="md" fullWidth>
         <DialogTitle fontWeight={700}>
-          👥 Sélectionner un utilisateur Active Directory
+          👥 Sélectionner un utilisateur {importSource === "ldap" ? "Active Directory" : "Entra ID"}
         </DialogTitle>
         <DialogContent dividers>
           <TextField
@@ -336,7 +340,7 @@ export default function HRUsers() {
                   <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
                     <TableCell></TableCell>
                     <TableCell><strong>Nom complet</strong></TableCell>
-                    <TableCell><strong>Login AD</strong></TableCell>
+                    <TableCell><strong>{importSource === "ldap" ? "Login AD" : "Login Entra ID"}</strong></TableCell>
                     <TableCell><strong>Email</strong></TableCell>
                     <TableCell><strong>Département</strong></TableCell>
                   </TableRow>
@@ -372,7 +376,7 @@ export default function HRUsers() {
           {selectedLdap && (
             <Alert severity="info" sx={{ mt: 2 }}>
               Sélectionné : <strong>{selectedLdap.cn}</strong> ({selectedLdap.username})
-              — Se connectera avec son mot de passe AD
+              — {importSource === "ldap" ? "Se connectera avec son mot de passe AD" : "Se connectera via Microsoft (Entra ID)"}
             </Alert>
           )}
         </DialogContent>

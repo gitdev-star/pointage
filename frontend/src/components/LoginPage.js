@@ -196,6 +196,17 @@ const LoginPage = () => {
 
           </form>
 
+          <div className="entra-login">
+            <span className="entra-divider">ou</span>
+            
+            <a
+              href={`${process.env.REACT_APP_AUTH_URL}/entra/login/`}
+              className="entra-btn"
+            >
+              Se connecter avec Microsoft
+            </a>
+          </div>
+
           <small className="login-footer">© 2026 Paul Boyé Industries</small>
         </div>
 

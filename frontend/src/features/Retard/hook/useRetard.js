@@ -9,8 +9,9 @@ export const CLASS_ALL     = "__ALL__";
 // ── Chargement de l'employeeMap (sessionStorage comme cache) ─────────────────
 async function loadEmployeeMap() {
   try {
-    sessionStorage.removeItem("empMap_v1");
-  } catch { /* ignore */ }
+    const cached = sessionStorage.getItem("empMap_v1");
+    if (cached) return JSON.parse(cached);
+  } catch { /* ignore corrupt cache, fall through to fetch */ }
 
   const res = await hrClient.get("employees/", {
     params: { page_size: 5000, status: "ACTIVE" },

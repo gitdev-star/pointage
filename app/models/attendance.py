@@ -20,9 +20,9 @@ class Attendance(Base):
     timestamp = Column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=text("now()"),   # DB-generated, same instant as created_at — no app code needed
+        server_default=text("now()"),
     )
-    device_timestamp = Column(DateTime, nullable=False)     # raw device clock — dedup key only
+    device_timestamp = Column(DateTime, nullable=False)
     date = Column(Date, nullable=False)
     device_ip = Column(String, nullable=False)
 
@@ -42,31 +42,28 @@ class Attendance(Base):
         date,
         device_ip: str,
         uid: int,
+        timestamp: datetime | None = None,
     ) -> int:
         """
         Insert one attendance record, skipping silently if it's a duplicate.
 
-        `timestamp` is NOT passed in and NOT set here — it's left to the
-        column's server_default (`now()`), same as `created_at`, so both
-        are populated by the same Postgres `now()` call and stay identical
-        (Postgres's `now()` returns the same value for the whole transaction).
+        PUSH: timestamp omitted -> server_default now() applies.
+        PULL: timestamp=device_timestamp passed explicitly, since the
+        fetch can happen long after the actual punch.
 
-        `device_timestamp` is the raw value read from the device and is
-        used only for the unique constraint (push vs. pull dedup).
-
-        Uses ON CONFLICT DO NOTHING, same as the push (adms_routes.py) and
-        pull (zk_reader.py) paths.
-
-        Returns the number of rows actually inserted (0 if it was a duplicate).
+        device_timestamp is used only as the dedup key (unchanged).
         """
-        stmt = insert(Attendance.__table__).values(
+        values = dict(
             uid=uid,
             user_id=user_id,
             device_timestamp=device_timestamp,
             date=date,
             device_ip=device_ip,
-            # timestamp intentionally omitted — server_default fills it
-        ).on_conflict_do_nothing(
+        )
+        if timestamp is not None:
+            values["timestamp"] = timestamp
+
+        stmt = insert(Attendance.__table__).values(**values).on_conflict_do_nothing(
             index_elements=["user_id", "device_timestamp", "date"]
         )
 
@@ -80,8 +77,15 @@ class Attendance(Base):
 
         inserted = result.rowcount
         if inserted:
-            logger.debug(f"[Attendance] user_id={user_id} uid={uid} inserted from {device_ip}")
+            ts_source = "device" if timestamp else "now()"
+            logger.debug(
+                f"[Attendance] user_id={user_id} uid={uid} inserted from "
+                f"{device_ip} (timestamp={ts_source})"
+            )
         else:
-            logger.debug(f"[Attendance] user_id={user_id} device_timestamp={device_timestamp} duplicate, skipped")
+            logger.debug(
+                f"[Attendance] user_id={user_id} device_timestamp={device_timestamp} "
+                f"duplicate, skipped"
+            )
 
         return inserted

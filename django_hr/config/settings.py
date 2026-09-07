@@ -12,7 +12,6 @@ from sentry_sdk.integrations.django import DjangoIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-FASTAPI_SERVICE_KEY = os.getenv("SERVICE_INTERNAL_KEY")
 
 # ── Core ──────────────────────────────────────────────
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY")

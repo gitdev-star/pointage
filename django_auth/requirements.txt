@@ -13,3 +13,7 @@ pytest
 pytest-django
 pytest-cov
 sentry-sdk
+
+# microsoft entra_id
+msal>=1.28.0
+httpx

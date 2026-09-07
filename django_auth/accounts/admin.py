@@ -3,6 +3,7 @@ from django.contrib.auth.admin import UserAdmin
 from django.contrib import messages
 from .models import User
 from .ldap_service import list_ldap_users
+from .entra_service import list_entra_users
 
 
 @admin.register(User)
@@ -111,6 +112,56 @@ class LDAPImportView(View):
         return redirect("/admin/ldap-import/")
 
 
+class EntraImportView(View):
+    """Admin view to import users from Entra ID (Microsoft)."""
+
+    @method_decorator(staff_member_required)
+    def get(self, request):
+        try:
+            entra_users = list_entra_users()
+            existing    = set(User.objects.values_list("username", flat=True))
+            for u in entra_users:
+                u["already_imported"] = u["username"] in existing
+        except Exception as e:
+            entra_users = []
+            messages.error(request, f"Erreur Entra ID: {e}")
+
+        return render(request, "admin/entra_import.html", {
+            "entra_users": entra_users,
+            "title": "Importer depuis Entra ID",
+        })
+
+    @method_decorator(staff_member_required)
+    def post(self, request):
+        username   = request.POST.get("username")
+        role       = request.POST.get("role", "HR")
+        first_name = request.POST.get("first_name", "")
+        last_name  = request.POST.get("last_name", "")
+        email      = request.POST.get("email", "")
+
+        if not username:
+            messages.error(request, "Username requis.")
+            return redirect("/admin/entra-import/")
+
+        if User.objects.filter(username=username).exists():
+            messages.warning(request, f"L'utilisateur '{username}' existe déjà.")
+            return redirect("/admin/entra-import/")
+
+        user = User.objects.create(
+            username=username,
+            email=email,
+            first_name=first_name,
+            last_name=last_name,
+            role=role,
+            is_active=True,
+        )
+        user.set_unusable_password()
+        user.save()
+
+        messages.success(request, f"✅ '{username}' importé avec succès comme {role}.")
+        return redirect("/admin/entra-import/")
+
+
 # ── Add LDAP Import link to admin index ───────────────────────────────
 from django.contrib.admin import AdminSite
 
@@ -119,6 +170,7 @@ original_index = AdminSite.index
 def custom_index(self, request, extra_context=None):
     extra_context = extra_context or {}
     extra_context['ldap_import_url'] = '/admin/ldap-import/'
+    extra_context['entra_import_url'] = '/admin/entra-import/'
     return original_index(self, request, extra_context)
 
 AdminSite.index = custom_index
