@@ -63,6 +63,17 @@ class HRProfile(models.Model):
     perm_retard_read    = models.BooleanField(default=False)
     perm_devices_read   = models.BooleanField(default=False)
     perm_devices_write  = models.BooleanField(default=False)
+    perm_recruitment_read = models.BooleanField(
+    default=False
+    )
+
+    perm_recruitment_write = models.BooleanField(
+        default=False
+    )
+
+    perm_recruitment_validate = models.BooleanField(
+        default=False
+    )
 
     class Meta:
         ordering = ["username"]

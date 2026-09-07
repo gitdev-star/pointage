@@ -71,6 +71,7 @@ INSTALLED_APPS = [
     "accounts",
     "documents",
     "audit_log",
+    "recruitment.apps.RecruitmentConfig",
 ]
 
 # ── Middleware ─────────────────────────────────────────
@@ -223,3 +224,115 @@ LOGGING = {
         "level": "INFO",
     },
 }
+
+def env_bool(name, default=False):
+    value = os.getenv(name)
+
+    if value is None:
+        return default
+
+    return value.strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+EMAIL_BACKEND = os.getenv(
+    "EMAIL_BACKEND",
+    "django.core.mail.backends.smtp.EmailBackend",
+)
+
+EMAIL_HOST = os.getenv(
+    "EMAIL_HOST",
+    "localhost",
+)
+
+EMAIL_PORT = int(
+    os.getenv("EMAIL_PORT", "587")
+)
+
+EMAIL_USE_SSL = env_bool(
+    "EMAIL_USE_SSL",
+    False,
+)
+
+EMAIL_USE_TLS = env_bool(
+    "EMAIL_USE_TLS",
+    True,
+)
+
+EMAIL_HOST_USER = os.getenv(
+    "EMAIL_HOST_USER",
+    "",
+)
+
+EMAIL_HOST_PASSWORD = os.getenv(
+    "EMAIL_HOST_PASSWORD",
+    "",
+)
+
+DEFAULT_FROM_EMAIL = os.getenv(
+    "DEFAULT_FROM_EMAIL",
+    EMAIL_HOST_USER or "noreply@example.com",
+)
+
+# Adresse du directeur qui re�oit les nouvelles demandes.
+RECRUITMENT_DIRECTOR_EMAIL = os.getenv(
+    "RECRUITMENT_DIRECTOR_EMAIL",
+    "",
+)
+
+DATA_UPLOAD_MAX_MEMORY_SIZE = (
+    15 * 1024 * 1024
+)
+
+FILE_UPLOAD_MAX_MEMORY_SIZE = (
+    10 * 1024 * 1024
+)
+
+AUDIT_DISABLED_APPS = {
+    app_name.strip().lower()
+    for app_name in os.getenv(
+        "AUDIT_DISABLED_APPS",
+        "",
+    ).split(",")
+    if app_name.strip()
+}
+
+def lire_liste_emails(nom_variable):
+    valeur = os.getenv(
+        nom_variable,
+        "",
+    )
+
+    return [
+        email.strip()
+        for email in valeur.split(",")
+        if email.strip()
+    ]
+
+
+RECRUTEMENT_IT_EMAILS = (
+    lire_liste_emails(
+        "RECRUTEMENT_IT_EMAILS"
+    )
+)
+
+RECRUTEMENT_COMPTABILITE_EMAILS = (
+    lire_liste_emails(
+        "RECRUTEMENT_COMPTABILITE_EMAILS"
+    )
+)
+
+RECRUTEMENT_RRH_EMAILS = (
+    lire_liste_emails(
+        "RECRUTEMENT_RRH_EMAILS"
+    )
+)
+
+FRONTEND_URL = os.getenv(
+    "FRONTEND_URL",
+    "http://localhost:8088",
+)

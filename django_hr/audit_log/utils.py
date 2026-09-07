@@ -2,6 +2,7 @@ import datetime
 import decimal
 from django.forms.models import model_to_dict
 from .models import AuditLog
+from django.conf import settings
 
 
 def get_client_ip(request):
@@ -41,21 +42,91 @@ def diff_dict(old: dict, new: dict) -> dict:
     return changes
 
 
-def log_action(request, instance, action, changes=None):
-    user = getattr(request, "user", None)
-    user_id = getattr(user, "id", None) if user else None
-    username = getattr(user, "username", "") if user else ""
-    role = getattr(user, "role", "") if user else ""
+def log_action(
+    request,
+    instance,
+    action,
+    changes=None,
+):
+    app_label = (
+        instance
+        ._meta
+        .app_label
+        .lower()
+    )
 
-    AuditLog.objects.create(
+    applications_desactivees = (
+        getattr(
+            settings,
+            "AUDIT_DISABLED_APPS",
+            set(),
+        )
+    )
+
+    # Durant le développement du recrutement,
+    # aucune nouvelle action de ce module
+    # n’est ajoutée au journal.
+    if (
+        app_label
+        in applications_desactivees
+    ):
+        return None
+
+    user = getattr(
+        request,
+        "user",
+        None,
+    )
+
+    user_id = (
+        getattr(
+            user,
+            "id",
+            None,
+        )
+        if user
+        else None
+    )
+
+    username = (
+        getattr(
+            user,
+            "username",
+            "",
+        )
+        if user
+        else ""
+    )
+
+    role = (
+        getattr(
+            user,
+            "role",
+            "",
+        )
+        if user
+        else ""
+    )
+
+    return AuditLog.objects.create(
         user_id=user_id,
         username=username,
         role=role,
         action=action,
-        app_label=instance._meta.app_label,
-        model_name=instance._meta.model_name,
-        object_id=str(instance.pk),
-        object_repr=str(instance)[:255],
+        app_label=app_label,
+        model_name=(
+            instance
+            ._meta
+            .model_name
+        ),
+        object_id=str(
+            instance.pk
+        ),
+        object_repr=str(
+            instance
+        )[:255],
         changes=changes or {},
-        ip_address=get_client_ip(request),
+        ip_address=(
+            get_client_ip(request)
+        ),
     )
