@@ -603,5 +603,6 @@ def notify_late_employees(factory, late_employees: list, recipients: list, cc: l
         rows, "</table>",
     ])
     html = _base_html(f"Retards du jour — {factory.name}", body_html)
-    _send(subject, html, text, recipients, cc=cc)   # ← was: _send(subject, html, text, recipients)
+    ok = _send(subject, html, text, recipients, cc=cc)
     _notify_inapp(subject, f"{factory.name} | {count} retard(s)", level="warning", category="attendance")
+    return ok
