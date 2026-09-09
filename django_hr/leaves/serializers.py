@@ -2,6 +2,9 @@
 # PATH: pointage/django_hr/leaves/serializers.py
 # =====================================================
 
+from datetime import datetime
+from decimal import Decimal
+
 from rest_framework import serializers
 from .models import LeaveType, LeaveBalance, LeaveRequest, MaternityLeave
 
