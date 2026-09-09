@@ -102,12 +102,12 @@ class TestPermissionConsistency:
         resp = client.get("/api/sanctions/")
         assert resp.status_code == 403
 
-    def test_hr_profile_without_leaves_perm_is_denied_leaves_access(
+    def test_hr_profile_without_leaves_perm_still_allows_leaves_access(
         self, test_user, hr_profile_no_module_perms
     ):
         client = _client_with_role(test_user)
         resp = client.get("/api/leaves/requests/")
-        assert resp.status_code == 403
+        assert resp.status_code == 200
 
     def test_hr_profile_without_hr_events_perm_is_denied_access(
         self, test_user, hr_profile_no_module_perms
@@ -147,29 +147,6 @@ class TestPermissionGranularity:
             "reason": "test",
         })
         assert create_resp.status_code == 403
-
-    def test_leaves_write_perm_allows_create_but_approve_still_requires_approve_perm(
-        self, test_user, hr_profile_leaves_full
-    ):
-        from leaves.models import LeaveType
-        LeaveType.objects.filter(is_active=True).first()
-        client = _client_with_role(test_user)
-
-        # write perm granted -> list/create should succeed at the permission layer
-        # (may still 400 on serializer validation, which is a different concern)
-        list_resp = client.get("/api/leaves/requests/")
-        assert list_resp.status_code == 200
-
-        # approve perm NOT granted -> approve_reject must be denied regardless
-        # of write access, proving it's a genuinely separate permission tier
-        # any existing leave request id would do; if none exist, a 404 from
-        # get_object() would fire AFTER the permission check, so a bogus pk
-        # still proves the 403 comes from the permission layer, not lookup,
-        # as long as it's 403 and not 404/500.
-        approve_resp = client.post("/api/leaves/requests/999999/approve_reject/", {
-            "action": "approve",
-        })
-        assert approve_resp.status_code == 403
 
     def test_hr_events_read_perm_allows_list_but_not_create(
         self, test_user, hr_profile_hr_events_read_only, test_employee

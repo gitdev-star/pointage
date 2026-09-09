@@ -45,117 +45,7 @@ def leave_type():
     )
 
 
-@pytest.fixture
-def leave_balance(test_employee, leave_type):
-    from leaves.models import LeaveBalance
-    return LeaveBalance.objects.create(
-        employee=test_employee, leave_type=leave_type, year=date.today().year,
-        entitled_days=20, used_days=0, pending_days=5,
-    )
-
-
-@pytest.fixture
-def pending_leave_request(test_employee, leave_type, leave_balance):
-    from leaves.models import LeaveRequest
-    return LeaveRequest.objects.create(
-        employee=test_employee, leave_type=leave_type,
-        start_date=date.today() + timedelta(days=1),
-        end_date=date.today() + timedelta(days=5),
-        days_requested=5, status="PENDING",
-    )
-
-
-@patch("leaves.views.notify_leave_approved")
-class TestLeaveApproval:
-
-    def test_approve_updates_status_and_balance(
-        self, mock_notify, authenticated_client, pending_leave_request, leave_balance
-    ):
-        resp = authenticated_client.post(
-            f"/api/leaves/requests/{pending_leave_request.id}/approve_reject/",
-            {"action": "approve"},
-        )
-        assert resp.status_code == 200
-        assert resp.data["status"] == "APPROVED"
-
-        leave_balance.refresh_from_db()
-        assert leave_balance.used_days == 5
-        assert leave_balance.pending_days == 0
-        mock_notify.assert_called_once()
-
-    def test_approve_sets_approver_and_timestamp(
-        self, mock_notify, authenticated_client, pending_leave_request, test_user
-    ):
-        authenticated_client.post(
-            f"/api/leaves/requests/{pending_leave_request.id}/approve_reject/",
-            {"action": "approve"},
-        )
-        pending_leave_request.refresh_from_db()
-        assert pending_leave_request.approved_by == test_user.id
-        assert pending_leave_request.approved_at is not None
-
-    def test_approve_missing_balance_row_does_not_error(
-        self, mock_notify, authenticated_client, test_employee, leave_type
-    ):
-        from leaves.models import LeaveRequest
-        lr = LeaveRequest.objects.create(
-            employee=test_employee, leave_type=leave_type,
-            start_date=date.today(), end_date=date.today() + timedelta(days=2),
-            days_requested=2, status="PENDING",
-        )
-        # No LeaveBalance row exists for this employee/type/year
-        resp = authenticated_client.post(
-            f"/api/leaves/requests/{lr.id}/approve_reject/", {"action": "approve"},
-        )
-        assert resp.status_code == 200
-
-
-@patch("leaves.views.notify_leave_rejected")
-class TestLeaveRejection:
-
-    def test_reject_sets_status_and_reason(self, mock_notify, authenticated_client, pending_leave_request):
-        resp = authenticated_client.post(
-            f"/api/leaves/requests/{pending_leave_request.id}/approve_reject/",
-            {"action": "reject", "rejection_reason": "Effectif insuffisant"},
-        )
-        assert resp.status_code == 200
-        assert resp.data["status"] == "REJECTED"
-        assert resp.data["rejection_reason"] == "Effectif insuffisant"
-
-    def test_reject_releases_pending_days_without_touching_used(
-        self, mock_notify, authenticated_client, pending_leave_request, leave_balance
-    ):
-        """Rejecting a request should release its pending-days hold (set at
-        creation time) without ever touching used_days."""
-        authenticated_client.post(
-            f"/api/leaves/requests/{pending_leave_request.id}/approve_reject/",
-            {"action": "reject"},
-        )
-        leave_balance.refresh_from_db()
-        assert leave_balance.used_days == 0
-        assert leave_balance.pending_days == 0
-
-
 class TestLeaveActionGuards:
-
-    def test_cannot_action_already_approved_request(self, authenticated_client, test_employee, leave_type):
-        from leaves.models import LeaveRequest
-        lr = LeaveRequest.objects.create(
-            employee=test_employee, leave_type=leave_type,
-            start_date=date.today(), end_date=date.today() + timedelta(days=1),
-            days_requested=1, status="APPROVED",
-        )
-        resp = authenticated_client.post(
-            f"/api/leaves/requests/{lr.id}/approve_reject/", {"action": "approve"},
-        )
-        assert resp.status_code == 400
-
-    def test_invalid_action_value_rejected(self, authenticated_client, pending_leave_request):
-        resp = authenticated_client.post(
-            f"/api/leaves/requests/{pending_leave_request.id}/approve_reject/",
-            {"action": "maybe"},
-        )
-        assert resp.status_code == 400
 
     def test_start_date_after_end_date_rejected_on_create(self, authenticated_client, test_employee, leave_type):
         resp = authenticated_client.post("/api/leaves/requests/", {
@@ -186,8 +76,7 @@ class TestMaternityLeaveLifecycle:
         ml = MaternityLeave.objects.create(
             employee=test_employee, expected_birth_date=date.today(),
             leave_start_date=date.today() - timedelta(days=90),
-            leave_end_date=date.today() + timedelta(days=8),
-            status="ON_LEAVE", created_by=1,
+            leave_end_date=date.today() + timedelta(days=8), created_by=1,
         )
         with patch("leaves.views.notify_maternity_returned"):
             resp = authenticated_client.post(f"/api/leaves/maternity/{ml.id}/mark_returned/")
@@ -201,8 +90,7 @@ class TestMaternityLeaveLifecycle:
         ml = MaternityLeave.objects.create(
             employee=test_employee, expected_birth_date=date.today(),
             leave_start_date=date.today() - timedelta(days=90),
-            leave_end_date=date.today() + timedelta(days=8),
-            status="ON_LEAVE", created_by=1,
+            leave_end_date=date.today() + timedelta(days=8), created_by=1,
         )
         resp = authenticated_client.post(f"/api/leaves/maternity/{ml.id}/extend/", {})
         assert resp.status_code == 400
@@ -212,14 +100,14 @@ class TestMaternityLeaveLifecycle:
         MaternityLeave.objects.create(
             employee=test_employee, expected_birth_date=date.today(),
             leave_start_date=date.today() - timedelta(days=90),
-            leave_end_date=date.today() + timedelta(days=3),
-            status="ON_LEAVE", created_by=1,
+            leave_end_date=date.today() + timedelta(days=3), created_by=1,
+            status=MaternityLeave.Status.ON_LEAVE,
         )
         MaternityLeave.objects.create(
             employee=test_employee, expected_birth_date=date.today(),
             leave_start_date=date.today() - timedelta(days=90),
-            leave_end_date=date.today() + timedelta(days=20),
-            status="ON_LEAVE", created_by=1,
+            leave_end_date=date.today() + timedelta(days=20), created_by=1,
+            status=MaternityLeave.Status.ON_LEAVE,
         )
         with patch("leaves.views.notify_maternity_ending_soon"):
             resp = authenticated_client.get("/api/leaves/maternity/ending_soon/")

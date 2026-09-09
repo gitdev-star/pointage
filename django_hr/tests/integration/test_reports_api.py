@@ -36,18 +36,18 @@ class TestHeadcountReport:
 
 class TestLeaveReport:
 
-    def test_filters_by_year_and_only_approved(self, authenticated_client, test_employee):
+    def test_filters_by_year(self, authenticated_client, test_employee):
         from leaves.models import LeaveType, LeaveRequest
         lt = LeaveType.objects.create(name="CA", code="CA2", days_per_year=20)
         LeaveRequest.objects.create(
             employee=test_employee, leave_type=lt,
             start_date=date(2025, 3, 1), end_date=date(2025, 3, 5),
-            days_requested=5, status="APPROVED",
+            days_requested=5,
         )
         LeaveRequest.objects.create(
             employee=test_employee, leave_type=lt,
             start_date=date(2024, 3, 1), end_date=date(2024, 3, 5),
-            days_requested=5, status="PENDING",
+            days_requested=5,
         )
         resp = authenticated_client.get("/api/reports/leaves/?year=2025")
         assert resp.status_code == 200

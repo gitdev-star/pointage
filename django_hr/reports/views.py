@@ -45,7 +45,7 @@ class LeaveReportView(APIView):
 
     def get(self, request):
         year = request.query_params.get("year")
-        qs = LeaveRequest.objects.filter(status="APPROVED")
+        qs = LeaveRequest.objects.all()
         if year:
             qs = qs.filter(start_date__year=year)
         by_type = list(
