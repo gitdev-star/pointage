@@ -336,3 +336,17 @@ FRONTEND_URL = os.getenv(
     "FRONTEND_URL",
     "http://localhost:8088",
 )
+
+RECRUTEMENT_RI_PATH = (
+    BASE_DIR
+    / "recruitment"
+    / "documents_onboarding"
+    / "reglement-interieur.pdf"
+)
+
+RECRUTEMENT_CODE_SOCIETE_PATH = (
+    BASE_DIR
+    / "recruitment"
+    / "documents_onboarding"
+    / "code-societe.pdf"
+)

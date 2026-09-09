@@ -478,12 +478,11 @@ const confirmerEntretienRealise =
     setMessage("");
 
     try {
-      const candidatModifie =
-        await recrutementApi
-          .marquerEntretienRealise(
-            candidatEntretienAConfirmer.id
-          );
-
+const candidatModifie =
+  await recrutementApi
+    .terminerEntretienCadre(
+      candidatEntretienAConfirmer.id
+    );
       setCandidats((previous) =>
         previous.map((candidat) =>
           Number(candidat.id) ===

@@ -74,12 +74,6 @@ class LeaveBalance(models.Model):
 
 class LeaveRequest(models.Model):
 
-    class Status(models.TextChoices):
-        PENDING = "PENDING", "Pending"
-        APPROVED = "APPROVED", "Approved"
-        REJECTED = "REJECTED", "Rejected"
-        CANCELLED = "CANCELLED", "Cancelled"
-
     employee = models.ForeignKey(
         Employee, on_delete=models.CASCADE, related_name="leave_requests"
     )
@@ -89,34 +83,39 @@ class LeaveRequest(models.Model):
     days_requested = models.DecimalField(max_digits=5, decimal_places=1)
     reason = models.TextField(blank=True)
     document = models.FileField(upload_to="leaves/documents/", null=True, blank=True)
-
-    status = models.CharField(
-        max_length=20, choices=Status.choices, default=Status.PENDING
-    )
-    approved_by = models.IntegerField(
-        null=True, blank=True, help_text="Auth user ID of approver"
-    )
-    approved_at = models.DateTimeField(null=True, blank=True)
-    rejection_reason = models.TextField(blank=True)
-
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    start_time = models.TimeField(
+        null=True,
+        blank=True,
+        help_text="Heure de début pour une permission en heure."
+    )
+
+    end_time = models.TimeField(
+        null=True,
+        blank=True,
+        help_text="Heure de fin pour une permission en heure."
+    )
+
     duration_hours = models.DecimalField(
-        max_digits=4, decimal_places=1, null=True, blank=True,
-        help_text="Durée en heures, utilisé uniquement pour les permissions en heure (type PERH)."
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Durée calculée en heures pour une permission en heure."
     )
 
     class Meta:
         ordering = ["-created_at"]
         indexes = [
-            models.Index(fields=["employee", "status"]),
+            models.Index(fields=["employee"]),
             models.Index(fields=["start_date", "end_date"]),
         ]
 
     def __str__(self):
         return (
             f"{self.employee} | {self.leave_type.code} | "
-            f"{self.start_date} → {self.end_date} [{self.status}]"
+            f"{self.start_date} → {self.end_date}"
         )
 
 

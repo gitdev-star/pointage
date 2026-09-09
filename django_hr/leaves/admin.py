@@ -27,15 +27,63 @@ class LeaveBalanceAdmin(admin.ModelAdmin):
 @admin.register(LeaveRequest)
 class LeaveRequestAdmin(admin.ModelAdmin):
     list_display = [
-        "employee", "leave_type", "start_date", "end_date",
-        "days_requested", "status", "created_at"
+        "employee",
+        "leave_type",
+        "start_date",
+        "end_date",
+        "display_schedule",
+        "display_duration",
+        "days_requested",
+        "created_at",
     ]
-    list_filter = ["status", "leave_type", "start_date"]
-    search_fields = ["employee__first_name", "employee__last_name"]
-    readonly_fields = ["created_at", "updated_at", "approved_at"]
+    list_filter = [        
+        "leave_type",
+        "start_date",
+        "end_date",
+]
+    search_fields = [
+        "employee__first_name",
+        "employee__last_name",
+        "employee__employee_id",
+        "reason",
+]
+    readonly_fields = [
+        "duration_hours",
+        "created_at",
+        "updated_at",
+]
+    ordering = ["-created_at"]
 
-    @admin.action(description="Approve selected requests")
-    def approve_requests(self, request, queryset):
-        queryset.filter(status="PENDING").update(status="APPROVED")
+    @admin.display(description="Horaire")
+    def display_schedule(self, obj):
+        if not obj.start_time or not obj.end_time:
+            return "—"
 
-    actions = ["approve_requests"]
+        start = obj.start_time.strftime("%H:%M")
+        end = obj.end_time.strftime("%H:%M")
+
+        return f"{start} – {end}"
+
+    @admin.display(description="Durée")
+    def display_duration(self, obj):
+        if not obj.start_time or not obj.end_time:
+            return "—"
+
+        start_minutes = (
+            obj.start_time.hour * 60
+            + obj.start_time.minute
+        )
+
+        end_minutes = (
+            obj.end_time.hour * 60
+            + obj.end_time.minute
+        )
+
+        total_minutes = end_minutes - start_minutes
+
+        if total_minutes <= 0:
+            return "—"
+
+        hours, minutes = divmod(total_minutes, 60)
+
+        return f"{hours:02d} h {minutes:02d} min"
