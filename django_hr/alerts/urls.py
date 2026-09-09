@@ -7,7 +7,7 @@ from .views import (
     CDDNotificationAssignmentViewSet,
     InAppNotificationViewSet,
     LateAlertAssignmentViewSet,
-
+    MonthlyLateReportAssignmentViewSet,
 )
 
 router = DefaultRouter()
@@ -15,6 +15,7 @@ router.register("cdd",           CDDAlertViewSet,                  basename="cdd
 router.register("notifications", CDDNotificationAssignmentViewSet, basename="cdd-notification")
 router.register("inbox",         InAppNotificationViewSet,         basename="inbox")
 router.register("late-notifications", LateAlertAssignmentViewSet, basename="late-notification")
+router.register("monthly-hc-notifications", MonthlyLateReportAssignmentViewSet, basename="monthly-hc-notification")
 
 urlpatterns = [
     path("", include(router.urls)),

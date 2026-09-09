@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import CDDAlert, CDDNotificationAssignment, InAppNotification
-from .models import LateAlertAssignment
+from .models import LateAlertAssignment, MonthlyLateReportAssignment
 
 
 
@@ -38,3 +38,9 @@ class LateAlertAssignmentSerializer(serializers.ModelSerializer):
     class Meta:
         model  = LateAlertAssignment
         fields = "__all__"
+
+class MonthlyLateReportAssignmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = MonthlyLateReportAssignment
+        fields = "__all__"
+

@@ -26,7 +26,9 @@ class TestLateAlertAssignmentViewSet:
         resp = api_client.get("/api/alerts/late-notifications/")
         assert resp.status_code == 401
 
-    def test_lists_assignments_with_factory_name(self, authenticated_client, late_alert_assignment, test_factory):
+    def test_lists_assignments_with_factory_name(
+        self, authenticated_client, hr_profile, late_alert_assignment, test_factory
+    ):
         resp = authenticated_client.get("/api/alerts/late-notifications/")
         assert resp.status_code == 200
         results = resp.data["results"] if isinstance(resp.data, dict) else resp.data
@@ -34,7 +36,7 @@ class TestLateAlertAssignmentViewSet:
         assert results[0]["factory_name"] == test_factory.name
         assert results[0]["email"] == "chef.usine@example.com"
 
-    def test_creates_assignment(self, authenticated_client, test_factory):
+    def test_creates_assignment(self, authenticated_client, hr_profile, test_factory):
         resp = authenticated_client.post("/api/alerts/late-notifications/", {
             "factory": test_factory.id,
             "email": "rh@example.com",
@@ -45,7 +47,9 @@ class TestLateAlertAssignmentViewSet:
         from alerts.models import LateAlertAssignment
         assert LateAlertAssignment.objects.filter(email="rh@example.com", factory=test_factory).exists()
 
-    def test_rejects_duplicate_factory_email_pair(self, authenticated_client, late_alert_assignment, test_factory):
+    def test_rejects_duplicate_factory_email_pair(
+        self, authenticated_client, hr_profile, late_alert_assignment, test_factory
+    ):
         resp = authenticated_client.post("/api/alerts/late-notifications/", {
             "factory": test_factory.id,
             "email": late_alert_assignment.email,
@@ -53,7 +57,7 @@ class TestLateAlertAssignmentViewSet:
         })
         assert resp.status_code == 400
 
-    def test_updates_assignment(self, authenticated_client, late_alert_assignment):
+    def test_updates_assignment(self, authenticated_client, hr_profile, late_alert_assignment):
         resp = authenticated_client.patch(
             f"/api/alerts/late-notifications/{late_alert_assignment.id}/",
             {"is_active": False},
@@ -62,13 +66,13 @@ class TestLateAlertAssignmentViewSet:
         late_alert_assignment.refresh_from_db()
         assert late_alert_assignment.is_active is False
 
-    def test_deletes_assignment(self, authenticated_client, late_alert_assignment):
+    def test_deletes_assignment(self, authenticated_client, hr_profile, late_alert_assignment):
         resp = authenticated_client.delete(f"/api/alerts/late-notifications/{late_alert_assignment.id}/")
         assert resp.status_code == 204
         from alerts.models import LateAlertAssignment
         assert not LateAlertAssignment.objects.filter(id=late_alert_assignment.id).exists()
 
-    def test_filters_by_factory(self, authenticated_client, test_factory, late_alert_assignment):
+    def test_filters_by_factory(self, authenticated_client, hr_profile, test_factory, late_alert_assignment):
         from employees.models import Factory
         from alerts.models import LateAlertAssignment
         other_factory = Factory.objects.create(name="Other Factory", location="Elsewhere")
@@ -80,7 +84,7 @@ class TestLateAlertAssignmentViewSet:
         assert len(results) == 1
         assert results[0]["email"] == late_alert_assignment.email
 
-    def test_filters_by_is_active(self, authenticated_client, test_factory, late_alert_assignment):
+    def test_filters_by_is_active(self, authenticated_client, hr_profile, test_factory, late_alert_assignment):
         from alerts.models import LateAlertAssignment
         LateAlertAssignment.objects.create(factory=test_factory, email="inactive@example.com", is_active=False)
 
