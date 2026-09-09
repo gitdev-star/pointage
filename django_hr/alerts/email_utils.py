@@ -1,4 +1,6 @@
 # =====================================================
+import csv
+import io
 # PATH: pointage/django_hr/alerts/email_utils.py
 # =====================================================
 from django.core.mail import EmailMultiAlternatives
@@ -34,8 +36,11 @@ def _base_html(title: str, body_html: str) -> str:
 
 
 
-def _send(subject: str, html: str, text: str, recipients: list[str], cc: list[str] = None) -> bool:
-    """Core send helper — returns True/False, logs errors instead of raising."""
+def _send(subject: str, html: str, text: str, recipients: list[str], cc: list[str] = None,
+          attachments: list[tuple] = None) -> bool:
+    """Core send helper — returns True/False, logs errors instead of raising.
+    attachments: optional list of (filename, content, mimetype) tuples.
+    """
     try:
         msg = EmailMultiAlternatives(
             subject=subject,
@@ -45,6 +50,8 @@ def _send(subject: str, html: str, text: str, recipients: list[str], cc: list[st
             cc=cc or [],
         )
         msg.attach_alternative(html, "text/html")
+        for filename, file_content, mimetype in (attachments or []):
+            msg.attach(filename, file_content, mimetype)
         msg.send()
         return True
     except Exception as exc:
@@ -569,6 +576,97 @@ def notify_maternity_extended(maternity, triggered_by: str = "Inconnu"):
     _notify_inapp(subject, f"Employe: {emp.full_name} | Nouvelle fin: {maternity.extended_end_date}", level="warning", category="maternity")
 
 
+
+
+MONTH_NAMES_FR = [
+    "", "Janvier", "Fevrier", "Mars", "Avril", "Mai", "Juin",
+    "Juillet", "Aout", "Septembre", "Octobre", "Novembre", "Decembre",
+]
+
+
+def notify_monthly_hc_late_report(month: int, year: int, min_late: int, rows: list, recipients: list = None):
+    """Monthly late-report summary for HC (managers) employees only.
+    rows: list of dicts {full_name, employee_id, department, job_title,
+    late_count, total_days_present, late_rate_pct, late_days} — sent to HR directors
+    as a short email with a CSV attachment (full detail lives in the CSV, not the body).
+    """
+    from accounts.models import HRProfile
+
+    month_label = f"{MONTH_NAMES_FR[month]} {year}"
+    count = len(rows)
+    subject = f"[RH] Rapport mensuel retards HC — {month_label} ({count})"
+
+    # ── Build CSV attachment ────────────────────────────────────────────
+    buf = io.StringIO()
+    writer = csv.writer(buf, delimiter=";")
+    buf.write("\ufeff")  # BOM so Excel opens UTF-8 accents correctly
+    writer.writerow([f"Rapport mensuel retards HC — {month_label}"])
+    writer.writerow([f"Seuil minimum : {min_late} retard(s)", f"Nombre d'employes : {count}"])
+    writer.writerow([])
+    writer.writerow([
+        "Nom", "Matricule", "Departement", "Poste",
+        "Nb retards", "Jours presents", "Taux retard (%)",
+        "Date", "Jour", "Heure arrivee", "Minutes de retard",
+    ])
+    for r in rows:
+        late_days = r.get("late_days") or []
+        if not late_days:
+            writer.writerow([
+                r["full_name"], r["employee_id"], r.get("department", "—"), r.get("job_title", "—"),
+                r["late_count"], r["total_days_present"], r["late_rate_pct"], "", "", "", "",
+            ])
+            continue
+        for i, ld in enumerate(late_days):
+            writer.writerow([
+                r["full_name"]          if i == 0 else "",
+                r["employee_id"]        if i == 0 else "",
+                r.get("department","—") if i == 0 else "",
+                r.get("job_title","—")  if i == 0 else "",
+                r["late_count"]         if i == 0 else "",
+                r["total_days_present"] if i == 0 else "",
+                r["late_rate_pct"]      if i == 0 else "",
+                ld.get("date", ""),
+                ld.get("day_name", ""),
+                ld.get("arrival") or "—",
+                ld.get("minutes_late", 0),
+            ])
+    csv_content = buf.getvalue()
+
+    # ── Short, polite email body — full detail is in the CSV ───────────
+    text = (
+        f"Bonjour,\n\n"
+        f"Veuillez trouver ci-joint le rapport mensuel des retards pour les employes HC (cadres) "
+        f"concernant {month_label} (seuil minimum : {min_late} retard(s)).\n\n"
+        f"Nombre d'employes concernes : {count}.\n\n"
+        f"Le detail complet (dates, heures d'arrivee, minutes de retard) est disponible dans le "
+        f"fichier CSV joint, consultable avec Excel ou LibreOffice.\n\n"
+        f"Cordialement,\nSysteme RH"
+    )
+
+    body_html = (
+        f"<p>Bonjour,</p>"
+        f"<p>Veuillez trouver ci-joint le rapport mensuel des retards pour les employes "
+        f"<strong>HC (cadres)</strong> concernant <strong>{month_label}</strong> "
+        f"(seuil minimum : {min_late} retard(s)).</p>"
+        f"<p>Nombre d'employes concernes : <strong>{count}</strong>.</p>"
+        f"<p>Le detail complet (dates, heures d'arrivee, minutes de retard) est disponible dans "
+        f"le fichier CSV joint, consultable avec Excel ou LibreOffice.</p>"
+        f"<p>Cordialement,<br>Systeme RH</p>"
+    )
+
+    html = _base_html(f"Rapport mensuel retards HC — {month_label}", body_html)
+
+    if not recipients:
+        directors = list(HRProfile.objects.filter(is_director=True).exclude(email="").values_list("email", flat=True))
+        recipients = directors or [HELPDESK_EMAIL]
+
+    filename = f"retards_hc_{year}_{month:02d}.csv"
+    ok = _send(
+        subject, html, text, recipients,
+        attachments=[(filename, csv_content, "text/csv")],
+    )
+    _notify_inapp(subject, f"HC | {month_label} | {count} employe(s)", level="warning", category="attendance")
+    return ok
 
 
 def notify_late_employees(factory, late_employees: list, recipients: list, cc: list = None):

@@ -2824,3 +2824,29 @@ class Embauche(models.Model):
             f"Embauche — "
             f"{self.candidat.nom_complet}"
         )
+
+
+class DesistementEmbauche(models.Model):
+    """Withdrawal/desistement record for a hire (Embauche) — recruitment restart tracking."""
+
+    embauche = models.OneToOneField(
+        "recruitment.Embauche", on_delete=models.PROTECT, related_name="desistement"
+    )
+    date_desistement = models.DateField()
+    motif = models.TextField(blank=True, default="")
+    commentaire = models.TextField(blank=True, default="")
+    relancer_recrutement = models.BooleanField(default=True)
+    date_reprise_recrutement = models.DateField(blank=True, null=True)
+    date_cloture_initiale = models.DateTimeField(blank=True, null=True, editable=False)
+    date_nouvelle_cloture = models.DateTimeField(blank=True, null=True, editable=False)
+    date_enregistrement = models.DateTimeField(auto_now_add=True)
+    enregistre_par = models.ForeignKey(
+        "accounts.HRProfile", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="desistements_enregistres",
+    )
+
+    class Meta:
+        ordering = ["-date_enregistrement"]
+
+    def __str__(self):
+        return f"Desistement — {self.embauche} ({self.date_desistement})"

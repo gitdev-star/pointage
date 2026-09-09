@@ -92,6 +92,23 @@ class InAppNotification(models.Model):
         return f"[{self.category}] {self.title}"
     
 
+class MonthlyLateReportAssignment(models.Model):
+    """Config: who receives the monthly HC (managers) late-report summary."""
+
+    email      = models.EmailField(unique=True)
+    username   = models.CharField(max_length=150, blank=True, default="")
+    is_active  = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["email"]
+        verbose_name = "Destinataire rapport mensuel HC"
+        verbose_name_plural = "Destinataires rapport mensuel HC"
+
+    def __str__(self):
+        return f"{self.email} ({self.username or 'sans nom'})"
+
+
 class LateAlertAssignment(models.Model):
     """Config: who receives the 'late today' email, per usine (factory)."""
 
