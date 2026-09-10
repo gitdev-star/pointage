@@ -1,4 +1,4 @@
-# dans root@
+#bulk_device_sweep.py
 
 import asyncio
 import json

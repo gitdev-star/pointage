@@ -38,6 +38,7 @@ const DashboardLayout = () => {
     { to: "/hr/notifications", label: "Notifications RH", module: "alerts" },
     { to: "/hr/users",         label: "Utilisateurs RH",  module: "hr_users" },
     { to: "/hr/permissions",   label: "Permissions",      module: "hr_users" },
+    { to: "/hr/debauche",     label: "Débauche en masse", module: "employees" },
   ].filter(item => canSee(item.module));
 
   const analysesItems = [

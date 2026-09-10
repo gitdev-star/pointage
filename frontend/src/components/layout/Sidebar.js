@@ -106,6 +106,11 @@ export default function Sidebar({ isOpen, onClose }) {
       label: "Utilisateurs RH",
       module: "hr_users",
     },
+    {
+      to: "/hr/debauche",
+      label: "Débauche en masse",
+      module: "employees",
+    },
   ].filter((item) => canSee(item.module));
 
   const handleLogout = () => {
