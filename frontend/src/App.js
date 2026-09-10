@@ -15,6 +15,7 @@ import Reports        from "./components/hr/Reports";
 import ShiftsEvents   from "./components/hr/ShiftsEvents";
 import HRUsers       from "./components/hr/HRUsers";
 import HRPermissions  from "./components/hr/HRPermissions";
+import BulkDebauche   from "./components/hr/BulkDebauche";
 // import EmployeeFiche       from "./components/hr/EmployeeFiche";
 // import HREvents           from "./components/hr/HREvents";
 // import Sanctions          from "./components/hr/Sanctions";
@@ -76,6 +77,7 @@ function App() {
           <Route path="hr/shifts"           element={<ShiftsEvents />} />
           <Route path="hr/users"            element={<HRUsers />} />
           <Route path="hr/permissions"      element={<HRPermissions />} />
+          <Route path="hr/debauche"          element={<BulkDebauche />} />
           <Route path="hr/organisation"     element={<OrganisationManager />} />
           <Route path="hr/registre"         element={<RegistrePersonnel />} />
           <Route path="hr/cdd-alerts"       element={<CDDAlerts />} />

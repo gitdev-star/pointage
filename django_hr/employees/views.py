@@ -13,6 +13,7 @@ from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from datetime import date
+from django.utils import timezone
 from django.core.exceptions import ValidationError as DjangoValidationError
 
 from django.core.cache import cache
@@ -376,6 +377,53 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     filterset_fields = ["factory", "department", "status", "contract_type"]
     search_fields = ["first_name", "last_name", "employee_id", "email", "job_title__name", "cin", "cnaps", "matricule_paie"]
     ordering_fields = ["last_name", "hire_date", "employee_id"]
+
+    @action(detail=False, methods=["post"], url_path="debauche-one",
+            permission_classes=[IsAuthenticated])
+    def debauche_one(self, request):
+        """
+        Body : { "employee_id": "1210" }  (matricule)
+        Passe l'employe a TERMINATED - le signal existant se charge
+        de la suppression sur les pointeuses et de l'email si motif_depart.
+        """
+        emp_id = str(request.data.get("employee_id", "")).strip()
+        if not emp_id:
+            return Response({"detail": "employee_id requis."}, status=status.HTTP_400_BAD_REQUEST)
+
+        employee = Employee.objects.filter(employee_id=emp_id).first()
+        if not employee:
+            return Response(
+                {"employee_id": emp_id, "found": False, "detail": "Employe introuvable."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        already_terminated = employee.status == Employee.Status.TERMINATED
+
+        before = snapshot(employee)
+        employee.status = Employee.Status.TERMINATED
+        if not employee.termination_date:
+            employee.termination_date = timezone.now().date()
+        employee.save()  # declenche le signal (suppression pointeuses)
+
+        device_result = getattr(employee, "_device_delete_result", None)
+
+        if not already_terminated:
+            try:
+                log_action(
+                    request=request, obj=employee, action="BULK_DEBAUCHE",
+                    changes=diff_dict(before, snapshot(employee)),
+                )
+            except Exception:
+                pass
+
+        return Response({
+            "employee_id": emp_id,
+            "found": True,
+            "already_terminated": already_terminated,
+            "status_updated": True,
+            "device_deleted": bool(device_result and device_result.get("ok")),
+            "device_detail": device_result.get("detail") if device_result else None,
+        })
 
     def get_queryset(self):
         qs = super().get_queryset()

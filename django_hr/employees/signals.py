@@ -81,7 +81,11 @@ def employee_termination_signal(sender, instance, created, **kwargs):
                 timeout=60,  # safety net; real fix: parallelize device calls in FastAPI (device_admin.py)
             )
             print(f"[SIGNAL] Device deletion for user_id={instance.device_user_id}: {resp.status_code} {resp.json()}")
+            instance._device_delete_result = {"ok": resp.status_code == 200, "detail": resp.json()}
         except Exception as e:
             import sentry_sdk
             sentry_sdk.capture_exception(e)
             print(f"[SIGNAL ERROR] Device deletion failed for user_id={instance.device_user_id}: {e!r}")
+            instance._device_delete_result = {"ok": False, "detail": str(e)}
+    else:
+        instance._device_delete_result = {"ok": False, "detail": "no device_user_id on record"}
