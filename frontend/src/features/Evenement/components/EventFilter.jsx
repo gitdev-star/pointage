@@ -76,7 +76,7 @@ export default function EventFilters({ filters, onChange, onAdd, onRefresh, leav
 
         <TextField
           size="small"
-          label="Du"
+          label="Periode du"
           type="date"
           value={filters.date_from || ""}
           onChange={(e) => onChange("date_from", e.target.value)}
@@ -113,7 +113,7 @@ export default function EventFilters({ filters, onChange, onAdd, onRefresh, leav
           onClick={handleExport}
           disabled={exporting}
         >
-          {exporting ? "Export..." : "Exporter CSV"}
+          {exporting ? "Export..." : "Exporter Excel"}
         </Button>
         <Button variant="contained" startIcon={<AddIcon />} onClick={onAdd}>
           Nouvel événement

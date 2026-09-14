@@ -23,7 +23,7 @@ const MODULES = [
   { key: "leaves",       label: "CongÃ©s",         perms: ["read", "write", "approve"] },
   { key: "reports",      label: "Rapports",       perms: ["read"] },
   { key: "shifts",       label: "Horaires",       perms: ["read", "write"] },
-  { key: "recruitment",  label: "Recrutement",    perms: ["read", "write"] },
+  { key: "recruitment",  label: "Recrutement",    perms: ["read", "write", "validate"] },
   { key: "contracts",    label: "Contrats",       perms: ["read", "write", "delete"] },
   { key: "sanctions",    label: "Sanctions",      perms: ["read", "write"] },
   { key: "retraite",     label: "Retraite",       perms: ["read", "write"] },
@@ -50,9 +50,27 @@ const PERM_LABELS = { read: "Lecture", write: "Ã‰criture", delete: "Suppression"
 const buildPermFieldName = (moduleKey, perm) => `perm_${moduleKey}_${perm}`;
 
 const EMPTY_PERM_FORM = () => {
-  const form = { is_director: false, is_active: true };
-  MODULES.forEach(m => m.perms.forEach(p => { form[buildPermFieldName(m.key, p)] = false; }));
-  STANDALONE_PERMS.forEach(p => { form[p.field] = false; });
+  const form = {
+    is_director: false,
+    is_active: true,
+    is_recruitment_responsible: false,
+  };
+
+  MODULES.forEach((module) =>
+    module.perms.forEach((permission) => {
+      form[
+        buildPermFieldName(
+          module.key,
+          permission
+        )
+      ] = false;
+    })
+  );
+
+  STANDALONE_PERMS.forEach((permission) => {
+    form[permission.field] = false;
+  });
+
   return form;
 };
 
@@ -153,6 +171,10 @@ export default function HRUsers() {
   const openEdit = (profile) => {
     const form = EMPTY_PERM_FORM();
     form.is_director = !!profile.is_director;
+form.is_recruitment_responsible =
+  Boolean(
+    profile.is_recruitment_responsible
+  );
     form.is_active   = !!profile.is_active;
     form.factory     = profile.factory    || "";
     form.department  = profile.department || "";
@@ -180,7 +202,13 @@ export default function HRUsers() {
   const handleSaveRole = async () => {
     setSaving(true);
     try {
-      const payload = { is_active: permForm.is_active, is_director: permForm.is_director };
+      const payload = {
+  is_active: permForm.is_active,
+  is_director: permForm.is_director,
+
+  is_recruitment_responsible:
+    permForm.is_recruitment_responsible,
+};
       if (permForm.factory)    payload.factory    = permForm.factory;
       if (permForm.department) payload.department = permForm.department;
       MODULES.forEach(m => m.perms.forEach(p => {
@@ -398,6 +426,30 @@ export default function HRUsers() {
                 onChange={e => setPermForm(p => ({ ...p, is_director: e.target.checked }))} />}
               label={permForm.is_director ? "Directeur RH (accÃ¨s total)" : "Directeur RH"}
             />
+
+<FormControlLabel
+  control={
+    <Switch
+      checked={
+        permForm
+          .is_recruitment_responsible
+      }
+      onChange={(event) =>
+        setPermForm((previous) => ({
+          ...previous,
+
+          is_recruitment_responsible:
+            event.target.checked,
+        }))
+      }
+    />
+  }
+  label={
+    permForm.is_recruitment_responsible
+      ? "Responsable du recrutement — reçoit les notifications"
+      : "Désigner comme responsable du recrutement"
+  }
+/>
 
             {!permForm.is_director && (
               <>

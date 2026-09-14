@@ -55,7 +55,7 @@ function obtenirPoste(recrutement) {
     demande.poste?.name ||
     recrutement?.poste_nom ||
     recrutement?.poste ||
-    "—"
+    "â€”"
   );
 }
 
@@ -230,11 +230,6 @@ export default function EtapeEmbauche({
   const [embauches, setEmbauches] =
     useState({});
 
-  const [
-    confirmationFinale,
-    setConfirmationFinale,
-  ] = useState(false);
-
   const [chargement, setChargement] =
     useState(true);
 
@@ -260,7 +255,7 @@ export default function EtapeEmbauche({
     async function chargerDonnees() {
       if (!processusId) {
         setErreur(
-          "L’identifiant du processus est introuvable."
+          "Lâ€™identifiant du processus est introuvable."
         );
 
         setChargement(false);
@@ -432,7 +427,24 @@ export default function EtapeEmbauche({
       },
     }));
 
-    setConfirmationFinale(false);
+    setErreur("");
+    setMessage("");
+  };
+
+  const modifierContratSigne = (
+    candidatId,
+    valeur
+  ) => {
+    setEmbauches((previous) => ({
+      ...previous,
+
+      [candidatId]: {
+        ...previous[candidatId],
+        signeCandidat: valeur,
+        signeEmployeur: valeur,
+      },
+    }));
+
     setErreur("");
     setMessage("");
   };
@@ -465,7 +477,6 @@ export default function EtapeEmbauche({
       },
     }));
 
-    setConfirmationFinale(false);
     setErreur("");
     setMessage("");
   };
@@ -492,28 +503,16 @@ export default function EtapeEmbauche({
     };
   }, [candidats.length, embauches]);
 
-  const colonnesDocumentsOuvriers =
-    useMemo(() => {
-      if (estCadre) {
-        return [];
-      }
+  const colonnesDocuments = useMemo(() => {
+    const libelles = candidats.flatMap(
+      (candidat) =>
+        (embauches[candidat.id]?.documents || [])
+          .map((document) => document.libelle)
+          .filter(Boolean)
+    );
 
-      const libelles = new Set();
-
-      candidats.forEach((candidat) => {
-        const documents =
-          embauches[candidat.id]
-            ?.documents || [];
-
-        documents.forEach((document) => {
-          if (document.libelle) {
-            libelles.add(document.libelle);
-          }
-        });
-      });
-
-      return Array.from(libelles);
-    }, [candidats, embauches, estCadre]);
+    return [...new Set(libelles)];
+  }, [candidats, embauches]);
 
   const toutesLesEmbauchesConfirmees =
     candidats.length > 0 &&
@@ -554,7 +553,7 @@ export default function EtapeEmbauche({
         .dateVerification
     ) {
       setErreur(
-        `La date de vérification de ${nom} est obligatoire.`
+        `La date de vÃ©rification de ${nom} est obligatoire.`
       );
 
       return false;
@@ -566,7 +565,7 @@ export default function EtapeEmbauche({
         .trim()
     ) {
       setErreur(
-        `Le vérificateur du dossier de ${nom} est obligatoire.`
+        `Le vÃ©rificateur du dossier de ${nom} est obligatoire.`
       );
 
       return false;
@@ -576,7 +575,7 @@ export default function EtapeEmbauche({
       !embauche.typeContrat
     ) {
       setErreur(
-        `Sélectionnez le type de contrat de ${nom}.`
+        `SÃ©lectionnez le type de contrat de ${nom}.`
       );
 
       return false;
@@ -587,7 +586,7 @@ export default function EtapeEmbauche({
         .dateDebutContrat
     ) {
       setErreur(
-        `La date de début du contrat de ${nom} est obligatoire.`
+        `La date de dÃ©but du contrat de ${nom} est obligatoire.`
       );
 
       return false;
@@ -599,21 +598,22 @@ export default function EtapeEmbauche({
         0
       ) {
         setErreur(
-          `Aucune pièce obligatoire n’est disponible pour ${nom}.`
+          `Aucune piÃ¨ce obligatoire nâ€™est disponible pour ${nom}.`
         );
 
         return false;
       }
 
-      const documentManquant =
+      const documentSansRemarque =
         embauche.documents.find(
           (document) =>
-            !document.recu
+            !document.recu &&
+            !document.remarque.trim()
         );
 
-      if (documentManquant) {
+      if (documentSansRemarque) {
         setErreur(
-          `La pièce « ${documentManquant.libelle} » de ${nom} n’est pas encore reçue.`
+          `Ajoutez une remarque pour la piÃ¨ce Â« ${documentSansRemarque.libelle} Â» non reÃ§ue de ${nom}.`
         );
 
         return false;
@@ -623,28 +623,24 @@ export default function EtapeEmbauche({
     if (estCadre) {
       if (!embauche.dossierEmbaucheComplet) {
         setErreur(
-          `Le dossier d’embauche de ${nom} doit être complet.`
+          `Le dossier dâ€™embauche de ${nom} doit Ãªtre complet.`
         );
         return false;
       }
 
       if (!embauche.contratTravailSigne) {
         setErreur(
-          `Le contrat de travail de ${nom} doit être signé.`
+          `Le contrat de travail de ${nom} doit Ãªtre signÃ©.`
         );
         return false;
       }
     } else {
-      if (!embauche.signeCandidat) {
+      if (
+        !embauche.signeCandidat ||
+        !embauche.signeEmployeur
+      ) {
         setErreur(
-          `La signature du candidat doit être confirmée pour ${nom}.`
-        );
-        return false;
-      }
-
-      if (!embauche.signeEmployeur) {
-        setErreur(
-          `La signature de l’employeur doit être confirmée pour ${nom}.`
+          `Le contrat de ${nom} doit Ãªtre signÃ©.`
         );
         return false;
       }
@@ -822,9 +818,9 @@ export default function EtapeEmbauche({
         );
 
         setMessage(
-          `L’embauche de ${obtenirNomCandidat(
+          `Lâ€™embauche de ${obtenirNomCandidat(
             candidat
-          )} a été confirmée.`
+          )} a Ã©tÃ© confirmÃ©e.`
         );
       } catch (error) {
         console.error(error);
@@ -845,7 +841,7 @@ export default function EtapeEmbauche({
 
     if (!embauche?.id) {
       setErreur(
-        "Confirmez d’abord l’embauche avant d’enregistrer la suite de l’onboarding."
+        "Confirmez dâ€™abord lâ€™embauche avant dâ€™enregistrer la suite de lâ€™onboarding."
       );
       return;
     }
@@ -909,7 +905,7 @@ export default function EtapeEmbauche({
       }));
 
       setMessage(
-        `La checklist de ${obtenirNomCandidat(candidat)} a été enregistrée.`
+        `La checklist de ${obtenirNomCandidat(candidat)} a Ã©tÃ© enregistrÃ©e.`
       );
     } catch (error) {
       console.error(error);
@@ -931,16 +927,8 @@ export default function EtapeEmbauche({
       ) {
         setErreur(
           estCadre
-            ? "Toutes les checklists d’onboarding doivent être complètes avant la clôture."
-            : "Toutes les embauches doivent être confirmées avant la clôture."
-        );
-
-        return;
-      }
-
-      if (!confirmationFinale) {
-        setErreur(
-          "Veuillez confirmer la clôture du processus."
+            ? "Toutes les checklists dâ€™onboarding doivent Ãªtre complÃ¨tes avant la clÃ´ture."
+            : "Toutes les embauches doivent Ãªtre confirmÃ©es avant la clÃ´ture."
         );
 
         return;
@@ -952,12 +940,12 @@ export default function EtapeEmbauche({
         let processusMisAJour;
 
         /*
-         * Si le composant parent gère
+         * Si le composant parent gÃ¨re
          * terminer-etape, on utilise
          * uniquement onComplete.
          *
          * Sinon, le composant appelle
-         * directement l’API.
+         * directement lâ€™API.
          */
         if (onComplete) {
           processusMisAJour =
@@ -992,11 +980,11 @@ export default function EtapeEmbauche({
         }
 
         setMessage(
-          "Le processus de recrutement est terminé."
+          "Le processus de recrutement est terminÃ©."
         );
 
         console.log(
-          "Processus terminé :",
+          "Processus terminÃ© :",
           processusMisAJour
         );
       } catch (error) {
@@ -1029,7 +1017,7 @@ export default function EtapeEmbauche({
   return (
     <form
       onSubmit={terminerProcessus}
-      className="min-w-0 max-w-full space-y-4 px-1 sm:px-2"
+      className="min-w-0 max-w-full space-y-4 px-0 sm:px-1"
     >
       {message && (
         <div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
@@ -1070,8 +1058,8 @@ export default function EtapeEmbauche({
               <p className="mt-1 text-xs text-slate-500">
                 {demande.reference ||
                   recrutement?.reference ||
-                  "—"}{" "}
-                ·{" "}
+                  "â€”"}{" "}
+                Â·{" "}
                 {obtenirPoste(
                   recrutement
                 )}
@@ -1100,7 +1088,7 @@ export default function EtapeEmbauche({
 
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
           <p className="text-sm text-emerald-700">
-            Embauches confirmées
+            Embauches confirmÃ©es
           </p>
 
           <p className="mt-2 text-2xl font-bold text-emerald-900">
@@ -1123,14 +1111,14 @@ export default function EtapeEmbauche({
         <section className="w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-200 px-3 py-3 sm:px-4">
             <h3 className="font-semibold text-slate-900">
-              Checklist d’embauche et d’onboarding des cadres
+              Checklist dâ€™embauche et dâ€™onboarding des cadres
             </h3>
             <p className="mt-1 text-xs text-slate-500">
-              Une ligne correspond �  un candidat. Le RI et le Code société
-              sont validés automatiquement après leur envoi par e-mail.
+              Une ligne correspond Ã  un candidat. Le RI et le Code sociÃ©tÃ©
+              sont validÃ©s automatiquement aprÃ¨s leur envoi par e-mail.
             </p>
             <p className="mt-1 text-[11px] font-medium text-blue-600 lg:hidden">
-              Faites défiler horizontalement pour voir toutes les colonnes.
+              Faites dÃ©filer horizontalement pour voir toutes les colonnes.
             </p>
           </div>
 
@@ -1138,9 +1126,9 @@ export default function EtapeEmbauche({
             className="block w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain pb-1"
             tabIndex={0}
             role="region"
-            aria-label="Checklist d’embauche scrollable horizontalement"
+            aria-label="Checklist dâ€™embauche scrollable horizontalement"
           >
-            <table className="w-max min-w-[980px] border-collapse text-sm">
+            <table className="w-full min-w-[1050px] border-collapse text-sm">
               <thead className="bg-slate-100">
                 <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
                   <th className="sticky left-0 z-10 min-w-[180px] border-r border-slate-200 bg-slate-100 px-2.5 py-2.5">
@@ -1149,10 +1137,10 @@ export default function EtapeEmbauche({
                   <th className="min-w-[110px] px-2 py-2.5">Contrat</th>
                   <th className="min-w-[145px] px-2 py-2.5">Prise de poste</th>
                   <th className="min-w-[110px] px-2 py-2.5 text-center">Dossier complet</th>
-                  <th className="min-w-[105px] px-2 py-2.5 text-center">Contrat signé</th>
-                  <th className="min-w-[115px] px-2 py-2.5 text-center">Intégration</th>
+                  <th className="min-w-[105px] px-2 py-2.5 text-center">Contrat signÃ©</th>
+                  <th className="min-w-[115px] px-2 py-2.5 text-center">IntÃ©gration</th>
                   <th className="min-w-[100px] px-2 py-2.5 text-center">RI</th>
-                  <th className="min-w-[115px] px-2 py-2.5 text-center">Code société</th>
+                  <th className="min-w-[115px] px-2 py-2.5 text-center">Code sociÃ©tÃ©</th>
                   <th className="min-w-[175px] px-2 py-2.5">Action</th>
                 </tr>
               </thead>
@@ -1190,8 +1178,8 @@ export default function EtapeEmbauche({
                           }`}
                         >
                           {embauche.confirmee
-                            ? "Embauche confirmée"
-                            : "À confirmer"}
+                            ? "Embauche confirmÃ©e"
+                            : "Ã€ confirmer"}
                         </span>
                       </td>
 
@@ -1258,13 +1246,13 @@ export default function EtapeEmbauche({
 
                       <td className="px-2 py-3 text-center text-xs">
                         <span className={embauche.reglementInterieurCommunique ? "text-emerald-600" : "text-slate-400"}>
-                          {embauche.reglementInterieurCommunique ? "✓ Communiqué" : "— En attente"}
+                          {embauche.reglementInterieurCommunique ? "âœ“ CommuniquÃ©" : "â€” En attente"}
                         </span>
                       </td>
 
                       <td className="px-2 py-3 text-center text-xs">
                         <span className={embauche.codeSocieteCommunique ? "text-emerald-600" : "text-slate-400"}>
-                          {embauche.codeSocieteCommunique ? "✓ Communiqué" : "— En attente"}
+                          {embauche.codeSocieteCommunique ? "âœ“ CommuniquÃ©" : "â€” En attente"}
                         </span>
                       </td>
 
@@ -1277,7 +1265,7 @@ export default function EtapeEmbauche({
                             className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
                           >
                             {traitement ? <Loader2 size={15} className="animate-spin" /> : <UserCheck size={15} />}
-                            Confirmer l’embauche
+                            Confirmer lâ€™embauche
                           </button>
                         ) : (
                           <div className="space-y-2">
@@ -1298,13 +1286,13 @@ export default function EtapeEmbauche({
                                 onClick={() => confirmerEmbaucheCandidat(candidat)}
                                 className="w-full rounded-lg border border-amber-300 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-50"
                               >
-                                Réessayer l’e-mail
+                                RÃ©essayer lâ€™e-mail
                               </button>
                             )}
 
                             {embauche.checklistOnboardingComplete && (
                               <p className="flex items-center justify-center gap-1 text-xs font-semibold text-emerald-700">
-                                <CheckCircle2 size={14} /> Prêt �  clôturer
+                                <CheckCircle2 size={14} /> PrÃªt Ã  clÃ´turer
                               </p>
                             )}
 
@@ -1327,23 +1315,23 @@ export default function EtapeEmbauche({
 
       {estCadre && candidats.length === 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-10 text-center text-sm text-amber-700">
-          Aucun candidat cadre retenu n’est disponible pour l’embauche.
+          Aucun candidat cadre retenu nâ€™est disponible pour lâ€™embauche.
         </div>
       )}
 
       {!estCadre && candidats.length > 0 && (
         <section className="w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 px-4 py-3 sm:px-5">
+          <div className="border-b border-slate-200 px-4 py-3">
             <h3 className="font-semibold text-slate-900">
-              Dossiers d’embauche des ouvriers
+              Documents Ã  fournir par candidat
             </h3>
 
             <p className="mt-1 text-xs text-slate-500">
-              Une ligne correspond �  un candidat et une colonne �  une pièce du dossier.
+              Une piÃ¨ce peut rester non reÃ§ue, mais une remarque devient alors obligatoire.
             </p>
 
-            <p className="mt-1 text-[11px] font-medium text-blue-600">
-              Faites défiler horizontalement pour consulter toutes les pièces.
+            <p className="mt-1 text-[11px] font-medium text-blue-600 lg:hidden">
+              Faites dÃ©filer horizontalement pour voir toutes les piÃ¨ces.
             </p>
           </div>
 
@@ -1351,350 +1339,130 @@ export default function EtapeEmbauche({
             className="block w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain pb-1"
             tabIndex={0}
             role="region"
-            aria-label="Dossiers d’embauche des ouvriers"
+            aria-label="Tableau des documents des candidats ouvriers"
           >
-            <table className="w-max min-w-full border-collapse text-sm">
+            <table
+              className="w-full border-collapse text-xs"
+              style={{
+                minWidth: `${Math.max(
+                  900,
+                  210 + colonnesDocuments.length * 190
+                )}px`,
+              }}
+            >
               <thead className="bg-slate-100">
-                <tr className="text-left text-[11px] font-semibold uppercase tracking-wide text-slate-600">
-                  <th className="sticky left-0 z-20 min-w-[190px] border-r border-slate-200 bg-slate-100 px-3 py-3">
+                <tr className="text-left font-semibold uppercase tracking-wide text-slate-600">
+                  <th className="sticky left-0 z-20 min-w-[210px] border-r border-slate-200 bg-slate-100 px-3 py-3">
                     Candidat
                   </th>
 
-                  <th className="min-w-[145px] px-2 py-3">
-                    Vérification
-                  </th>
-
-                  <th className="min-w-[150px] px-2 py-3">
-                    Vérificateur
-                  </th>
-
-                  {colonnesDocumentsOuvriers.map(
-                    (libelle) => (
-                      <th
-                        key={libelle}
-                        title={libelle}
-                        className="min-w-[130px] max-w-[160px] px-2 py-3 text-center normal-case"
-                      >
-                        <span className="line-clamp-3 leading-4">
-                          {libelle}
-                        </span>
-                      </th>
-                    )
-                  )}
-
-                  <th className="min-w-[110px] px-2 py-3">
-                    Contrat
-                  </th>
-
-                  <th className="min-w-[145px] px-2 py-3">
-                    Prise de poste
-                  </th>
-
-                  <th className="min-w-[105px] px-2 py-3 text-center">
-                    Signature candidat
-                  </th>
-
-                  <th className="min-w-[105px] px-2 py-3 text-center">
-                    Signature employeur
-                  </th>
-
-                  <th className="min-w-[190px] px-2 py-3">
-                    Remarque
-                  </th>
-
-                  <th className="sticky right-0 z-20 min-w-[180px] border-l border-slate-200 bg-slate-100 px-3 py-3">
-                    Action
-                  </th>
+                  {colonnesDocuments.map((libelle) => (
+                    <th
+                      key={libelle}
+                      className="min-w-[190px] border-r border-slate-200 px-3 py-3 text-center"
+                    >
+                      {libelle}
+                    </th>
+                  ))}
                 </tr>
               </thead>
 
               <tbody className="divide-y divide-slate-200">
                 {candidats.map((candidat) => {
-                  const embauche =
-                    embauches[candidat.id];
+                  const embauche = embauches[candidat.id];
 
-                  if (!embauche) {
-                    return null;
-                  }
+                  if (!embauche) return null;
 
                   const traitement =
-                    candidatEnCours ===
-                    candidat.id;
-
-                  const verrouille =
-                    embauche.confirmee ||
-                    traitement;
-
-                  const nombrePiecesRecues =
-                    embauche.documents.filter(
-                      (document) =>
-                        document.recu
-                    ).length;
+                    candidatEnCours === candidat.id;
 
                   return (
-                    <tr
-                      key={candidat.id}
-                      className={
-                        embauche.confirmee
-                          ? "bg-emerald-50/40"
-                          : "hover:bg-slate-50"
-                      }
-                    >
-                      <td className={`sticky left-0 z-10 border-r border-slate-200 px-3 py-3 ${
-                        embauche.confirmee
-                          ? "bg-emerald-50"
-                          : "bg-white"
-                      }`}>
+                    <tr key={candidat.id} className="align-top hover:bg-slate-50">
+                      <td className="sticky left-0 z-10 border-r border-slate-200 bg-white px-3 py-3">
                         <p className="font-semibold text-slate-900">
-                          {obtenirNomCandidat(
-                            candidat
-                          )}
+                          {obtenirNomCandidat(candidat)}
                         </p>
 
-                        <p className="mt-1 text-xs text-slate-500">
-                          {nombrePiecesRecues}/
-                          {embauche.documents.length}{" "}
-                          pièces reçues
+                        <p className="mt-1 text-[11px] text-slate-500">
+                          {candidat.email || "Aucun e-mail"}
                         </p>
-
-                        <span className={`mt-2 inline-flex rounded-full px-2 py-1 text-[11px] font-semibold ${
-                          embauche.confirmee
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-amber-100 text-amber-700"
-                        }`}>
-                          {embauche.confirmee
-                            ? "Embauché"
-                            : "À compléter"}
-                        </span>
                       </td>
 
-                      <td className="px-2 py-3">
-                        <input
-                          type="date"
-                          value={
-                            embauche.dateVerification
-                          }
-                          disabled={verrouille}
-                          onChange={(event) =>
-                            modifierEmbauche(
-                              candidat.id,
-                              "dateVerification",
-                              event.target.value
-                            )
-                          }
-                          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs disabled:bg-slate-100"
-                        />
-                      </td>
+                      {colonnesDocuments.map((libelle) => {
+                        const document = embauche.documents.find(
+                          (item) => item.libelle === libelle
+                        );
 
-                      <td className="px-2 py-3">
-                        <input
-                          value={embauche.verificateur}
-                          disabled={verrouille}
-                          onChange={(event) =>
-                            modifierEmbauche(
-                              candidat.id,
-                              "verificateur",
-                              event.target.value
-                            )
-                          }
-                          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs disabled:bg-slate-100"
-                        />
-                      </td>
-
-                      {colonnesDocumentsOuvriers.map(
-                        (libelle) => {
-                          const document =
-                            embauche.documents.find(
-                              (item) =>
-                                item.libelle ===
-                                libelle
-                            );
-
+                        if (!document) {
                           return (
                             <td
                               key={libelle}
-                              className="px-2 py-3 text-center"
-                              title={
-                                document?.remarque ||
-                                libelle
-                              }
+                              className="border-r border-slate-200 px-3 py-3 text-center text-slate-400"
                             >
-                              {document ? (
+                              â€”
+                            </td>
+                          );
+                        }
+
+                        const remarqueObligatoire =
+                          !document.recu;
+
+                        return (
+                          <td
+                            key={document.id}
+                            className="border-r border-slate-200 px-3 py-3"
+                          >
+                            <label className="flex items-center justify-center gap-2 font-medium text-slate-700">
+                              <input
+                                type="checkbox"
+                                checked={document.recu}
+                                disabled={embauche.confirmee || traitement}
+                                onChange={(event) =>
+                                  modifierDocument(
+                                    candidat.id,
+                                    document.id,
+                                    "recu",
+                                    event.target.checked
+                                  )
+                                }
+                                className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                              />
+
+                              ReÃ§ue
+                            </label>
+
+                            {remarqueObligatoire && (
+                              <div className="mt-2">
                                 <input
-                                  type="checkbox"
-                                  checked={Boolean(
-                                    document.recu
-                                  )}
-                                  disabled={verrouille}
+                                  value={document.remarque}
+                                  disabled={embauche.confirmee || traitement}
                                   onChange={(event) =>
                                     modifierDocument(
                                       candidat.id,
                                       document.id,
-                                      "recu",
-                                      event.target.checked
+                                      "remarque",
+                                      event.target.value
                                     )
                                   }
-                                  aria-label={`${libelle} reçu pour ${obtenirNomCandidat(
-                                    candidat
-                                  )}`}
-                                  className="h-5 w-5 rounded border-slate-300 text-blue-600 disabled:opacity-60"
+                                  placeholder="Motif obligatoire..."
+                                  aria-label={`Remarque obligatoire pour ${libelle}`}
+                                  className={`w-full rounded-lg border px-2 py-1.5 text-[11px] outline-none ${
+                                    document.remarque.trim()
+                                      ? "border-slate-300 focus:border-blue-500"
+                                      : "border-red-300 bg-red-50 focus:border-red-500"
+                                  }`}
                                 />
-                              ) : (
-                                <span className="text-slate-300">
-                                  —
-                                </span>
-                              )}
-                            </td>
-                          );
-                        }
-                      )}
 
-                      <td className="px-2 py-3">
-                        <select
-                          value={embauche.typeContrat}
-                          disabled={verrouille}
-                          onChange={(event) =>
-                            modifierEmbauche(
-                              candidat.id,
-                              "typeContrat",
-                              event.target.value
-                            )
-                          }
-                          className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs disabled:bg-slate-100"
-                        >
-                          <option value="">
-                            Choisir
-                          </option>
-
-                          {Number(
-                            demande.nombre_cdi ??
-                              recrutement?.nombre_cdi ??
-                              0
-                          ) > 0 && (
-                            <option value="CDI">
-                              CDI
-                            </option>
-                          )}
-
-                          {Number(
-                            demande.nombre_cdd ??
-                              recrutement?.nombre_cdd ??
-                              0
-                          ) > 0 && (
-                            <option value="CDD">
-                              CDD
-                            </option>
-                          )}
-                        </select>
-                      </td>
-
-                      <td className="px-2 py-3">
-                        <input
-                          type="date"
-                          value={
-                            embauche.dateDebutContrat
-                          }
-                          disabled={verrouille}
-                          onChange={(event) =>
-                            modifierEmbauche(
-                              candidat.id,
-                              "dateDebutContrat",
-                              event.target.value
-                            )
-                          }
-                          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs disabled:bg-slate-100"
-                        />
-                      </td>
-
-                      <td className="px-2 py-3 text-center">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(
-                            embauche.signeCandidat
-                          )}
-                          disabled={verrouille}
-                          onChange={(event) =>
-                            modifierEmbauche(
-                              candidat.id,
-                              "signeCandidat",
-                              event.target.checked
-                            )
-                          }
-                          className="h-5 w-5 rounded border-slate-300 text-blue-600 disabled:opacity-60"
-                        />
-                      </td>
-
-                      <td className="px-2 py-3 text-center">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(
-                            embauche.signeEmployeur
-                          )}
-                          disabled={verrouille}
-                          onChange={(event) =>
-                            modifierEmbauche(
-                              candidat.id,
-                              "signeEmployeur",
-                              event.target.checked
-                            )
-                          }
-                          className="h-5 w-5 rounded border-slate-300 text-blue-600 disabled:opacity-60"
-                        />
-                      </td>
-
-                      <td className="px-2 py-3">
-                        <textarea
-                          value={
-                            embauche.remarqueGenerale
-                          }
-                          disabled={verrouille}
-                          onChange={(event) =>
-                            modifierEmbauche(
-                              candidat.id,
-                              "remarqueGenerale",
-                              event.target.value
-                            )
-                          }
-                          rows={2}
-                          placeholder="Remarque..."
-                          className="w-full resize-none rounded-lg border border-slate-300 px-2 py-1.5 text-xs disabled:bg-slate-100"
-                        />
-                      </td>
-
-                      <td className={`sticky right-0 z-10 border-l border-slate-200 px-3 py-3 ${
-                        embauche.confirmee
-                          ? "bg-emerald-50"
-                          : "bg-white"
-                      }`}>
-                        {embauche.confirmee ? (
-                          <div className="flex items-center justify-center gap-1 text-xs font-semibold text-emerald-700">
-                            <CheckCircle2 size={15} />
-                            Confirmée
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              confirmerEmbaucheCandidat(
-                                candidat
-                              )
-                            }
-                            disabled={traitement}
-                            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
-                          >
-                            {traitement ? (
-                              <Loader2
-                                size={15}
-                                className="animate-spin"
-                              />
-                            ) : (
-                              <UserCheck size={15} />
+                                {!document.remarque.trim() && (
+                                  <p className="mt-1 text-[10px] font-medium text-red-600">
+                                    Remarque obligatoire
+                                  </p>
+                                )}
+                              </div>
                             )}
-
-                            Confirmer
-                          </button>
-                        )}
-                      </td>
+                          </td>
+                        );
+                      })}
                     </tr>
                   );
                 })}
@@ -1704,13 +1472,7 @@ export default function EtapeEmbauche({
         </section>
       )}
 
-      {!estCadre && candidats.length === 0 && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-8 text-center text-sm text-amber-700">
-          Aucun candidat ouvrier n’est disponible pour l’embauche.
-        </div>
-      )}
-
-      {false && !estCadre && (
+      {!estCadre && (
       <div className="space-y-5">
         {candidats.map(
           (candidat) => {
@@ -1775,17 +1537,17 @@ export default function EtapeEmbauche({
                             size={13}
                           />
 
-                          Embauché
+                          EmbauchÃ©
                         </span>
                       )}
                     </div>
 
                     <p className="mt-1 text-xs text-slate-500">
                       {candidat.telephone ||
-                        "—"}{" "}
-                      ·{" "}
+                        "â€”"}{" "}
+                      Â·{" "}
                       {candidat.email ||
-                        "—"}
+                        "â€”"}
                     </p>
                   </div>
 
@@ -1793,7 +1555,7 @@ export default function EtapeEmbauche({
                     <p className="text-sm text-slate-600">
                       {nombrePiecesRecues}/
                       {embauche.documents.length}{" "}
-                      pièces reçues
+                      piÃ¨ces reÃ§ues
                     </p>
                   )}
                 </div>
@@ -1816,13 +1578,13 @@ export default function EtapeEmbauche({
                         className="text-blue-600"
                       />
 
-                      Vérification du dossier
+                      VÃ©rification du dossier
                     </h3>
 
                     <div className="mb-5 grid gap-5 md:grid-cols-2">
                       <div>
                         <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                          Date de vérification
+                          Date de vÃ©rification
                           <span className="ml-1 text-red-500">
                             *
                           </span>
@@ -1851,7 +1613,7 @@ export default function EtapeEmbauche({
 
                       <div>
                         <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                          Vérificateur
+                          VÃ©rificateur
                           <span className="ml-1 text-red-500">
                             *
                           </span>
@@ -1878,89 +1640,6 @@ export default function EtapeEmbauche({
                       </div>
                     </div>
 
-                    {!estCadre && (
-                    <div className="overflow-x-auto rounded-xl border border-slate-200">
-                      <table className="w-full min-w-[700px]">
-                        <thead className="bg-slate-100">
-                          <tr className="text-left text-xs font-semibold uppercase text-slate-600">
-                            <th className="px-4 py-3">
-                              Pièce
-                            </th>
-
-                            <th className="px-4 py-3 text-center">
-                              Reçue
-                            </th>
-
-                            <th className="px-4 py-3">
-                              Remarque
-                            </th>
-                          </tr>
-                        </thead>
-
-                        <tbody className="divide-y divide-slate-200">
-                          {embauche.documents.map(
-                            (document) => (
-                              <tr
-                                key={
-                                  document.id
-                                }
-                              >
-                                <td className="px-4 py-3 text-sm font-medium text-slate-800">
-                                  {
-                                    document.libelle
-                                  }
-                                </td>
-
-                                <td className="px-4 py-3 text-center">
-                                  <input
-                                    type="checkbox"
-                                    checked={
-                                      document.recu
-                                    }
-                                    onChange={(
-                                      event
-                                    ) =>
-                                      modifierDocument(
-                                        candidat.id,
-                                        document.id,
-                                        "recu",
-                                        event
-                                          .target
-                                          .checked
-                                      )
-                                    }
-                                    className="h-4 w-4 rounded border-slate-300 text-blue-600"
-                                  />
-                                </td>
-
-                                <td className="px-4 py-3">
-                                  <input
-                                    value={
-                                      document.remarque
-                                    }
-                                    onChange={(
-                                      event
-                                    ) =>
-                                      modifierDocument(
-                                        candidat.id,
-                                        document.id,
-                                        "remarque",
-                                        event
-                                          .target
-                                          .value
-                                      )
-                                    }
-                                    placeholder="Remarque..."
-                                    className="w-full min-w-[250px] rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
-                                  />
-                                </td>
-                              </tr>
-                            )
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                    )}
                   </div>
 
                   <div className="p-5">
@@ -1997,7 +1676,7 @@ export default function EtapeEmbauche({
                           className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-blue-500"
                         >
                           <option value="">
-                            Sélectionner
+                            SÃ©lectionner
                           </option>
 
                           {Number(
@@ -2026,7 +1705,7 @@ export default function EtapeEmbauche({
 
                       <div>
                         <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                          Date de début
+                          Date de dÃ©but
                           <span className="ml-1 text-red-500">
                             *
                           </span>
@@ -2058,24 +1737,24 @@ export default function EtapeEmbauche({
                     {estCadre ? (
                       <div className="mt-5 space-y-3">
                         <h4 className="text-sm font-semibold text-slate-900">
-                          Checklist obligatoire d’embauche et d’onboarding
+                          Checklist obligatoire dâ€™embauche et dâ€™onboarding
                         </h4>
 
                         <div className="grid gap-3 md:grid-cols-2">
                           {[
                             {
                               champ: "dossierEmbaucheComplet",
-                              label: "Dossier d’embauche complet",
+                              label: "Dossier dâ€™embauche complet",
                               verrouille: embauche.confirmee,
                             },
                             {
                               champ: "contratTravailSigne",
-                              label: "Contrat de travail signé",
+                              label: "Contrat de travail signÃ©",
                               verrouille: embauche.confirmee,
                             },
                             {
                               champ: "journeeIntegrationRealisee",
-                              label: "Journée d’intégration réalisée",
+                              label: "JournÃ©e dâ€™intÃ©gration rÃ©alisÃ©e",
                               verrouille: false,
                             },
                           ].map((item) => (
@@ -2104,7 +1783,7 @@ export default function EtapeEmbauche({
 
                           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                             <p className="text-sm font-semibold text-slate-800">
-                              Règlement intérieur communiqué
+                              RÃ¨glement intÃ©rieur communiquÃ©
                             </p>
                             <p className={`mt-1 text-xs ${
                               embauche.reglementInterieurCommunique
@@ -2112,14 +1791,14 @@ export default function EtapeEmbauche({
                                 : "text-amber-700"
                             }`}>
                               {embauche.reglementInterieurCommunique
-                                ? "Oui — confirmé par le système"
-                                : "En attente de l’envoi automatique"}
+                                ? "Oui â€” confirmÃ© par le systÃ¨me"
+                                : "En attente de lâ€™envoi automatique"}
                             </p>
                           </div>
 
                           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                             <p className="text-sm font-semibold text-slate-800">
-                              Code société communiqué
+                              Code sociÃ©tÃ© communiquÃ©
                             </p>
                             <p className={`mt-1 text-xs ${
                               embauche.codeSocieteCommunique
@@ -2127,8 +1806,8 @@ export default function EtapeEmbauche({
                                 : "text-amber-700"
                             }`}>
                               {embauche.codeSocieteCommunique
-                                ? "Oui — confirmé par le système"
-                                : "En attente de l’envoi automatique"}
+                                ? "Oui â€” confirmÃ© par le systÃ¨me"
+                                : "En attente de lâ€™envoi automatique"}
                             </p>
                           </div>
                         </div>
@@ -2139,12 +1818,12 @@ export default function EtapeEmbauche({
                             : "border-amber-200 bg-amber-50 text-amber-700"
                         }`}>
                           {embauche.documentsCadreEmailEnvoyes
-                            ? `RI et Code société envoyés le ${new Intl.DateTimeFormat(
+                            ? `RI et Code sociÃ©tÃ© envoyÃ©s le ${new Intl.DateTimeFormat(
                                 "fr-FR",
                                 { dateStyle: "short", timeStyle: "short" }
                               ).format(new Date(embauche.dateEnvoiDocumentsCadre))}.`
                             : embauche.erreurEnvoiDocumentsCadre ||
-                              "Les documents seront envoyés automatiquement lors de la confirmation de l’embauche."}
+                              "Les documents seront envoyÃ©s automatiquement lors de la confirmation de lâ€™embauche."}
                         </div>
 
                         {embauche.confirmee &&
@@ -2164,26 +1843,25 @@ export default function EtapeEmbauche({
                                     className="animate-spin"
                                   />
                                 )}
-                                Réessayer l’envoi du RI et du Code société
+                                RÃ©essayer lâ€™envoi du RI et du Code sociÃ©tÃ©
                               </button>
                             </div>
                           )}
                       </div>
                     ) : (
-                    <div className="mt-5 grid gap-3 md:grid-cols-2">
+                    <div className="mt-5">
                       <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
                         <input
                           type="checkbox"
                           checked={
-                            embauche
-                              .signeCandidat
+                            embauche.signeCandidat &&
+                            embauche.signeEmployeur
                           }
                           onChange={(
                             event
                           ) =>
-                            modifierEmbauche(
+                            modifierContratSigne(
                               candidat.id,
-                              "signeCandidat",
                               event.target
                                 .checked
                             )
@@ -2193,46 +1871,11 @@ export default function EtapeEmbauche({
 
                         <div>
                           <p className="text-sm font-semibold text-slate-800">
-                            Contrat signé par
-                            le candidat
+                            Contrat signÃ©
                           </p>
 
                           <p className="mt-1 text-xs text-slate-500">
-                            La signature a
-                            été vérifiée.
-                          </p>
-                        </div>
-                      </label>
-
-                      <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
-                        <input
-                          type="checkbox"
-                          checked={
-                            embauche
-                              .signeEmployeur
-                          }
-                          onChange={(
-                            event
-                          ) =>
-                            modifierEmbauche(
-                              candidat.id,
-                              "signeEmployeur",
-                              event.target
-                                .checked
-                            )
-                          }
-                          className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600"
-                        />
-
-                        <div>
-                          <p className="text-sm font-semibold text-slate-800">
-                            Contrat signé par
-                            l’employeur
-                          </p>
-
-                          <p className="mt-1 text-xs text-slate-500">
-                            La signature a
-                            été vérifiée.
+                            Les signatures du candidat et de lâ€™employeur ont Ã©tÃ© vÃ©rifiÃ©es.
                           </p>
                         </div>
                       </label>
@@ -2241,7 +1884,7 @@ export default function EtapeEmbauche({
 
                     <div className="mt-5">
                       <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                        Remarque générale
+                        Remarque gÃ©nÃ©rale
                       </label>
 
                       <textarea
@@ -2289,7 +1932,7 @@ export default function EtapeEmbauche({
                             />
                           )}
 
-                          Confirmer l’embauche
+                          Confirmer lâ€™embauche
                         </button>
                       </div>
                     )}
@@ -2318,7 +1961,7 @@ export default function EtapeEmbauche({
                         {embauche.checklistOnboardingComplete && (
                           <p className="flex items-center gap-2 text-sm font-medium text-emerald-700">
                             <CheckCircle2 size={17} />
-                            Checklist complète — prêt pour la clôture
+                            Checklist complÃ¨te â€” prÃªt pour la clÃ´ture
                           </p>
                         )}
                       </div>
@@ -2332,43 +1975,11 @@ export default function EtapeEmbauche({
 
         {candidats.length === 0 && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-10 text-center text-sm text-amber-700">
-            Aucun candidat n’est disponible
-            pour l’embauche.
+            Aucun candidat nâ€™est disponible
+            pour lâ€™embauche.
           </div>
         )}
       </div>
-      )}
-
-      {toutesLesChecklistsCompletes && (
-        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-          <input
-            type="checkbox"
-            checked={
-              confirmationFinale
-            }
-            onChange={(event) => {
-              setConfirmationFinale(
-                event.target.checked
-              );
-
-              setErreur("");
-            }}
-            className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600"
-          />
-
-          <div>
-            <p className="text-sm font-semibold text-emerald-900">
-              Je confirme la clôture du
-              processus
-            </p>
-
-            <p className="mt-1 text-xs text-emerald-700">
-              {estCadre
-                ? "Toutes les checklists d’onboarding sont complètes."
-                : "Tous les candidats retenus ont été embauchés."}
-            </p>
-          </div>
-        </label>
       )}
 
       <div className="flex justify-end">
@@ -2376,8 +1987,7 @@ export default function EtapeEmbauche({
           type="submit"
           disabled={
             isSubmitting ||
-            !toutesLesChecklistsCompletes ||
-            !confirmationFinale
+            !toutesLesChecklistsCompletes
           }
           className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
@@ -2391,7 +2001,7 @@ export default function EtapeEmbauche({
           )}
 
           {isSubmitting
-            ? "Clôture..."
+            ? "ClÃ´ture..."
             : "Terminer le processus"}
         </button>
       </div>

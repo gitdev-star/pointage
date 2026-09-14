@@ -11,6 +11,10 @@ class HRProfile(models.Model):
     email        = models.EmailField(blank=True)
     job_title    = models.CharField(max_length=100, blank=True)
     is_director  = models.BooleanField(default=False)
+    is_recruitment_responsible = models.BooleanField(
+     default=False,
+     verbose_name="Responsable du recrutement",
+    )
 
     factory    = models.ForeignKey("employees.Factory",    on_delete=models.SET_NULL, null=True, blank=True, related_name="hr_managers")
     department = models.ForeignKey("employees.Department", on_delete=models.SET_NULL, null=True, blank=True, related_name="hr_managers")
@@ -31,8 +35,6 @@ class HRProfile(models.Model):
     perm_reports_read      = models.BooleanField(default=False)
     perm_shifts_read       = models.BooleanField(default=False)
     perm_shifts_write      = models.BooleanField(default=False)
-    perm_recruitment_read  = models.BooleanField(default=False)
-    perm_recruitment_write = models.BooleanField(default=False)
     perm_contracts_read    = models.BooleanField(default=False)
     perm_contracts_write   = models.BooleanField(default=False)
     perm_contracts_delete  = models.BooleanField(default=False)
@@ -76,7 +78,21 @@ class HRProfile(models.Model):
     )
 
     class Meta:
-        ordering = ["username"]
+    	ordering = ["username"]
+
+    	constraints = [
+        	models.UniqueConstraint(
+            fields=[
+                "is_recruitment_responsible",
+            ],
+            condition=models.Q(
+                is_recruitment_responsible=True,
+            ),
+            name=(
+                "unique_recruitment_responsible"
+            ),
+        ),
+    ]
 
     def __str__(self):
         role = "Directeur RH" if self.is_director else self.job_title or "HR"

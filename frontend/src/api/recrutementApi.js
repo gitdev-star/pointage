@@ -163,7 +163,7 @@ const recrutementApi = {
   ) {
     if (!(fichier instanceof File)) {
       throw new Error(
-        "La fiche de test sélectionnée est invalide."
+        "La fiche de test sÃ©lectionnÃ©e est invalide."
       );
     }
 
@@ -281,7 +281,6 @@ const recrutementApi = {
   },
 
   async enregistrerFicheTransparence({
-    ficheId = null,
     processusId,
     dateFiche,
     lieu,
@@ -321,16 +320,6 @@ const recrutementApi = {
         fichier,
         fichier.name
       );
-    }
-
-    if (ficheId) {
-      const response =
-        await hrClient.patch(
-          `recruitment/fiches-transparence/${ficheId}/`,
-          formData
-        );
-
-      return response.data;
     }
 
     if (!(fichier instanceof File)) {
@@ -467,7 +456,7 @@ const recrutementApi = {
   async creerOffre({ fichier }) {
     if (!(fichier instanceof File)) {
       throw new Error(
-        "Le fichier sélectionné est invalide."
+        "Le fichier sÃ©lectionnÃ© est invalide."
       );
     }
 
@@ -506,7 +495,7 @@ const recrutementApi = {
   },
 
   // ===================================================
-  // PROFIL ET RÉFÉRENTIELS
+  // PROFIL ET RÃ‰FÃ‰RENTIELS
   // ===================================================
 
   async obtenirMonProfil() {
@@ -625,7 +614,7 @@ async obtenirPostes(params = {}) {
     );
   },
 
-  // Première validation : directeur
+  // PremiÃ¨re validation : directeur
   async validerDemande(
     id,
     motifDecision = ""
@@ -658,7 +647,7 @@ async obtenirPostes(params = {}) {
     return response.data;
   },
 
-  // Deuxième validation : DRH
+  // DeuxiÃ¨me validation : DRH
   async approuverDemandeDRH(
     id,
     commentaireDRH = ""
@@ -899,6 +888,76 @@ async obtenirPostes(params = {}) {
     return response.data;
   },
 
+  // ===================================================
+  // DÃ‰SISTEMENTS APRÃˆS EMBAUCHE
+  // ===================================================
+
+  async obtenirDesistements(params = {}) {
+    const response = await hrClient.get(
+      "recruitment/desistements/",
+      { params }
+    );
+
+    const desistements = extraireListe(
+      response.data
+    );
+
+    return {
+      desistements,
+      count:
+        response.data?.count ??
+        desistements.length,
+    };
+  },
+
+  async signalerDesistement({
+    embaucheId,
+    dateDesistement,
+    motif = "",
+    commentaire = "",
+    relancerRecrutement = true,
+    dateRepriseRecrutement = null,
+  }) {
+    const response = await hrClient.post(
+      "recruitment/desistements/",
+      {
+        embauche: embaucheId,
+        date_desistement: dateDesistement,
+        motif: motif || "",
+        commentaire: commentaire || "",
+        relancer_recrutement: Boolean(
+          relancerRecrutement
+        ),
+        date_reprise_recrutement:
+          relancerRecrutement
+            ? dateRepriseRecrutement
+            : null,
+      }
+    );
+
+    return response.data;
+  },
+
+  async obtenirRecrutementsAReprendre(
+    params = {}
+  ) {
+    const response = await hrClient.get(
+      "recruitment/desistements/a-reprendre/",
+      { params }
+    );
+
+    const desistements = extraireListe(
+      response.data
+    );
+
+    return {
+      desistements,
+      count:
+        response.data?.count ??
+        desistements.length,
+    };
+  },
+
 async enregistrerEmbauche({
   embaucheId = null,
   candidatId,
@@ -929,8 +988,8 @@ async enregistrerEmbauche({
   };
 
   /*
-   * On ajoute les champs cadres uniquement lorsqu’ils sont fournis.
-   * Cela préserve le fonctionnement du recrutement ouvrier.
+   * On ajoute les champs cadres uniquement lorsquâ€™ils sont fournis.
+   * Cela prÃ©serve le fonctionnement du recrutement ouvrier.
    */
 
   if (dossierEmbaucheComplet !== undefined) {
@@ -1010,7 +1069,7 @@ async confirmerEmbauche(embaucheId) {
   },
 
   // ===================================================
-  // PRÉPARATION DE L’EMBAUCHE
+  // PRÃ‰PARATION DE Lâ€™EMBAUCHE
   // ===================================================
 
   async obtenirTachesPreparation(

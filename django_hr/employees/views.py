@@ -944,9 +944,18 @@ class TransportListViewSet(viewsets.ModelViewSet):
         transport_list = serializer.save()
         return Response(TransportListSerializer(transport_list).data, status=status.HTTP_201_CREATED)
     
+
+
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 class CantineListViewSet(viewsets.ModelViewSet):
     queryset = CantineList.objects.prefetch_related("items", "items__employee").all()
     serializer_class = CantineListSerializer
+    # TODO: no permission_classes set — add require_perm("<your_cantine_permission_code>")
+    # once you confirm the actual permission code name used elsewhere in HRProfile.
 
     @action(detail=False, methods=["get"], url_path="today")
     def today(self, request):
@@ -955,10 +964,12 @@ class CantineListViewSet(viewsets.ModelViewSet):
             cantine_date=today,
             defaults={"created_by": getattr(request.user, "username", None)},
         )
-        if created:
+        # Retry population if it was never successfully populated,
+        # not just on first creation — fixes "stuck empty forever" bug.
+        if created or not cantine_list.items.exists():
             self._auto_populate(cantine_list, today)
         return Response(CantineListSerializer(cantine_list).data)
-    
+
     def get_queryset(self):
         qs = super().get_queryset()
         date_param = self.request.query_params.get("date")
@@ -975,36 +986,39 @@ class CantineListViewSet(viewsets.ModelViewSet):
                     "date_to": target_date.isoformat(),
                     "limit": 50000,
                 },
-                timeout=5,
+                timeout=15,  # was 5s — too tight for a 50k-row query
             )
             resp.raise_for_status()
             present_rows = resp.json()
-        except Exception as e:
-            print(f"[CANTINE] Impossible de récupérer les présences: {e}")
-            return
 
-        arrival_by_user = {row["user_id"]: row.get("arrival") for row in present_rows}
-        device_ids = list(arrival_by_user.keys())
+            arrival_by_user = {row["user_id"]: row.get("arrival") for row in present_rows}
+            device_ids = list(arrival_by_user.keys())
 
-        employees = (
-            Employee.objects
-            .annotate(employee_id_int=Cast("employee_id", output_field=IntegerField()))
-            .filter(employee_id_int__in=device_ids, status="ACTIVE")
-            .exclude(classification__classe="HC")
-            .select_related("classification", "factory")
-        )
-        items = [
-            CantineListItem(
-                cantine_list=cantine_list,
-                employee=emp,
-                matricule=emp.employee_id,
-                nom=emp.last_name or "",
-                prenom=emp.first_name or "",
-                arrival=arrival_by_user.get(emp.employee_id_int),
+            employees = (
+                Employee.objects
+                .filter(employee_id__regex=r'^\d+$')  # excludes non-numeric matricules like "MEXP19" before Cast runs
+                .annotate(employee_id_int=Cast("employee_id", output_field=IntegerField()))
+                .filter(employee_id_int__in=device_ids, status="ACTIVE")
+                .exclude(classification__classe="HC")
+                .select_related("classification", "factory")
             )
-            for emp in employees
-        ]
-        CantineListItem.objects.bulk_create(items, ignore_conflicts=True)
+            items = [
+                CantineListItem(
+                    cantine_list=cantine_list,
+                    employee=emp,
+                    matricule=emp.employee_id,
+                    nom=emp.last_name or "",
+                    prenom=emp.first_name or "",
+                    arrival=arrival_by_user.get(emp.employee_id_int),
+                )
+                for emp in employees
+            ]
+            CantineListItem.objects.bulk_create(items, ignore_conflicts=True)
+
+        except Exception:
+            # logger.exception captures the full traceback; if Sentry's Django
+            # logging integration is active, this will also surface in GlitchTip.
+            logger.exception(f"[CANTINE] Échec de la génération de la liste pour {target_date}")
 
     @action(detail=True, methods=["post"], url_path="add-item")
     def add_item(self, request, pk=None):

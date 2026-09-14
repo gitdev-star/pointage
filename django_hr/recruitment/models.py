@@ -930,10 +930,10 @@ class FicheTransparence(models.Model):
         SITE_2 = "SITE_2", "PBI 2"
         SITE_3 = "SITE_3", "PBI 3"
 
-    processus = models.OneToOneField(
+    processus = models.ForeignKey(
         ProcessusRecrutement,
         on_delete=models.CASCADE,
-        related_name="fiche_transparence",
+        related_name="fiches_transparence",
     )
 
     date_fiche = models.DateField(
@@ -1034,6 +1034,12 @@ class Candidat(models.Model):
             "EMBAUCHE",
             "Embauché",
         )
+
+        DESISTE = (
+            "DESISTE",
+            "Désisté",
+        )
+
 
     processus = models.ForeignKey(
         ProcessusRecrutement,
@@ -1236,7 +1242,10 @@ class Candidat(models.Model):
 
         if (
             self.statut
-            != self.Statut.EMBAUCHE
+            not in [
+                self.Statut.EMBAUCHE,
+                self.Statut.DESISTE,
+            ]
             and self.processus_id
             and self.est_ouvrier
         ):
@@ -2827,26 +2836,146 @@ class Embauche(models.Model):
 
 
 class DesistementEmbauche(models.Model):
-    """Withdrawal/desistement record for a hire (Embauche) — recruitment restart tracking."""
-
     embauche = models.OneToOneField(
-        "recruitment.Embauche", on_delete=models.PROTECT, related_name="desistement"
+        "Embauche",
+        on_delete=models.PROTECT,
+        related_name="desistement",
     )
+
     date_desistement = models.DateField()
-    motif = models.TextField(blank=True, default="")
-    commentaire = models.TextField(blank=True, default="")
-    relancer_recrutement = models.BooleanField(default=True)
-    date_reprise_recrutement = models.DateField(blank=True, null=True)
-    date_cloture_initiale = models.DateTimeField(blank=True, null=True, editable=False)
-    date_nouvelle_cloture = models.DateTimeField(blank=True, null=True, editable=False)
-    date_enregistrement = models.DateTimeField(auto_now_add=True)
+
+    motif = models.TextField(
+        blank=True,
+        default="",
+    )
+
+    commentaire = models.TextField(
+        blank=True,
+        default="",
+    )
+
+    relancer_recrutement = models.BooleanField(
+        default=True,
+    )
+
+    date_reprise_recrutement = models.DateField(
+        null=True,
+        blank=True,
+    )
+
+    # Première clôture, avant le désistement.
+    date_cloture_initiale = models.DateTimeField(
+        null=True,
+        blank=True,
+        editable=False,
+    )
+
+    # Nouvelle clôture, après la reprise.
+    date_nouvelle_cloture = models.DateTimeField(
+        null=True,
+        blank=True,
+        editable=False,
+    )
+
     enregistre_par = models.ForeignKey(
-        "accounts.HRProfile", on_delete=models.SET_NULL, null=True, blank=True,
+        "accounts.HRProfile",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="desistements_enregistres",
     )
 
+    date_enregistrement = models.DateTimeField(
+        auto_now_add=True,
+    )
+
     class Meta:
-        ordering = ["-date_enregistrement"]
+        ordering = [
+            "-date_enregistrement",
+        ]
+
+    def clean(self):
+        super().clean()
+
+        erreurs = {}
+
+        if not self.embauche_id:
+            return
+
+        if not self.embauche.confirmee:
+            erreurs["embauche"] = (
+                "Seule une embauche confirmee peut "
+                "faire l'objet d'un desistement."
+            )
+
+        if (
+            self.date_desistement
+            and self.date_desistement
+            > timezone.localdate()
+        ):
+            erreurs["date_desistement"] = (
+                "La date du desistement ne peut "
+                "pas etre dans le futur."
+            )
+
+        if self.relancer_recrutement:
+            if not self.date_reprise_recrutement:
+                erreurs[
+                    "date_reprise_recrutement"
+                ] = (
+                    "La date de reprise est obligatoire "
+                    "lorsque le recrutement est repris."
+                )
+
+            elif (
+                self.date_desistement
+                and self.date_reprise_recrutement
+                < self.date_desistement
+            ):
+                erreurs[
+                    "date_reprise_recrutement"
+                ] = (
+                    "La date de reprise ne peut pas "
+                    "etre anterieure a la date du "
+                    "desistement."
+                )
+
+        else:
+            self.date_reprise_recrutement = None
+
+            if not (
+                self.motif
+                and self.motif.strip()
+            ):
+                erreurs["motif"] = (
+                    "Le motif est obligatoire lorsque "
+                    "le recrutement n'est pas repris."
+                )
+
+        if erreurs:
+            raise ValidationError(erreurs)
+
+    def save(self, *args, **kwargs):
+        if (
+            self.embauche_id
+            and not self.date_cloture_initiale
+        ):
+            self.date_cloture_initiale = (
+                self.embauche
+                .candidat
+                .processus
+                .date_cloture
+            )
+
+        if not self.relancer_recrutement:
+            self.date_reprise_recrutement = None
+
+        self.full_clean()
+
+        return super().save(
+            *args,
+            **kwargs
+        ) 
 
     def __str__(self):
         return f"Desistement — {self.embauche} ({self.date_desistement})"

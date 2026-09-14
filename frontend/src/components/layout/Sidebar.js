@@ -39,6 +39,7 @@ export default function Sidebar({ isOpen, onClose }) {
   const location = useLocation();
 
   const { hrProfile, canSee } = useHRAuth();
+  const peutVoirRecrutement = canSee("recruitment");
 
   /*
    * Le menu s'ouvre automatiquement lorsque l'utilisateur
@@ -192,72 +193,72 @@ export default function Sidebar({ isOpen, onClose }) {
           )}
 
           {/* Recrutement et formations */}
-          <NavSection title="Recrutement et formations">
+{peutVoirRecrutement && (
+  <NavSection title="Recrutement et formations">
+    <button
+      type="button"
+      onClick={handleRecruitmentToggle}
+      className={`
+        flex w-full items-center justify-between
+        px-5 py-2.5 text-left text-sm
+        transition-colors
+        ${
+          isRecruitmentRoute
+            ? "bg-white/15 text-white"
+            : "text-gray-300 hover:bg-white/10 hover:text-white"
+        }
+      `}
+    >
+      <span className="flex items-center gap-3">
+        <BriefcaseBusiness size={18} />
+        Recrutement
+      </span>
+
+      {recrutementOpen ? (
+        <ChevronDown size={17} />
+      ) : (
+        <ChevronRight size={17} />
+      )}
+    </button>
+
+    {recrutementOpen && (
+      <div className="ml-7 border-l border-white/20 bg-black/10">
+        {RECRUTEMENT_ITEMS.map((item) => {
+          const isActive =
+            location.pathname === item.to;
+
+          return (
             <button
               type="button"
-              onClick={handleRecruitmentToggle}
+              key={item.to}
+              onClick={() => {
+                navigate(item.to);
+                onClose?.();
+              }}
               className={`
-                flex w-full items-center justify-between
-                px-5 py-2.5 text-left text-sm
+                relative block w-full
+                py-2.5 pl-6 pr-3
+                text-left text-sm
                 transition-colors
                 ${
-                  isRecruitmentRoute
-                    ? "bg-white/15 text-white"
+                  isActive
+                    ? "bg-white/15 font-medium text-white"
                     : "text-gray-300 hover:bg-white/10 hover:text-white"
                 }
               `}
             >
-              <span className="flex items-center gap-3">
-                <BriefcaseBusiness size={18} />
-                Recrutement
-              </span>
-
-              {recrutementOpen ? (
-                <ChevronDown size={17} />
-              ) : (
-                <ChevronRight size={17} />
+              {isActive && (
+                <span className="absolute bottom-2 left-0 top-2 w-1 rounded-r bg-blue-400" />
               )}
+
+              {item.label}
             </button>
-
-            {recrutementOpen && (
-              <div className="border-l border-white/20 bg-black/10 ml-7">
-                {RECRUTEMENT_ITEMS.map((item) => {
-                  const isActive =
-                    location.pathname === item.to;
-
-                  return (
-                    <button
-                      type="button"
-                      key={item.to}
-                      onClick={() => {
-                        navigate(item.to);
-                        onClose?.();
-                      }}
-                      className={`
-                        relative block w-full
-                        py-2.5 pl-6 pr-3
-                        text-left text-sm
-                        transition-colors
-                        ${
-                          isActive
-                            ? "bg-white/15 font-medium text-white"
-                            : "text-gray-300 hover:bg-white/10 hover:text-white"
-                        }
-                      `}
-                    >
-                      {isActive && (
-                        <span className="absolute bottom-2 left-0 top-2 w-1 rounded-r bg-blue-400" />
-                      )}
-
-                      {item.label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Le sous-menu Formation sera ajouté plus tard. */}
-          </NavSection>
+          );
+        })}
+      </div>
+    )}
+  </NavSection>
+)}
 
           {hrAdminItems.length > 0 && (
             <NavSection title="Administration RH">

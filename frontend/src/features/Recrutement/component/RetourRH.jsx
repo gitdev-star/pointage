@@ -34,6 +34,15 @@ function obtenirNomCandidat(candidat) {
   return nomComplet || `Candidat ${candidat.id}`;
 }
 
+function echapperHtml(valeur) {
+  return String(valeur ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
 export default function RetourRH({
   recrutement,
   onComplete,
@@ -242,8 +251,73 @@ export default function RetourRH({
     });
 
   const imprimerListe = (candidat) => {
-    const nomCandidat =
-      obtenirNomCandidat(candidat);
+    const nomCandidat = echapperHtml(
+      obtenirNomCandidat(candidat)
+    );
+
+    const contenuFiche = `
+      <section class="fiche">
+        <div class="entete-fiche">
+          <div>
+            <h1>Documents à fournir</h1>
+            <p class="subtitle">
+              Processus de recrutement
+            </p>
+          </div>
+
+          <div class="reference">
+            Réf. : ref-doc-fourni-candidat
+          </div>
+        </div>
+
+        <div class="candidat">
+          <strong>Candidat :</strong>
+          ${nomCandidat}
+        </div>
+
+        <div class="documents">
+          <div class="document">
+            <span class="checkbox"></span>
+            Copie de la carte d’identité
+          </div>
+
+          <div class="document">
+            <span class="checkbox"></span>
+            Curriculum vitae
+          </div>
+
+          <div class="document">
+            <span class="checkbox"></span>
+            Copies des diplômes
+          </div>
+
+          <div class="document">
+            <span class="checkbox"></span>
+            Certificats de travail
+          </div>
+
+          <div class="document">
+            <span class="checkbox"></span>
+            Photo d’identité
+          </div>
+
+          <div class="document">
+            <span class="checkbox"></span>
+            Certificat de résidence
+          </div>
+
+          <div class="document">
+            <span class="checkbox"></span>
+            Casier judiciaire
+          </div>
+
+          <div class="document">
+            <span class="checkbox"></span>
+            Certificat médical
+          </div>
+        </div>
+      </section>
+    `;
 
     const contenu = `
       <!DOCTYPE html>
@@ -257,141 +331,131 @@ export default function RetourRH({
           </title>
 
           <style>
+            @page {
+              size: A4 portrait;
+              margin: 6mm;
+            }
+
+            * {
+              box-sizing: border-box;
+            }
+
+            html,
             body {
+              width: 100%;
+              min-height: 100%;
+              margin: 0;
               font-family: Arial, sans-serif;
               color: #0f172a;
-              padding: 35px;
+              background: #ffffff;
+            }
+
+            .planche {
+              display: grid;
+              grid-template-columns: repeat(2, 1fr);
+              grid-template-rows: repeat(3, 1fr);
+              gap: 3mm;
+              width: 100%;
+              height: 285mm;
+            }
+
+            .fiche {
+              position: relative;
+              overflow: hidden;
+              border: 1px dashed #64748b;
+              border-radius: 2mm;
+              padding: 3mm;
+              break-inside: avoid;
+              page-break-inside: avoid;
+            }
+
+            .entete-fiche {
+              display: flex;
+              align-items: flex-start;
+              justify-content: space-between;
+              gap: 2mm;
+              padding-bottom: 1.5mm;
+              border-bottom: 1px solid #cbd5e1;
             }
 
             h1 {
-              font-size: 22px;
-              margin-bottom: 8px;
+              margin: 0;
+              font-size: 11px;
+              line-height: 1.2;
             }
 
             .subtitle {
+              margin: 0.8mm 0 0;
               color: #64748b;
-              margin-bottom: 30px;
+              font-size: 7px;
             }
 
-            .info {
+            .reference {
+              max-width: 38mm;
+              color: #334155;
+              font-size: 6.5px;
+              font-weight: 700;
+              line-height: 1.2;
+              text-align: right;
+              overflow-wrap: anywhere;
+            }
+
+            .candidat {
+              min-height: 7mm;
+              margin-top: 1.5mm;
+              padding: 1.2mm 1.5mm;
               border: 1px solid #cbd5e1;
-              border-radius: 8px;
-              padding: 16px;
-              margin-bottom: 25px;
+              border-radius: 1mm;
+              font-size: 8px;
+              line-height: 1.25;
             }
 
             .documents {
-              margin-top: 20px;
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              column-gap: 2mm;
+              margin-top: 1.5mm;
             }
 
             .document {
               display: flex;
-              gap: 10px;
-              padding: 10px 0;
+              align-items: center;
+              gap: 1.5mm;
+              min-height: 7mm;
+              padding: 1mm 0;
               border-bottom: 1px solid #e2e8f0;
+              font-size: 7.5px;
+              line-height: 1.15;
             }
 
             .checkbox {
-              width: 16px;
-              height: 16px;
+              width: 3.2mm;
+              height: 3.2mm;
+              flex: 0 0 3.2mm;
               border: 1px solid #334155;
               display: inline-block;
             }
 
-            .signature {
-              margin-top: 55px;
-              display: flex;
-              justify-content: space-between;
-            }
+            @media screen {
+              body {
+                padding: 6mm;
+                background: #e2e8f0;
+              }
 
-            .signature div {
-              width: 42%;
-              border-top: 1px solid #334155;
-              padding-top: 8px;
-              text-align: center;
+              .planche {
+                max-width: 198mm;
+                margin: 0 auto;
+                padding: 0;
+                background: #ffffff;
+              }
             }
           </style>
         </head>
 
         <body>
-          <h1>
-            Liste des documents à fournir
-          </h1>
-
-          <p class="subtitle">
-            Processus de recrutement
-          </p>
-
-          <div class="info">
-            <p>
-              <strong>Candidat :</strong>
-              ${nomCandidat}
-            </p>
-
-            <p>
-              <strong>Poste :</strong>
-              ${
-                recrutement?.poste_nom ||
-                recrutement?.poste ||
-                "—"
-              }
-            </p>
-
-            <p>
-              <strong>Référence :</strong>
-              ${
-                recrutement?.reference ||
-                "—"
-              }
-            </p>
-          </div>
-
-          <div class="documents">
-            <div class="document">
-              <span class="checkbox"></span>
-              Copie de la carte d’identité
-            </div>
-
-            <div class="document">
-              <span class="checkbox"></span>
-              Curriculum vitae
-            </div>
-
-            <div class="document">
-              <span class="checkbox"></span>
-              Copies des diplômes
-            </div>
-
-            <div class="document">
-              <span class="checkbox"></span>
-              Certificats de travail
-            </div>
-
-            <div class="document">
-              <span class="checkbox"></span>
-              Photo d’identité
-            </div>
-
-            <div class="document">
-              <span class="checkbox"></span>
-              Certificat de résidence
-            </div>
-
-            <div class="document">
-              <span class="checkbox"></span>
-              Casier judiciaire
-            </div>
-
-            <div class="document">
-              <span class="checkbox"></span>
-              Certificat médical
-            </div>
-          </div>
-
-          <div class="signature">
-            <div>Signature RH</div>
-            <div>Signature du candidat</div>
-          </div>
+          <main class="planche">
+            ${contenuFiche.repeat(6)}
+          </main>
         </body>
       </html>
     `;

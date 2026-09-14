@@ -68,7 +68,7 @@ function extensionFichier(nom) {
 }
 
 function formatDate(value) {
-  if (!value) return "—";
+  if (!value) return "â€”";
 
   const date = new Date(
     `${value}T00:00:00`
@@ -106,7 +106,15 @@ function fichierTestUrl(candidat) {
   );
 }
 
+function candidatActif(candidat) {
+  return candidat.statut !== "DESISTE";
+}
+
 function candidatRecu(candidat) {
+  if (!candidatActif(candidat)) {
+    return false;
+  }
+
   return (
     candidat.statut === "RECU" ||
     candidat.statut === "EMBAUCHE" ||
@@ -175,16 +183,6 @@ export default function EtapeSuiviCandidatures({
 
   const [recherche, setRecherche] =
     useState("");
-
-  const [
-    confirmationListe,
-    setConfirmationListe,
-  ] = useState(
-    Boolean(
-      recrutement
-        ?.liste_candidats_confirmee
-    )
-  );
 
   const [
     observations,
@@ -257,6 +255,11 @@ export default function EtapeSuiviCandidatures({
     chargerCandidats();
   }, [recrutement.id]);
 
+  const candidatsActifs = useMemo(
+    () => candidats.filter(candidatActif),
+    [candidats]
+  );
+
   const candidatsFiltres =
     useMemo(() => {
       const texte = recherche
@@ -264,10 +267,10 @@ export default function EtapeSuiviCandidatures({
         .toLowerCase();
 
       if (!texte) {
-        return candidats;
+        return candidatsActifs;
       }
 
-      return candidats.filter(
+      return candidatsActifs.filter(
         (candidat) => {
           const contenu = [
             candidat.nom,
@@ -285,14 +288,14 @@ export default function EtapeSuiviCandidatures({
           );
         }
       );
-    }, [candidats, recherche]);
+    }, [candidatsActifs, recherche]);
 
   const nombreRecus = useMemo(
     () =>
-      candidats.filter(
+      candidatsActifs.filter(
         candidatRecu
       ).length,
-    [candidats]
+    [candidatsActifs]
   );
 
   const modifierNouveauCandidat = (
@@ -323,7 +326,7 @@ export default function EtapeSuiviCandidatures({
         .dateCandidature
     ) {
       setErreur(
-        "Le nom, le prénom et la date de candidature sont obligatoires."
+        "Le nom, le prÃ©nom et la date de candidature sont obligatoires."
       );
 
       return;
@@ -354,14 +357,12 @@ export default function EtapeSuiviCandidatures({
 
       setAfficherFormulaire(false);
 
-      setConfirmationListe(false);
-
       setMessage(
-        "Le candidat a été ajouté."
+        "Le candidat a Ã©tÃ© ajoutÃ©."
       );
     } catch (error) {
       console.error(
-        "Erreur d’ajout du candidat :",
+        "Erreur dâ€™ajout du candidat :",
         error
       );
 
@@ -405,10 +406,8 @@ export default function EtapeSuiviCandidatures({
           )
       );
 
-      setConfirmationListe(false);
-
       setMessage(
-        "Le candidat a été supprimé."
+        "Le candidat a Ã©tÃ© supprimÃ©."
       );
     } catch (error) {
       console.error(
@@ -441,7 +440,7 @@ export default function EtapeSuiviCandidatures({
       )
     ) {
       setErreur(
-        "La fiche de test doit être au format PDF, PNG, JPG ou JPEG."
+        "La fiche de test doit Ãªtre au format PDF, PNG, JPG ou JPEG."
       );
 
       return;
@@ -452,7 +451,7 @@ export default function EtapeSuiviCandidatures({
       TAILLE_MAXIMALE
     ) {
       setErreur(
-        "La fiche de test ne doit pas dépasser 10 Mo."
+        "La fiche de test ne doit pas dÃ©passer 10 Mo."
       );
 
       return;
@@ -484,14 +483,12 @@ export default function EtapeSuiviCandidatures({
           )
       );
 
-      setConfirmationListe(false);
-
       setMessage(
-        "La fiche de test a été enregistrée. Le candidat est reçu."
+        "La fiche de test a Ã©tÃ© enregistrÃ©e. Le candidat est reÃ§u."
       );
     } catch (error) {
       console.error(
-        "Erreur d’ajout de la fiche :",
+        "Erreur dâ€™ajout de la fiche :",
         error
       );
 
@@ -507,7 +504,7 @@ export default function EtapeSuiviCandidatures({
     async (candidat) => {
       const confirmation =
         window.confirm(
-          "Retirer la fiche de test ? Le candidat passera au statut non reçu."
+          "Retirer la fiche de test ? Le candidat passera au statut non reÃ§u."
         );
 
       if (!confirmation) return;
@@ -537,10 +534,8 @@ export default function EtapeSuiviCandidatures({
             )
         );
 
-        setConfirmationListe(false);
-
         setMessage(
-          "La fiche de test a été retirée."
+          "La fiche de test a Ã©tÃ© retirÃ©e."
         );
       } catch (error) {
         console.error(
@@ -600,7 +595,7 @@ export default function EtapeSuiviCandidatures({
         URL.revokeObjectURL(url);
       } catch (error) {
         console.error(
-          "Erreur de téléchargement Excel :",
+          "Erreur de tÃ©lÃ©chargement Excel :",
           error
         );
 
@@ -621,7 +616,7 @@ export default function EtapeSuiviCandidatures({
     setMessage("");
 
     if (
-      candidats.length === 0
+      candidatsActifs.length === 0
     ) {
       setErreur(
         "Ajoutez au moins un candidat."
@@ -632,15 +627,7 @@ export default function EtapeSuiviCandidatures({
 
     if (nombreRecus === 0) {
       setErreur(
-        "Ajoutez au moins une fiche de test. Aucun candidat n’est reçu."
-      );
-
-      return;
-    }
-
-    if (!confirmationListe) {
-      setErreur(
-        "Confirmez que la liste des candidats est complète."
+        "Ajoutez au moins une fiche de test. Aucun candidat nâ€™est reÃ§u."
       );
 
       return;
@@ -658,30 +645,24 @@ export default function EtapeSuiviCandidatures({
         });
 
       setMessage(
-        "Le suivi des candidatures a été confirmé."
+        "Le suivi des candidatures a Ã©tÃ© confirmÃ©."
       );
 
       const candidatsRetenus =
-        candidats.filter(
-          (candidat) =>
-            candidat.statut === "RECU" ||
-            candidat.statut === "EMBAUCHE" ||
-            Boolean(
-              candidat.fiche_test ||
-              candidat.fiche_test_url
-            )
+        candidatsActifs.filter(
+          candidatRecu
         );
 
         onComplete?.({
           etape: 4,
 
           suiviCandidatures: {
-            candidats,
+            candidats: candidatsActifs,
             candidatsRetenus,
             observations,
 
             nombreCandidats:
-              candidats.length,
+              candidatsActifs.length,
 
             nombreRecus:
               candidatsRetenus.length,
@@ -706,7 +687,7 @@ export default function EtapeSuiviCandidatures({
       onSubmit={handleSubmit}
       className="space-y-5"
     >
-      {/* Résumé */}
+      {/* RÃ©sumÃ© */}
       <section className="flex flex-col justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center">
         <div className="flex items-center gap-3">
           <div className="rounded-lg bg-blue-100 p-2.5 text-blue-700">
@@ -715,11 +696,11 @@ export default function EtapeSuiviCandidatures({
 
           <div>
             <p className="font-semibold text-slate-900">
-              {candidats.length} candidat(s)
+              {candidatsActifs.length} candidat(s)
             </p>
 
             <p className="text-xs text-slate-500">
-              {nombreRecus} reçu(s) avec
+              {nombreRecus} reÃ§u(s) avec
               une fiche de test
             </p>
           </div>
@@ -818,7 +799,7 @@ export default function EtapeSuiviCandidatures({
             />
 
             <ChampCandidat
-              label="Prénom"
+              label="PrÃ©nom"
               name="prenom"
               value={
                 nouveauCandidat.prenom
@@ -830,7 +811,7 @@ export default function EtapeSuiviCandidatures({
             />
 
             <ChampCandidat
-              label="Téléphone"
+              label="TÃ©lÃ©phone"
               name="telephone"
               value={
                 nouveauCandidat.telephone
@@ -872,7 +853,7 @@ export default function EtapeSuiviCandidatures({
               </label>
 
               <input
-                value="Récupérée automatiquement après l’enregistrement"
+                value="RÃ©cupÃ©rÃ©e automatiquement aprÃ¨s lâ€™enregistrement"
                 disabled
                 className="
                   w-full cursor-not-allowed
@@ -995,7 +976,7 @@ export default function EtapeSuiviCandidatures({
                   </th>
 
                   <th className="px-4 py-3">
-                    Résultat
+                    RÃ©sultat
                   </th>
 
                   <th className="px-4 py-3 text-right">
@@ -1038,7 +1019,7 @@ export default function EtapeSuiviCandidatures({
 
                         <td className="px-4 py-4 text-sm text-slate-600">
                           {candidat.telephone ||
-                            "—"}
+                            "â€”"}
                         </td>
 
                         <td className="px-4 py-4 text-sm text-slate-600">
@@ -1049,7 +1030,7 @@ export default function EtapeSuiviCandidatures({
 
                         <td className="px-4 py-4 text-sm text-slate-600">
                           {candidat.source ||
-                            "Offre publiée"}
+                            "Offre publiÃ©e"}
                         </td>
 
                         <td className="px-4 py-4">
@@ -1152,8 +1133,8 @@ export default function EtapeSuiviCandidatures({
                             {candidatRecu(
                               candidat
                             )
-                              ? "Reçu"
-                              : "Non reçu"}
+                              ? "ReÃ§u"
+                              : "Non reÃ§u"}
                           </span>
                         </td>
 
@@ -1187,7 +1168,7 @@ export default function EtapeSuiviCandidatures({
                       colSpan={7}
                       className="px-5 py-10 text-center text-sm text-slate-500"
                     >
-                      Aucun candidat trouvé.
+                      Aucun candidat trouvÃ©.
                     </td>
                   </tr>
                 )}
@@ -1204,9 +1185,9 @@ export default function EtapeSuiviCandidatures({
         </h3>
 
         <p className="mt-1 text-sm text-slate-500">
-          La génération du fichier est
+          La gÃ©nÃ©ration du fichier est
           facultative et ne bloque pas la
-          validation de l’étape.
+          validation de lâ€™Ã©tape.
         </p>
 
         <button
@@ -1214,7 +1195,7 @@ export default function EtapeSuiviCandidatures({
           onClick={telechargerExcel}
           disabled={
             telechargement ||
-            candidats.length === 0
+            candidatsActifs.length === 0
           }
           className="
             mt-4 inline-flex
@@ -1236,14 +1217,14 @@ export default function EtapeSuiviCandidatures({
             <Download size={17} />
           )}
 
-          Télécharger le fichier Excel
+          TÃ©lÃ©charger le fichier Excel
         </button>
       </section>
 
       {/* Observations */}
       <section className="rounded-xl border border-slate-200 bg-white p-5">
         <label className="mb-1.5 block text-sm font-medium text-slate-700">
-          Observations générales
+          Observations gÃ©nÃ©rales
         </label>
 
         <textarea
@@ -1270,43 +1251,13 @@ export default function EtapeSuiviCandidatures({
         />
       </section>
 
-      {/* Confirmation */}
-      <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
-        <input
-          type="checkbox"
-          checked={confirmationListe}
-          onChange={(event) => {
-            setConfirmationListe(
-              event.target.checked
-            );
-
-            setErreur("");
-          }}
-          className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600"
-        />
-
-        <div>
-          <p className="text-sm font-semibold text-amber-900">
-            Je confirme la liste des
-            candidats
-          </p>
-
-          <p className="mt-1 text-xs text-amber-700">
-            Seuls les candidats ayant une
-            fiche de test passeront au
-            Retour RH.
-          </p>
-        </div>
-      </label>
-
       <div className="flex justify-end">
         <button
           type="submit"
           disabled={
             isSubmitting ||
-            candidats.length === 0 ||
-            nombreRecus === 0 ||
-            !confirmationListe
+            candidatsActifs.length === 0 ||
+            nombreRecus === 0
           }
           className="
             inline-flex items-center

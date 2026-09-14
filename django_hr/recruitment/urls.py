@@ -18,7 +18,8 @@ from .views import (
     DocumentCandidatViewSet,
     EmbaucheViewSet,
     CompteRenduEntretienCadreViewSet,
-    TachePreparationEmbaucheViewSet
+    TachePreparationEmbaucheViewSet,
+    DesistementEmbaucheViewSet,
 )
 
 
@@ -88,6 +89,12 @@ router.register(
     r"taches-preparation",
     TachePreparationEmbaucheViewSet,
     basename="tache-preparation",
+)
+
+router.register(
+    r"desistements",
+    DesistementEmbaucheViewSet,
+    basename="desistement-embauche",
 )
 
 

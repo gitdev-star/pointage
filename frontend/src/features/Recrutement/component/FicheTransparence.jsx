@@ -1,4 +1,5 @@
 import React, {
+  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -108,40 +109,34 @@ export default function EtapeFicheTransparence({
   recrutement,
   onComplete,
 }) {
-  const ficheExistante =
-    recrutement?.ficheTransparence ||
-    recrutement?.fiche_transparence ||
-    null;
+  const processusId =
+    recrutement?.id ||
+    recrutement?.processus_id;
+
+  const fichesInitiales =
+    recrutement?.fiches_transparence ||
+    (recrutement?.fiche_transparence
+      ? [recrutement.fiche_transparence]
+      : []);
+
+  const [fiches, setFiches] =
+    useState(fichesInitiales);
+
+  const [chargementFiches, setChargementFiches] =
+    useState(true);
 
   const [
     dateFiche,
     setDateFiche,
-  ] = useState(
-    ficheExistante?.date_fiche ||
-    dateDuJour()
-  );
+  ] = useState(dateDuJour());
 
   const [lieu, setLieu] =
-    useState(
-      ficheExistante?.lieu || ""
-    );
+    useState("");
 
   const [
     observations,
     setObservations,
-  ] = useState(
-    ficheExistante?.observations ||
-    ""
-  );
-
-  const [
-    originalSigne,
-    setOriginalSigne,
-  ] = useState(
-    Boolean(
-      ficheExistante?.original_signe
-    )
-  );
+  ] = useState("");
 
   const [fichier, setFichier] =
     useState(null);
@@ -165,20 +160,42 @@ export default function EtapeFicheTransparence({
       );
     }, [recrutement]);
 
-  const fichierExistantUrl =
-    ficheExistante?.fichier_url ||
-    ficheExistante?.fichier ||
-    null;
+  useEffect(() => {
+    let actif = true;
 
-  const nomFichierExistant =
-    fichierExistantUrl
-      ? decodeURIComponent(
-          fichierExistantUrl
-            .split("/")
-            .pop()
-            .split("?")[0]
-        )
-      : "";
+    async function chargerFiches() {
+      if (!processusId) {
+        setChargementFiches(false);
+        return;
+      }
+
+      try {
+        const resultat =
+          await recrutementApi
+            .obtenirFichesTransparence({
+              processus: processusId,
+            });
+
+        if (actif) {
+          setFiches(resultat.fiches || []);
+        }
+      } catch (error) {
+        if (actif) {
+          setErreur(obtenirErreur(error));
+        }
+      } finally {
+        if (actif) {
+          setChargementFiches(false);
+        }
+      }
+    }
+
+    chargerFiches();
+
+    return () => {
+      actif = false;
+    };
+  }, [processusId]);
 
   const modifierChamp = (
     callback,
@@ -214,7 +231,7 @@ export default function EtapeFicheTransparence({
       setFichier(null);
 
       setErreur(
-        "Formats autorisés : PDF, PNG, JPG ou JPEG."
+        "Formats autorisÃ©s : PDF, PNG, JPG ou JPEG."
       );
 
       return;
@@ -227,7 +244,7 @@ export default function EtapeFicheTransparence({
       setFichier(null);
 
       setErreur(
-        "Le fichier ne doit pas dépasser 10 Mo."
+        "Le fichier ne doit pas dÃ©passer 10 Mo."
       );
 
       return;
@@ -260,20 +277,9 @@ export default function EtapeFicheTransparence({
       return;
     }
 
-    if (
-      !fichier &&
-      !fichierExistantUrl
-    ) {
+    if (!fichier) {
       setErreur(
         "Le fichier de la fiche de transparence est obligatoire."
-      );
-
-      return;
-    }
-
-    if (!originalSigne) {
-      setErreur(
-        "Confirmez que la fiche originale est remplie et signée."
       );
 
       return;
@@ -285,12 +291,8 @@ export default function EtapeFicheTransparence({
       const fiche =
         await recrutementApi
           .enregistrerFicheTransparence({
-            ficheId:
-              ficheExistante?.id ||
-              null,
-
             processusId:
-              recrutement.id,
+              processusId,
 
             dateFiche,
 
@@ -301,20 +303,21 @@ export default function EtapeFicheTransparence({
             observations:
               observations.trim(),
 
-            originalSigne,
+            originalSigne: true,
           });
 
-      setMessage(
-        ficheExistante
-          ? "La fiche de transparence a été mise à jour."
-          : "La fiche de transparence a été enregistrée."
-      );
+      setFiches((precedentes) => [
+        fiche,
+        ...precedentes,
+      ]);
 
-      onComplete?.({
-        etape: 3,
-        ficheTransparence:
-          fiche,
-      });
+      setDateFiche(dateDuJour());
+      setLieu("");
+      setFichier(null);
+      setObservations("");
+      setMessage(
+        "La nouvelle fiche de transparence a Ã©tÃ© ajoutÃ©e."
+      );
     } catch (error) {
       console.error(
         "Erreur fiche de transparence :",
@@ -351,7 +354,7 @@ export default function EtapeFicheTransparence({
         </div>
       )}
 
-      {/* Résumé */}
+      {/* RÃ©sumÃ© */}
       <div className="flex flex-col justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center">
         <div className="flex items-center gap-3">
           <div className="rounded-lg bg-blue-100 p-2.5 text-blue-700">
@@ -364,7 +367,7 @@ export default function EtapeFicheTransparence({
             </p>
 
             <p className="text-xs text-slate-500">
-              {recrutement.reference} ·{" "}
+              {recrutement.reference} Â·{" "}
               {recrutement.poste}
             </p>
           </div>
@@ -381,6 +384,75 @@ export default function EtapeFicheTransparence({
           </span>
         </div>
       </div>
+
+      {/* Historique des fiches */}
+      <section className="rounded-xl border border-slate-200 bg-white p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="font-semibold text-slate-900">
+              Fiches dÃ©jÃ  enregistrÃ©es
+            </h3>
+            <p className="mt-1 text-sm text-slate-500">
+              Les anciennes fiches sont conservÃ©es et ne sont jamais remplacÃ©es.
+            </p>
+          </div>
+
+          <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
+            {fiches.length} fiche(s)
+          </span>
+        </div>
+
+        {chargementFiches ? (
+          <div className="mt-4 flex items-center gap-2 text-sm text-slate-500">
+            <Loader2 size={16} className="animate-spin" />
+            Chargement des fiches...
+          </div>
+        ) : fiches.length === 0 ? (
+          <p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-500">
+            Aucune fiche de transparence enregistrÃ©e.
+          </p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {fiches.map((fiche, index) => {
+              const url = fiche.fichier_url || fiche.fichier;
+              const nom = url
+                ? decodeURIComponent(url.split("/").pop().split("?")[0])
+                : `Fiche ${fiches.length - index}`;
+
+              return (
+                <div
+                  key={fiche.id}
+                  className="flex flex-col justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <IconeFichier nom={nom} />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-800">
+                        {nom}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {fiche.date_fiche} Â· {fiche.lieu_libelle || fiche.lieu}
+                      </p>
+                    </div>
+                  </div>
+
+                  {url && (
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold text-blue-700"
+                    >
+                      <ExternalLink size={16} />
+                      Ouvrir
+                    </a>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       {/* Informations */}
       <section className="rounded-xl border border-slate-200 bg-white p-5">
@@ -448,7 +520,7 @@ export default function EtapeFicheTransparence({
               "
             >
               <option value="">
-                Sélectionner un site
+                SÃ©lectionner un site
               </option>
 
               <option value="SITE_1">
@@ -470,7 +542,7 @@ export default function EtapeFicheTransparence({
       {/* Fichier */}
       <section className="rounded-xl border border-slate-200 bg-white p-5">
         <h3 className="font-semibold text-slate-900">
-          Document numérisé
+          Document numÃ©risÃ©
         </h3>
 
         <p className="mt-1 text-sm text-slate-500">
@@ -499,13 +571,11 @@ export default function EtapeFicheTransparence({
             />
 
             <p className="mt-3 text-sm font-semibold text-slate-800">
-              {fichierExistantUrl
-                ? "Remplacer le fichier"
-                : "Sélectionner le fichier"}
+              SÃ©lectionner une nouvelle fiche
             </p>
 
             <p className="mt-1 text-xs text-slate-500">
-              PDF, PNG, JPG ou JPEG —
+              PDF, PNG, JPG ou JPEG â€”
               10 Mo maximum
             </p>
 
@@ -558,42 +628,6 @@ export default function EtapeFicheTransparence({
           </div>
         )}
 
-        {fichierExistantUrl &&
-          !fichier && (
-            <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4">
-              <div className="flex min-w-0 items-center gap-3">
-                <IconeFichier
-                  nom={
-                    nomFichierExistant
-                  }
-                />
-
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-blue-900">
-                    {nomFichierExistant ||
-                      "Fiche enregistrée"}
-                  </p>
-
-                  <p className="mt-1 text-xs text-blue-700">
-                    Fichier actuellement
-                    enregistré
-                  </p>
-                </div>
-              </div>
-
-              <a
-                href={fichierExistantUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold text-blue-700"
-              >
-                <ExternalLink
-                  size={16}
-                />
-                Ouvrir
-              </a>
-            </div>
-          )}
       </section>
 
       {/* Observations */}
@@ -625,34 +659,6 @@ export default function EtapeFicheTransparence({
         />
       </section>
 
-      {/* Confirmation */}
-      <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
-        <input
-          type="checkbox"
-          checked={originalSigne}
-          onChange={(event) =>
-            modifierChamp(
-              setOriginalSigne,
-              event.target.checked
-            )
-          }
-          className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600"
-        />
-
-        <div>
-          <p className="text-sm font-semibold text-amber-900">
-            Je confirme que la fiche
-            originale est remplie et signée
-          </p>
-
-          <p className="mt-1 text-xs text-amber-700">
-            Le document papier original
-            devra être conservé dans les
-            archives RH.
-          </p>
-        </div>
-      </label>
-
       <div className="flex justify-end">
         <button
           type="submit"
@@ -660,9 +666,7 @@ export default function EtapeFicheTransparence({
             isSubmitting ||
             !dateFiche ||
             !lieu ||
-            (!fichier &&
-              !fichierExistantUrl) ||
-            !originalSigne
+            !fichier
           }
           className="
             inline-flex items-center
@@ -686,9 +690,31 @@ export default function EtapeFicheTransparence({
 
           {isSubmitting
             ? "Enregistrement..."
-            : ficheExistante
-              ? "Mettre à jour et continuer"
-              : "Enregistrer et continuer"}
+            : "Ajouter cette fiche"}
+        </button>
+      </div>
+
+      <div className="flex justify-end border-t border-slate-200 pt-5">
+        <button
+          type="button"
+          disabled={
+            isSubmitting ||
+            chargementFiches ||
+            fiches.length === 0
+          }
+          onClick={() =>
+            onComplete?.({
+              etape: 3,
+              ficheTransparence:
+                fiches[0],
+              fichesTransparence:
+                fiches,
+            })
+          }
+          className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <CheckCircle2 size={17} />
+          Continuer vers le suivi des candidatures
         </button>
       </div>
     </form>

@@ -1,8 +1,24 @@
+# from rest_framework import serializers
+# from .models import HRProfile
+
+
+# class HRProfileSerializer(serializers.ModelSerializer):
+#     all_permissions = serializers.DictField(read_only=True)
+#     visible_modules = serializers.ListField(read_only=True)
+#     factory_name    = serializers.CharField(source="factory.name",    read_only=True)
+#     department_name = serializers.CharField(source="department.name", read_only=True)
+
+#     class Meta:
+#         model  = HRProfile
+#         fields = "__all__"
+
 from rest_framework import serializers
 
 from employees.models import Employee
 
 from .models import HRProfile
+
+from django.db import transaction
 
 
 class HRProfileSerializer(
@@ -45,6 +61,114 @@ class HRProfileSerializer(
     factory_employe_nom = (
         serializers.SerializerMethodField()
     )
+
+    def validate(self, attrs):
+        responsable = attrs.get(
+            "is_recruitment_responsible",
+            getattr(
+                self.instance,
+                "is_recruitment_responsible",
+                False,
+            ),
+        )
+
+        email = attrs.get(
+            "email",
+            getattr(
+                self.instance,
+                "email",
+                "",
+            ),
+        )
+
+        is_active = attrs.get(
+            "is_active",
+            getattr(
+                self.instance,
+                "is_active",
+                True,
+            ),
+        )
+
+        is_director = attrs.get(
+            "is_director",
+            getattr(
+                self.instance,
+                "is_director",
+                False,
+            ),
+        )
+
+        if responsable and not str(email).strip():
+            raise serializers.ValidationError(
+                {
+                    "is_recruitment_responsible": (
+                        "Le responsable du recrutement "
+                        "doit avoir une adresse e-mail."
+                    )
+                }
+            )
+
+        if responsable and not is_active:
+            raise serializers.ValidationError(
+                {
+                    "is_recruitment_responsible": (
+                        "Le responsable du recrutement "
+                        "doit avoir un profil actif."
+                    )
+                }
+            )
+
+        if responsable and is_director:
+            raise serializers.ValidationError(
+                {
+                    "is_recruitment_responsible": (
+                        "Le directeur ne peut pas être désigné "
+                        "comme responsable du recrutement."
+                    )
+                }
+            )
+
+        return attrs
+
+
+    @transaction.atomic
+    def create(self, validated_data):
+        nouveau_responsable = validated_data.get(
+            "is_recruitment_responsible",
+            False,
+        )
+
+        if nouveau_responsable:
+            HRProfile.objects.filter(
+                is_recruitment_responsible=True,
+            ).update(
+                is_recruitment_responsible=False,
+            )
+
+        return super().create(validated_data)
+
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        nouveau_responsable = validated_data.get(
+            "is_recruitment_responsible",
+            instance.is_recruitment_responsible,
+        )
+
+        if nouveau_responsable:
+            HRProfile.objects.filter(
+                is_recruitment_responsible=True,
+            ).exclude(
+                pk=instance.pk,
+            ).update(
+                is_recruitment_responsible=False,
+            )
+
+        return super().update(
+            instance,
+            validated_data,
+        )
 
     class Meta:
         model = HRProfile

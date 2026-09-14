@@ -22,7 +22,7 @@ const NOMBRE_ETAPES = 6;
 
 const STATUS_CONFIG = {
   A_DEMARRER: {
-    label: "À démarrer",
+    label: "Ã€ dÃ©marrer",
     className:
       "border-blue-200 bg-blue-50 text-blue-700",
     icon: CirclePlay,
@@ -36,7 +36,7 @@ const STATUS_CONFIG = {
   },
 
   TERMINE: {
-    label: "Terminé",
+    label: "TerminÃ©",
     className:
       "border-emerald-200 bg-emerald-50 text-emerald-700",
     icon: CheckCircle2,
@@ -44,12 +44,12 @@ const STATUS_CONFIG = {
 };
 
 function formatDate(value) {
-  if (!value) return "—";
+  if (!value) return "â€”";
 
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return "—";
+    return "â€”";
   }
 
   return new Intl.DateTimeFormat("fr-FR", {
@@ -89,7 +89,7 @@ function obtenirTypesContrats(demande) {
       nombre: Number(demande.nombre_stage || 0),
     },
     {
-      label: "Intérim",
+      label: "IntÃ©rim",
       nombre: Number(demande.nombre_interim || 0),
     },
     {
@@ -113,7 +113,7 @@ function obtenirTypesContrats(demande) {
 
   return contratsActifs.length > 0
     ? contratsActifs.join(", ")
-    : "—";
+    : "â€”";
 }
 
 function obtenirEtapesTerminees(processus) {
@@ -184,12 +184,12 @@ function normaliserProcessus(processus) {
       demande.poste_nom ||
       demande.designation_poste ||
       processus.poste_nom ||
-      "Poste non renseigné",
+      "Poste non renseignÃ©",
 
     departement:
       demande.departement_nom ||
       processus.departement_nom ||
-      "Non renseigné",
+      "Non renseignÃ©",
 
     nombreARecruter:
       nombreDemande,
@@ -228,6 +228,24 @@ function normaliserProcessus(processus) {
       demande.date_validation ||
       processus.date_creation ||
       processus.created_at,
+
+    dateDemande:
+      processus.date_demande ||
+      demande.date_creation ||
+      null,
+
+    dateClotureInitiale:
+      processus.date_cloture_initiale ||
+      null,
+
+    dateRepriseRecrutement:
+      processus.date_reprise_recrutement ||
+      null,
+
+    dateClotureApresDesistement:
+      processus
+        .date_cloture_apres_desistement ||
+      null,
 
     etapesTerminees,
 
@@ -285,7 +303,7 @@ function Progression({
     <div className="min-w-[170px]">
       <div className="mb-1.5 flex justify-between text-xs">
         <span className="font-medium text-slate-600">
-          {nombreTerminees}/{total} étapes
+          {nombreTerminees}/{total} Ã©tapes
         </span>
 
         <span className="text-slate-400">
@@ -324,73 +342,71 @@ export default function ProcessusRecrutement() {
 
   const [erreur, setErreur] = useState("");
 
-  const chargerProcessus = useCallback(async () => {
-    setChargement(true);
-    setErreur("");
+const chargerProcessus = useCallback(async (
+  texteRecherche = ""
+) => {
+  setChargement(true);
+  setErreur("");
 
-    try {
-      const resultat =
-        await recrutementApi.obtenirProcessus();
+  try {
+    const rechercheServeur = String(
+      texteRecherche
+    ).trim();
 
-      const liste = Array.isArray(resultat)
-        ? resultat
-        : resultat?.processus || [];
-
-      setProcessus(
-        liste.map(normaliserProcessus)
-      );
-    } catch (error) {
-      console.error(
-        "Erreur de chargement des processus :",
-        error
+    const resultat =
+      await recrutementApi.obtenirProcessus(
+        rechercheServeur
+          ? { search: rechercheServeur }
+          : {}
       );
 
-      const messageBackend =
-        error.response?.data?.detail ||
-        error.response?.data?.message;
+    const liste = Array.isArray(resultat)
+      ? resultat
+      : resultat?.processus || [];
 
-      setErreur(
-        messageBackend ||
-          "Impossible de charger les processus de recrutement."
-      );
+    setProcessus(
+      liste.map(normaliserProcessus)
+    );
+  } catch (error) {
+    console.error(
+      "Erreur de chargement des processus :",
+      error
+    );
 
-      setProcessus([]);
-    } finally {
-      setChargement(false);
-    }
-  }, []);
+    setErreur(
+      error.response?.data?.detail ||
+      error.response?.data?.message ||
+      "Impossible de charger les processus de recrutement."
+    );
 
-  useEffect(() => {
-    chargerProcessus();
-  }, [chargerProcessus]);
+    setProcessus([]);
+  } finally {
+    setChargement(false);
+  }
+}, []);
+
+useEffect(() => {
+  const temporisateur = window.setTimeout(
+    () => {
+      chargerProcessus(recherche);
+    },
+    350
+  );
+
+  return () => {
+    window.clearTimeout(temporisateur);
+  };
+}, [chargerProcessus, recherche]);
 
   const processusFiltres = useMemo(() => {
-    const texte =
-      recherche.trim().toLowerCase();
-
     return processus.filter((item) => {
-      const correspondRecherche =
-        !texte ||
-        item.reference
-          .toLowerCase()
-          .includes(texte) ||
-        item.poste
-          .toLowerCase()
-          .includes(texte) ||
-        item.departement
-          .toLowerCase()
-          .includes(texte);
-
       const correspondStatut =
         statut === "TOUS" ||
         item.statut === statut;
 
-      return (
-        correspondRecherche &&
-        correspondStatut
-      );
+      return correspondStatut;
     });
-  }, [processus, recherche, statut]);
+  }, [processus, statut]);
 
   const ouvrirProcessus = (id) => {
     navigate(
@@ -443,7 +459,7 @@ export default function ProcessusRecrutement() {
   return (
     <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-7xl">
-        {/* En-tête */}
+        {/* En-tÃªte */}
         <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div className="flex items-center gap-3">
             <div className="rounded-xl bg-blue-100 p-3 text-blue-700">
@@ -464,7 +480,9 @@ export default function ProcessusRecrutement() {
 
           <button
             type="button"
-            onClick={chargerProcessus}
+            onClick={() =>
+              chargerProcessus(recherche)
+            }
             disabled={chargement}
             className="
               inline-flex items-center justify-center
@@ -503,7 +521,9 @@ export default function ProcessusRecrutement() {
 
               <button
                 type="button"
-                onClick={chargerProcessus}
+                onClick={() =>
+                  chargerProcessus(recherche)
+                }
                 className="mt-2 font-semibold underline"
               >
                 Réessayer
@@ -527,7 +547,7 @@ export default function ProcessusRecrutement() {
                   event.target.value
                 )
               }
-              placeholder="Rechercher par poste, référence ou département..."
+              placeholder="Rechercher par candidat, poste, référence ou département..."
               className="
                 w-full rounded-lg border
                 border-slate-300 py-2.5
@@ -555,7 +575,7 @@ export default function ProcessusRecrutement() {
             </option>
 
             <option value="A_DEMARRER">
-              À démarrer
+              Ã€ dÃ©marrer
             </option>
 
             <option value="EN_COURS">
@@ -584,7 +604,7 @@ export default function ProcessusRecrutement() {
           ) : (
             <>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[1450px]">
+                <table className="w-full min-w-[2050px]">
                   <thead className="bg-slate-100">
                     <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
                       <th className="px-5 py-4">
@@ -621,6 +641,22 @@ export default function ProcessusRecrutement() {
 
                       <th className="px-5 py-4">
                         Validation
+                      </th>
+
+                      <th className="px-5 py-4">
+                        Date de demande
+                      </th>
+
+                      <th className="px-5 py-4">
+                        Clôture initiale
+                      </th>
+
+                      <th className="px-5 py-4">
+                        Reprise
+                      </th>
+
+                      <th className="px-5 py-4">
+                        Clôture après reprise
                       </th>
 
                       <th className="px-5 py-4">
@@ -724,6 +760,31 @@ export default function ProcessusRecrutement() {
                             )}
                           </td>
 
+                          <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-600">
+                            {formatDate(
+                              item.dateDemande
+                            )}
+                          </td>
+
+                          <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-600">
+                            {formatDate(
+                              item.dateClotureInitiale
+                            )}
+                          </td>
+
+                          <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-600">
+                            {formatDate(
+                              item.dateRepriseRecrutement
+                            )}
+                          </td>
+
+                          <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-600">
+                            {formatDate(
+                              item
+                                .dateClotureApresDesistement
+                            )}
+                          </td>
+
                           <td className="px-5 py-4">
                             <Progression
                               terminees={
@@ -783,7 +844,7 @@ export default function ProcessusRecrutement() {
                           className="px-5 py-12 text-center text-sm text-slate-500"
                         >
                           Aucun processus de
-                          recrutement trouvé.
+                          recrutement trouvÃ©.
                         </td>
                       </tr>
                     )}
@@ -793,7 +854,7 @@ export default function ProcessusRecrutement() {
 
               <div className="border-t border-slate-200 bg-slate-50 px-5 py-3 text-sm text-slate-500">
                 {processusFiltres.length} processus
-                affiché(s)
+                affichÃ©(s)
               </div>
             </>
           )}
