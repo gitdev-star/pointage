@@ -68,7 +68,7 @@ function extensionFichier(nom) {
 }
 
 function formatDate(value) {
-  if (!value) return "â€”";
+  if (!value) return "-";
 
   const date = new Date(
     `${value}T00:00:00`
@@ -326,7 +326,7 @@ export default function EtapeSuiviCandidatures({
         .dateCandidature
     ) {
       setErreur(
-        "Le nom, le prÃ©nom et la date de candidature sont obligatoires."
+        "Le nom, le prénom et la date de candidature sont obligatoires."
       );
 
       return;
@@ -358,7 +358,7 @@ export default function EtapeSuiviCandidatures({
       setAfficherFormulaire(false);
 
       setMessage(
-        "Le candidat a Ã©tÃ© ajoutÃ©."
+        "Le candidat a été ajouté."
       );
     } catch (error) {
       console.error(
@@ -407,7 +407,7 @@ export default function EtapeSuiviCandidatures({
       );
 
       setMessage(
-        "Le candidat a Ã©tÃ© supprimÃ©."
+        "Le candidat a été supprimé."
       );
     } catch (error) {
       console.error(
@@ -451,7 +451,7 @@ export default function EtapeSuiviCandidatures({
       TAILLE_MAXIMALE
     ) {
       setErreur(
-        "La fiche de test ne doit pas dÃ©passer 10 Mo."
+        "La fiche de test ne doit pas dépasser 10 Mo."
       );
 
       return;
@@ -484,7 +484,7 @@ export default function EtapeSuiviCandidatures({
       );
 
       setMessage(
-        "La fiche de test a Ã©tÃ© enregistrÃ©e. Le candidat est reÃ§u."
+        "La fiche de test a été enregistrée. Le candidat est reÃ§u."
       );
     } catch (error) {
       console.error(
@@ -535,7 +535,7 @@ export default function EtapeSuiviCandidatures({
         );
 
         setMessage(
-          "La fiche de test a Ã©tÃ© retirÃ©e."
+          "La fiche de test a été retirée."
         );
       } catch (error) {
         console.error(
@@ -595,7 +595,7 @@ export default function EtapeSuiviCandidatures({
         URL.revokeObjectURL(url);
       } catch (error) {
         console.error(
-          "Erreur de tÃ©lÃ©chargement Excel :",
+          "Erreur de téléchargement Excel :",
           error
         );
 
@@ -645,7 +645,7 @@ export default function EtapeSuiviCandidatures({
         });
 
       setMessage(
-        "Le suivi des candidatures a Ã©tÃ© confirmÃ©."
+        "Le suivi des candidatures a été confirmé."
       );
 
       const candidatsRetenus =
@@ -687,7 +687,7 @@ export default function EtapeSuiviCandidatures({
       onSubmit={handleSubmit}
       className="space-y-5"
     >
-      {/* RÃ©sumÃ© */}
+      {/* Résumé */}
       <section className="flex flex-col justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center">
         <div className="flex items-center gap-3">
           <div className="rounded-lg bg-blue-100 p-2.5 text-blue-700">
@@ -799,7 +799,7 @@ export default function EtapeSuiviCandidatures({
             />
 
             <ChampCandidat
-              label="PrÃ©nom"
+              label="Prénom"
               name="prenom"
               value={
                 nouveauCandidat.prenom
@@ -811,7 +811,7 @@ export default function EtapeSuiviCandidatures({
             />
 
             <ChampCandidat
-              label="TÃ©lÃ©phone"
+              label="Téléphone"
               name="telephone"
               value={
                 nouveauCandidat.telephone
@@ -853,7 +853,7 @@ export default function EtapeSuiviCandidatures({
               </label>
 
               <input
-                value="RÃ©cupÃ©rÃ©e automatiquement aprÃ¨s lâ€™enregistrement"
+                value="Récupérée automatiquement aprÃ¨s lâ€™enregistrement"
                 disabled
                 className="
                   w-full cursor-not-allowed
@@ -976,7 +976,7 @@ export default function EtapeSuiviCandidatures({
                   </th>
 
                   <th className="px-4 py-3">
-                    RÃ©sultat
+                    Résultat
                   </th>
 
                   <th className="px-4 py-3 text-right">
@@ -1019,7 +1019,7 @@ export default function EtapeSuiviCandidatures({
 
                         <td className="px-4 py-4 text-sm text-slate-600">
                           {candidat.telephone ||
-                            "â€”"}
+                            "-"}
                         </td>
 
                         <td className="px-4 py-4 text-sm text-slate-600">
@@ -1030,7 +1030,7 @@ export default function EtapeSuiviCandidatures({
 
                         <td className="px-4 py-4 text-sm text-slate-600">
                           {candidat.source ||
-                            "Offre publiÃ©e"}
+                            "Offre publiée"}
                         </td>
 
                         <td className="px-4 py-4">
@@ -1168,7 +1168,7 @@ export default function EtapeSuiviCandidatures({
                       colSpan={7}
                       className="px-5 py-10 text-center text-sm text-slate-500"
                     >
-                      Aucun candidat trouvÃ©.
+                      Aucun candidat trouvé.
                     </td>
                   </tr>
                 )}
@@ -1185,9 +1185,9 @@ export default function EtapeSuiviCandidatures({
         </h3>
 
         <p className="mt-1 text-sm text-slate-500">
-          La gÃ©nÃ©ration du fichier est
+          La génération du fichier est
           facultative et ne bloque pas la
-          validation de lâ€™Ã©tape.
+          validation de lâ€™étape.
         </p>
 
         <button
@@ -1217,14 +1217,14 @@ export default function EtapeSuiviCandidatures({
             <Download size={17} />
           )}
 
-          TÃ©lÃ©charger le fichier Excel
+          Télécharger le fichier Excel
         </button>
       </section>
 
       {/* Observations */}
       <section className="rounded-xl border border-slate-200 bg-white p-5">
         <label className="mb-1.5 block text-sm font-medium text-slate-700">
-          Observations gÃ©nÃ©rales
+          Observations générales
         </label>
 
         <textarea

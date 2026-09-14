@@ -190,7 +190,7 @@ def envoyer_email(
         )
 
         logger.info(
-            "E-mail envoyÃ© Ã  %s : %s",
+            "E-mail envoyé à  %s : %s",
             ", ".join(
                 destinataires_valides
             ),
@@ -234,7 +234,7 @@ def emails_directeurs_rh():
 
 
 def emails_directeurs_recrutement():
-    """Adresses des directeurs chargÃ©s de la premiÃ¨re validation."""
+    """Adresses des directeurs chargés de la premiÃ¨re validation."""
 
     return list(
         HRProfile.objects
@@ -275,7 +275,7 @@ def notifier_processus_recrutement_cree(
 ):
     """
     Informe les responsables du recrutement aprÃ¨s
-    l'approbation du DRH et la crÃ©ation du processus.
+    l'approbation du DRH et la création du processus.
     """
 
     destinataires = (
@@ -297,7 +297,7 @@ def notifier_processus_recrutement_cree(
     poste = (
         demande.poste.name
         if demande.poste
-        else "Non renseignÃ©"
+        else "Non renseigné"
     )
 
     nombre_a_recruter = (
@@ -308,7 +308,7 @@ def notifier_processus_recrutement_cree(
     type_recrutement = (
         demande.get_type_recrutement_display()
         if demande.type_recrutement
-        else "Non renseignÃ©"
+        else "Non renseigné"
     )
 
     url_processus = (
@@ -317,20 +317,20 @@ def notifier_processus_recrutement_cree(
     )
 
     sujet = (
-        "[Recrutement] Nouveau processus disponible â€” "
+        "[Recrutement] Nouveau processus disponible - "
         f"{demande.reference}"
     )
 
     contenu_texte = (
         "Bonjour,\n\n"
-        "Une demande de recrutement a Ã©tÃ© approuvÃ©e par "
+        "Une demande de recrutement a été approuvée par "
         "le directeur et le DRH. Le processus de recrutement "
-        "a Ã©tÃ© crÃ©Ã© et peut maintenant Ãªtre pris en charge.\n\n"
-        f"RÃ©fÃ©rence : {demande.reference}\n"
+        "a été créé et peut maintenant Ãªtre pris en charge.\n\n"
+        f"Référence : {demande.reference}\n"
         f"Poste : {poste}\n"
         f"Type de recrutement : {type_recrutement}\n"
         f"Nombre Ã  recruter : {nombre_a_recruter}\n\n"
-        f"AccÃ©der au processus : {url_processus}\n"
+        f"Accéder au processus : {url_processus}\n"
     )
 
     contenu_html = f"""
@@ -366,7 +366,7 @@ def notifier_processus_recrutement_cree(
             <p>Bonjour,</p>
 
             <p>
-              La demande de recrutement a Ã©tÃ© approuvÃ©e par
+              La demande de recrutement a été approuvée par
               le directeur et le DRH. Le processus est maintenant
               disponible et peut Ãªtre pris en charge.
             </p>
@@ -436,24 +436,24 @@ def notifier_nouvelle_demande(
             .get_motif_remplacement_display()
         )
     else:
-        motif_remplacement = "â€”"
+        motif_remplacement = "-"
 
     poste = (
         demande.poste.name
         if demande.poste
-        else "Non renseignÃ©"
+        else "Non renseigné"
     )
 
     departement = (
         demande.departement.name
         if demande.departement
-        else "Non renseignÃ©"
+        else "Non renseigné"
     )
 
     site = (
         demande.factory.name
         if demande.factory
-        else "Non renseignÃ©"
+        else "Non renseigné"
     )
 
     url_validation = (
@@ -470,12 +470,12 @@ def notifier_nouvelle_demande(
     contenu_texte = (
         "Une nouvelle demande de recrutement "
         "attend votre validation.\n\n"
-        f"RÃ©fÃ©rence : {demande.reference}\n"
+        f"Référence : {demande.reference}\n"
         f"Demandeur : {demande.nom_demandeur}\n"
         "Matricule : "
         f"{demande.matricule_demandeur}\n"
-        f"Poste demandÃ© : {poste}\n"
-        f"DÃ©partement : {departement}\n"
+        f"Poste demandé : {poste}\n"
+        f"Département : {departement}\n"
         f"Site : {site}\n"
         f"Nombre CDI : {demande.nombre_cdi}\n"
         f"Nombre CDD : {demande.nombre_cdd}\n"
@@ -483,7 +483,7 @@ def notifier_nouvelle_demande(
         f"Motif : {motif}\n"
         "Motif du remplacement : "
         f"{motif_remplacement}\n"
-        "Date prÃ©vue : "
+        "Date prévue : "
         f"{demande.date_prevue_recrutement}\n"
         "\nPour consulter et traiter "
         "la demande :\n"
@@ -540,7 +540,7 @@ def notifier_nouvelle_demande(
                 <td style="{style_value()}">
                   {escape(
                       demande.nom_demandeur
-                      or "Non renseignÃ©"
+                      or "Non renseigné"
                   )}
                 </td>
               </tr>
@@ -552,14 +552,14 @@ def notifier_nouvelle_demande(
                 <td style="{style_value()}">
                   {escape(
                       demande.matricule_demandeur
-                      or "Non renseignÃ©"
+                      or "Non renseigné"
                   )}
                 </td>
               </tr>
 
               <tr>
                 <td style="{style_label()}">
-                  Poste demandÃ©
+                  Poste demandé
                 </td>
                 <td style="{style_value()}">
                   {escape(poste)}
@@ -568,7 +568,7 @@ def notifier_nouvelle_demande(
 
               <tr>
                 <td style="{style_label()}">
-                  DÃ©partement
+                  Département
                 </td>
                 <td style="{style_value()}">
                   {escape(departement)}
@@ -586,7 +586,7 @@ def notifier_nouvelle_demande(
 
               <tr>
                 <td style="{style_label()}">
-                  RÃ©partition
+                  Répartition
                 </td>
                 <td style="{style_value()}">
                   {demande.nombre_cdi} CDI /
@@ -623,7 +623,7 @@ def notifier_nouvelle_demande(
 
               <tr>
                 <td style="{style_label()}">
-                  Date prÃ©vue
+                  Date prévue
                 </td>
                 <td style="{style_value()}">
                   {demande.date_prevue_recrutement}
@@ -675,7 +675,7 @@ def notifier_validation_directeur_au_drh(
     demande,
 ):
     """
-    Informe le DRH que le directeur a validÃ© la demande
+    Informe le DRH que le directeur a validé la demande
     et que l'approbation finale est maintenant attendue.
     """
 
@@ -692,19 +692,19 @@ def notifier_validation_directeur_au_drh(
     poste = (
         demande.poste.name
         if demande.poste
-        else "Non renseignÃ©"
+        else "Non renseigné"
     )
 
     departement = (
         demande.departement.name
         if demande.departement
-        else "Non renseignÃ©"
+        else "Non renseigné"
     )
 
     site = (
         demande.factory.name
         if demande.factory
-        else "Non renseignÃ©"
+        else "Non renseigné"
     )
 
     validateur = ""
@@ -720,7 +720,7 @@ def notifier_validation_directeur_au_drh(
             or demande.decide_par.email
         )
 
-    validateur = validateur or "Directeur non renseignÃ©"
+    validateur = validateur or "Directeur non renseigné"
 
     url_approbation = (
         f"{settings.FRONTEND_URL.rstrip('/')}"
@@ -729,22 +729,22 @@ def notifier_validation_directeur_au_drh(
     )
 
     sujet = (
-        "[Recrutement] Approbation DRH requise â€” "
+        "[Recrutement] Approbation DRH requise - "
         f"{demande.reference}"
     )
 
     contenu_texte = (
-        "Le directeur a validÃ© une demande de recrutement.\n"
+        "Le directeur a validé une demande de recrutement.\n"
         "Votre approbation finale est maintenant requise.\n\n"
-        f"RÃ©fÃ©rence : {demande.reference}\n"
+        f"Référence : {demande.reference}\n"
         f"Demandeur : {demande.nom_demandeur}\n"
-        f"Poste demandÃ© : {poste}\n"
-        f"DÃ©partement : {departement}\n"
+        f"Poste demandé : {poste}\n"
+        f"Département : {departement}\n"
         f"Site : {site}\n"
         f"Nombre total : {demande.nombre_total}\n"
-        f"ValidÃ©e par : {validateur}\n"
+        f"Validée par : {validateur}\n"
         "Commentaire du directeur : "
-        f"{demande.motif_decision or 'â€”'}\n\n"
+        f"{demande.motif_decision or '-'}\n\n"
         "Pour approuver ou refuser la demande :\n"
         f"{url_approbation}\n"
     )
@@ -780,7 +780,7 @@ def notifier_validation_directeur_au_drh(
 
           <div style="padding: 24px;">
             <p>
-              Le directeur a validÃ© cette demande.
+              Le directeur a validé cette demande.
               Elle attend maintenant votre approbation finale.
             </p>
 
@@ -788,15 +788,15 @@ def notifier_validation_directeur_au_drh(
               <tr>
                 <td style="{style_label()}">Demandeur</td>
                 <td style="{style_value()}">
-                  {escape(demande.nom_demandeur or "Non renseignÃ©")}
+                  {escape(demande.nom_demandeur or "Non renseigné")}
                 </td>
               </tr>
               <tr>
-                <td style="{style_label()}">Poste demandÃ©</td>
+                <td style="{style_label()}">Poste demandé</td>
                 <td style="{style_value()}">{escape(poste)}</td>
               </tr>
               <tr>
-                <td style="{style_label()}">DÃ©partement</td>
+                <td style="{style_label()}">Département</td>
                 <td style="{style_value()}">{escape(departement)}</td>
               </tr>
               <tr>
@@ -808,13 +808,13 @@ def notifier_validation_directeur_au_drh(
                 <td style="{style_value()}">{demande.nombre_total}</td>
               </tr>
               <tr>
-                <td style="{style_label()}">ValidÃ©e par</td>
+                <td style="{style_label()}">Validée par</td>
                 <td style="{style_value()}">{escape(validateur)}</td>
               </tr>
               <tr>
                 <td style="{style_label()}">Commentaire</td>
                 <td style="{style_value()}">
-                  {escape(demande.motif_decision or "â€”")}
+                  {escape(demande.motif_decision or "-")}
                 </td>
               </tr>
             </table>
@@ -850,7 +850,7 @@ def notifier_decision_demande(
     demande,
 ):
     """
-    Informe le demandeur de la dÃ©cision prise
+    Informe le demandeur de la décision prise
     concernant sa demande.
     """
 
@@ -879,26 +879,26 @@ def notifier_decision_demande(
     poste = (
         demande.poste.name
         if demande.poste
-        else "Non renseignÃ©"
+        else "Non renseigné"
     )
 
     sujet = (
-        "[Recrutement] DÃ©cision concernant "
+        "[Recrutement] Décision concernant "
         f"{demande.reference}"
     )
 
     observation = (
         demande.commentaire_drh
         or demande.motif_decision
-        or "â€”"
+        or "-"
     )
 
     contenu_texte = (
-        "Une dÃ©cision a Ã©tÃ© prise concernant "
+        "Une décision a été prise concernant "
         "votre demande de recrutement.\n\n"
-        f"RÃ©fÃ©rence : {demande.reference}\n"
+        f"Référence : {demande.reference}\n"
         f"Poste : {poste}\n"
-        f"DÃ©cision : {statut}\n"
+        f"Décision : {statut}\n"
         "Observation : "
         f"{observation}\n"
     )
@@ -932,7 +932,7 @@ def notifier_decision_demande(
             color: white;
           ">
             <h2 style="margin: 0;">
-              DÃ©cision de recrutement
+              Décision de recrutement
             </h2>
 
             <p style="
@@ -955,7 +955,7 @@ def notifier_decision_demande(
             <p>
               Votre demande pour le poste
               <strong>{escape(poste)}</strong>
-              a reÃ§u la dÃ©cision suivante :
+              a reÃ§u la décision suivante :
             </p>
 
             <p style="
@@ -1007,7 +1007,7 @@ def envoyer_compte_rendu_cadre(
     if not destinataires:
         logger.warning(
             (
-                "Aucune adresse DRH configurÃ©e "
+                "Aucune adresse DRH configurée "
                 "pour le compte rendu %s."
             ),
             compte_rendu.pk,
@@ -1022,14 +1022,14 @@ def envoyer_compte_rendu_cadre(
     poste = (
         demande.poste.name
         if demande.poste
-        else "Non renseignÃ©"
+        else "Non renseigné"
     )
 
     decision = (
         compte_rendu
         .get_decision_finale_display()
         if compte_rendu.decision_finale
-        else "Non renseignÃ©e"
+        else "Non renseignée"
     )
 
     reference = (
@@ -1045,10 +1045,10 @@ def envoyer_compte_rendu_cadre(
     contenu_texte = (
         "Un compte rendu dâ€™entretien cadre "
         "est disponible.\n\n"
-        f"RÃ©fÃ©rence : {reference}\n"
+        f"Référence : {reference}\n"
         f"Candidat : {candidat.nom_complet}\n"
         f"Poste : {poste}\n"
-        f"DÃ©cision : {decision}\n\n"
+        f"Décision : {decision}\n\n"
         "Le compte rendu complet est joint "
         "Ã  cet e-mail au format PDF."
     )
@@ -1089,7 +1089,7 @@ def envoyer_compte_rendu_cadre(
           <div style="padding: 24px;">
             <p>
               Un nouveau compte rendu
-              dâ€™entretien a Ã©tÃ© validÃ©.
+              dâ€™entretien a été validé.
             </p>
 
             <table style="
@@ -1116,7 +1116,7 @@ def envoyer_compte_rendu_cadre(
 
               <tr>
                 <td style="{style_label()}">
-                  DÃ©cision
+                  Décision
                 </td>
                 <td style="{style_value()}">
                   <strong>
@@ -1145,7 +1145,7 @@ def envoyer_compte_rendu_cadre(
     except Exception:
         logger.exception(
             (
-                "Impossible de gÃ©nÃ©rer le PDF "
+                "Impossible de générer le PDF "
                 "du compte rendu %s."
             ),
             compte_rendu.pk,
@@ -1176,7 +1176,7 @@ def notifier_services_preparation_cadre(
 ):
     """
     Envoie un e-mail distinct aux services :
-    IT, ComptabilitÃ© et Responsable RH.
+    IT, Comptabilité et Responsable RH.
     """
 
     taches = list(taches)
@@ -1184,7 +1184,7 @@ def notifier_services_preparation_cadre(
     if not taches:
         logger.warning(
             (
-                "Aucune tÃ¢che de prÃ©paration "
+                "Aucune tÃ¢che de préparation "
                 "pour le candidat %s."
             ),
             candidat.pk,
@@ -1205,7 +1205,7 @@ def notifier_services_preparation_cadre(
             TachePreparationEmbauche
             .Service.COMPTABILITE
         ): {
-            "nom": "Service ComptabilitÃ©",
+            "nom": "Service Comptabilité",
             "destinataires": getattr(
                 settings,
                 (
@@ -1231,13 +1231,13 @@ def notifier_services_preparation_cadre(
     poste = (
         demande.poste.name
         if demande.poste
-        else "Non renseignÃ©"
+        else "Non renseigné"
     )
 
     site = (
         demande.factory.name
         if demande.factory
-        else "Non renseignÃ©"
+        else "Non renseigné"
     )
 
     resultats = {}
@@ -1266,7 +1266,7 @@ def notifier_services_preparation_cadre(
 
         if not destinataires:
           message_erreur = (
-              "Aucun destinataire configurÃ© "
+              "Aucun destinataire configuré "
               f"pour {nom_service}."
           )
 
@@ -1322,7 +1322,7 @@ def notifier_services_preparation_cadre(
         )
 
         sujet = (
-            "[Recrutement] PrÃ©paration de "
+            "[Recrutement] Préparation de "
             f"lâ€™embauche de "
             f"{candidat.nom_complet}"
         )
@@ -1331,16 +1331,16 @@ def notifier_services_preparation_cadre(
             f"Bonjour,\n\n"
             f"Le candidat "
             f"{candidat.nom_complet} "
-            f"a Ã©tÃ© retenu pour le poste "
+            f"a été retenu pour le poste "
             f"de {poste}.\n\n"
-            f"RÃ©fÃ©rence : "
+            f"Référence : "
             f"{demande.reference}\n"
             f"Site : {site}\n\n"
-            f"TÃ¢ches attribuÃ©es au "
+            f"TÃ¢ches attribuées au "
             f"{nom_service} :\n"
             f"{liste_taches_texte}\n\n"
-            f"Merci de rÃ©aliser ces "
-            f"prÃ©parations avant la date "
+            f"Merci de réaliser ces "
+            f"préparations avant la date "
             f"de prise de poste.\n\n"
             f"Cordialement,\n"
             f"SystÃ¨me RH"
@@ -1368,7 +1368,7 @@ def notifier_services_preparation_cadre(
                 color: white;
               ">
                 <h2 style="margin: 0;">
-                  PrÃ©paration dâ€™une embauche
+                  Préparation dâ€™une embauche
                 </h2>
 
                 <p style="
@@ -1389,7 +1389,7 @@ def notifier_services_preparation_cadre(
                         candidat.nom_complet
                     )}
                   </strong>
-                  a Ã©tÃ© retenu pour le poste de
+                  a été retenu pour le poste de
                   <strong>
                     {escape(poste)}
                   </strong>.
@@ -1402,7 +1402,7 @@ def notifier_services_preparation_cadre(
                 ">
                   <tr>
                     <td style="{style_label()}">
-                      RÃ©fÃ©rence
+                      Référence
                     </td>
                     <td style="{style_value()}">
                       {escape(
@@ -1442,7 +1442,7 @@ def notifier_services_preparation_cadre(
                 </table>
 
                 <h3>
-                  TÃ¢ches destinÃ©es au
+                  TÃ¢ches destinées au
                   {escape(nom_service)}
                 </h3>
 
@@ -1451,8 +1451,8 @@ def notifier_services_preparation_cadre(
                 </ul>
 
                 <p>
-                  Merci de rÃ©aliser ces
-                  prÃ©parations avant la date
+                  Merci de réaliser ces
+                  préparations avant la date
                   de prise de poste.
                 </p>
 
@@ -1478,8 +1478,8 @@ def notifier_services_preparation_cadre(
             if envoye
             else (
                 "Lâ€™envoi de la notification "
-                "a Ã©chouÃ©. Consultez les logs "
-                "du serveur pour obtenir le dÃ©tail."
+                "a échoué. Consultez les logs "
+                "du serveur pour obtenir le détail."
             )
         )
 
@@ -1534,7 +1534,7 @@ def _charger_document_onboarding(
     if not chemin_configure:
         raise FileNotFoundError(
             f"Le chemin du document Â« {nom_par_defaut} Â» "
-            "nâ€™est pas configurÃ©."
+            "nâ€™est pas configuré."
         )
 
     chemin = Path(chemin_configure)
@@ -1559,10 +1559,10 @@ def _charger_document_onboarding(
 
 def envoyer_documents_onboarding_cadre(embauche):
     """
-    Envoie le rÃ¨glement intÃ©rieur et le Code de la sociÃ©tÃ© au
+    Envoie le rÃ¨glement intérieur et le Code de la société au
     candidat cadre, puis conserve une trace complÃ¨te de la tentative.
 
-    RÃ©glages attendus dans settings.py :
+    Réglages attendus dans settings.py :
         RECRUTEMENT_RI_PATH
         RECRUTEMENT_CODE_SOCIETE_PATH
     """
@@ -1584,7 +1584,7 @@ def envoyer_documents_onboarding_cadre(embauche):
             "erreur": "",
         }
 
-    # La tentative est comptabilisÃ©e mÃªme si la configuration est invalide.
+    # La tentative est comptabilisée mÃªme si la configuration est invalide.
     Embauche.objects.filter(pk=embauche.pk).update(
         nombre_tentatives_envoi_documents_cadre=(
             models.F("nombre_tentatives_envoi_documents_cadre") + 1
@@ -1606,7 +1606,7 @@ def envoyer_documents_onboarding_cadre(embauche):
         embauche.erreur_envoi_documents_cadre = message
 
         logger.warning(
-            "Documents dâ€™onboarding non envoyÃ©s pour lâ€™embauche %s : %s",
+            "Documents dâ€™onboarding non envoyés pour lâ€™embauche %s : %s",
             embauche.pk,
             message,
         )
@@ -1619,7 +1619,7 @@ def envoyer_documents_onboarding_cadre(embauche):
 
     if not embauche.est_cadre:
         return enregistrer_echec(
-            "Lâ€™envoi du RI et du Code sociÃ©tÃ© est rÃ©servÃ© aux cadres."
+            "Lâ€™envoi du RI et du Code société est réservé aux cadres."
         )
 
     if not destinataires:
@@ -1648,19 +1648,19 @@ def envoyer_documents_onboarding_cadre(embauche):
     poste = (
         demande.poste.name
         if demande.poste
-        else "Non renseignÃ©"
+        else "Non renseigné"
     )
 
     sujet = (
-        "[Recrutement] Documents dâ€™intÃ©gration â€” "
+        "[Recrutement] Documents dâ€™intégration - "
         f"{demande.reference}"
     )
 
     contenu_texte = (
         f"Bonjour {candidat.nom_complet},\n\n"
-        "Votre embauche a Ã©tÃ© validÃ©e. Vous trouverez en piÃ¨ces "
-        "jointes le rÃ¨glement intÃ©rieur et le Code de la sociÃ©tÃ©.\n\n"
-        f"RÃ©fÃ©rence : {demande.reference}\n"
+        "Votre embauche a été validée. Vous trouverez en piÃ¨ces "
+        "jointes le rÃ¨glement intérieur et le Code de la société.\n\n"
+        f"Référence : {demande.reference}\n"
         f"Poste : {poste}\n"
         f"Date de prise de poste : {embauche.date_debut_contrat}\n\n"
         "Cordialement,\nSystÃ¨me RH"
@@ -1674,18 +1674,18 @@ def envoyer_documents_onboarding_cadre(embauche):
                     border:1px solid #e2e8f0;border-radius:12px;
                     overflow:hidden;">
           <div style="padding:20px 24px;background:#2563eb;color:white;">
-            <h2 style="margin:0;">Documents dâ€™intÃ©gration</h2>
+            <h2 style="margin:0;">Documents dâ€™intégration</h2>
             <p style="margin:8px 0 0;">{escape(demande.reference)}</p>
           </div>
           <div style="padding:24px;">
             <p>Bonjour <strong>{escape(candidat.nom_complet)}</strong>,</p>
             <p>
-              Votre embauche a Ã©tÃ© validÃ©e pour le poste de
+              Votre embauche a été validée pour le poste de
               <strong>{escape(poste)}</strong>.
             </p>
             <p>
-              Vous trouverez en piÃ¨ces jointes le rÃ¨glement intÃ©rieur
-              et le Code de la sociÃ©tÃ©.
+              Vous trouverez en piÃ¨ces jointes le rÃ¨glement intérieur
+              et le Code de la société.
             </p>
             <table style="width:100%;border-collapse:collapse;margin:20px 0;">
               <tr>
@@ -1712,7 +1712,7 @@ def envoyer_documents_onboarding_cadre(embauche):
 
     if not envoye:
         return enregistrer_echec(
-            "Lâ€™envoi de lâ€™e-mail dâ€™onboarding a Ã©chouÃ©. "
+            "Lâ€™envoi de lâ€™e-mail dâ€™onboarding a échoué. "
             "Consultez les logs du serveur."
         )
 

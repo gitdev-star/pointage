@@ -74,7 +74,7 @@ const ETAPES_OUVRIER = [
     id: 4,
     titre: "Suivi des candidatures",
     description:
-      "Ajouter les candidats et dÃ©poser les fiches de test.",
+      "Ajouter les candidats et déposer les fiches de test.",
     icon: Users,
   },
   {
@@ -151,7 +151,7 @@ function obtenirTypesContrats(demande) {
     ["CDI", demande.nombre_cdi],
     ["CDD", demande.nombre_cdd],
     ["Stage", demande.nombre_stage],
-    ["IntÃ©rim", demande.nombre_interim],
+    ["Intérim", demande.nombre_interim],
     ["Consultant", demande.nombre_consultant],
     ["Autre", demande.nombre_autre],
   ];
@@ -187,9 +187,9 @@ function normaliserProcessus(data) {
     poste:
       demande.poste_nom ||
       demande.designation_poste ||
-      "Poste non renseignÃ©",
+      "Poste non renseigné",
     departement:
-      demande.departement_nom || "DÃ©partement non renseignÃ©",
+      demande.departement_nom || "Département non renseigné",
     nombreARecruter: obtenirNombreTotal(demande),
     typeContrat: obtenirTypesContrats(demande),
     designationTaches: demande.designation_taches || "",
@@ -402,7 +402,7 @@ export default function DetailProcessusRecrutement() {
         formulaireDesistement.dateDesistement
     ) {
       setErreur(
-        "La date de reprise ne peut pas prÃ©cÃ©der la date du dÃ©sistement."
+        "La date de reprise ne peut pas précéder la date du désistement."
       );
       return;
     }
@@ -772,7 +772,7 @@ const candidatsRetenus =
           )}
 
         <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
-          {/* Liste verticale des Ã©tapes */}
+          {/* Liste verticale des étapes */}
           <aside className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-200 px-3 py-3 sm:px-4">
               <h2 className="font-semibold text-slate-900">
@@ -864,7 +864,7 @@ const candidatsRetenus =
             </div>
           </aside>
 
-          {/* Contenu de lâ€™Ã©tape */}
+          {/* Contenu de lâ€™étape */}
           <div className="min-w-0 max-w-full">
             <div className="min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-200 bg-white px-2 py-4 shadow-sm sm:px-3 lg:px-4">
               <div className="mb-4 px-1">

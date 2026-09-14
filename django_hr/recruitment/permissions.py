@@ -11,11 +11,14 @@ from accounts.permissions import (
 
 class PermissionRecrutement(BasePermission):
     """
-    Lecture : recruitment_read.
-    Écriture : recruitment_write.
+    Lecture :
+    perm_recruitment_read.
 
-    Le DRH et les appels internes disposent
-    automatiquement de cet accès.
+    Écriture :
+    perm_recruitment_write.
+
+    Le Directeur RH et les appels internes
+    disposent automatiquement de l'accès.
     """
 
     message = (
@@ -29,19 +32,31 @@ class PermissionRecrutement(BasePermission):
 
         profil = get_hr_profile(request)
 
-        return bool(
-            profil
-            and profil.is_active
-            and (
-                profil.is_director
-                or getattr(
-                    profil,
-                    "perm_recruitment_validate",
-                    False,
-                )
+        if not profil or not profil.is_active:
+            return False
+
+        if profil.is_director:
+            return True
+
+        if request.method in SAFE_METHODS:
+            return profil.has_perm(
+                "recruitment_read"
             )
+
+        return profil.has_perm(
+            "recruitment_write"
         )
 
+    def has_object_permission(
+        self,
+        request,
+        view,
+        objet,
+    ):
+        return self.has_permission(
+            request,
+            view,
+        )
 
 class PermissionDirecteurRecrutement(
     BasePermission

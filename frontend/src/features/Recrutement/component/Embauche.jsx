@@ -55,7 +55,7 @@ function obtenirPoste(recrutement) {
     demande.poste?.name ||
     recrutement?.poste_nom ||
     recrutement?.poste ||
-    "â€”"
+    "-"
   );
 }
 
@@ -553,7 +553,7 @@ export default function EtapeEmbauche({
         .dateVerification
     ) {
       setErreur(
-        `La date de vÃ©rification de ${nom} est obligatoire.`
+        `La date de vérification de ${nom} est obligatoire.`
       );
 
       return false;
@@ -565,7 +565,7 @@ export default function EtapeEmbauche({
         .trim()
     ) {
       setErreur(
-        `Le vÃ©rificateur du dossier de ${nom} est obligatoire.`
+        `Le vérificateur du dossier de ${nom} est obligatoire.`
       );
 
       return false;
@@ -575,7 +575,7 @@ export default function EtapeEmbauche({
       !embauche.typeContrat
     ) {
       setErreur(
-        `SÃ©lectionnez le type de contrat de ${nom}.`
+        `Sélectionnez le type de contrat de ${nom}.`
       );
 
       return false;
@@ -586,7 +586,7 @@ export default function EtapeEmbauche({
         .dateDebutContrat
     ) {
       setErreur(
-        `La date de dÃ©but du contrat de ${nom} est obligatoire.`
+        `La date de début du contrat de ${nom} est obligatoire.`
       );
 
       return false;
@@ -630,7 +630,7 @@ export default function EtapeEmbauche({
 
       if (!embauche.contratTravailSigne) {
         setErreur(
-          `Le contrat de travail de ${nom} doit Ãªtre signÃ©.`
+          `Le contrat de travail de ${nom} doit Ãªtre signé.`
         );
         return false;
       }
@@ -640,7 +640,7 @@ export default function EtapeEmbauche({
         !embauche.signeEmployeur
       ) {
         setErreur(
-          `Le contrat de ${nom} doit Ãªtre signÃ©.`
+          `Le contrat de ${nom} doit Ãªtre signé.`
         );
         return false;
       }
@@ -820,7 +820,7 @@ export default function EtapeEmbauche({
         setMessage(
           `Lâ€™embauche de ${obtenirNomCandidat(
             candidat
-          )} a Ã©tÃ© confirmÃ©e.`
+          )} a été confirmée.`
         );
       } catch (error) {
         console.error(error);
@@ -905,7 +905,7 @@ export default function EtapeEmbauche({
       }));
 
       setMessage(
-        `La checklist de ${obtenirNomCandidat(candidat)} a Ã©tÃ© enregistrÃ©e.`
+        `La checklist de ${obtenirNomCandidat(candidat)} a été enregistrée.`
       );
     } catch (error) {
       console.error(error);
@@ -928,7 +928,7 @@ export default function EtapeEmbauche({
         setErreur(
           estCadre
             ? "Toutes les checklists dâ€™onboarding doivent Ãªtre complÃ¨tes avant la clÃ´ture."
-            : "Toutes les embauches doivent Ãªtre confirmÃ©es avant la clÃ´ture."
+            : "Toutes les embauches doivent Ãªtre confirmées avant la clÃ´ture."
         );
 
         return;
@@ -980,11 +980,11 @@ export default function EtapeEmbauche({
         }
 
         setMessage(
-          "Le processus de recrutement est terminÃ©."
+          "Le processus de recrutement est terminé."
         );
 
         console.log(
-          "Processus terminÃ© :",
+          "Processus terminé :",
           processusMisAJour
         );
       } catch (error) {
@@ -1058,7 +1058,7 @@ export default function EtapeEmbauche({
               <p className="mt-1 text-xs text-slate-500">
                 {demande.reference ||
                   recrutement?.reference ||
-                  "â€”"}{" "}
+                  "-"}{" "}
                 Â·{" "}
                 {obtenirPoste(
                   recrutement
@@ -1088,7 +1088,7 @@ export default function EtapeEmbauche({
 
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
           <p className="text-sm text-emerald-700">
-            Embauches confirmÃ©es
+            Embauches confirmées
           </p>
 
           <p className="mt-2 text-2xl font-bold text-emerald-900">
@@ -1114,11 +1114,11 @@ export default function EtapeEmbauche({
               Checklist dâ€™embauche et dâ€™onboarding des cadres
             </h3>
             <p className="mt-1 text-xs text-slate-500">
-              Une ligne correspond Ã  un candidat. Le RI et le Code sociÃ©tÃ©
-              sont validÃ©s automatiquement aprÃ¨s leur envoi par e-mail.
+              Une ligne correspond Ã  un candidat. Le RI et le Code société
+              sont validés automatiquement aprÃ¨s leur envoi par e-mail.
             </p>
             <p className="mt-1 text-[11px] font-medium text-blue-600 lg:hidden">
-              Faites dÃ©filer horizontalement pour voir toutes les colonnes.
+              Faites défiler horizontalement pour voir toutes les colonnes.
             </p>
           </div>
 
@@ -1137,10 +1137,10 @@ export default function EtapeEmbauche({
                   <th className="min-w-[110px] px-2 py-2.5">Contrat</th>
                   <th className="min-w-[145px] px-2 py-2.5">Prise de poste</th>
                   <th className="min-w-[110px] px-2 py-2.5 text-center">Dossier complet</th>
-                  <th className="min-w-[105px] px-2 py-2.5 text-center">Contrat signÃ©</th>
-                  <th className="min-w-[115px] px-2 py-2.5 text-center">IntÃ©gration</th>
+                  <th className="min-w-[105px] px-2 py-2.5 text-center">Contrat signé</th>
+                  <th className="min-w-[115px] px-2 py-2.5 text-center">Intégration</th>
                   <th className="min-w-[100px] px-2 py-2.5 text-center">RI</th>
-                  <th className="min-w-[115px] px-2 py-2.5 text-center">Code sociÃ©tÃ©</th>
+                  <th className="min-w-[115px] px-2 py-2.5 text-center">Code société</th>
                   <th className="min-w-[175px] px-2 py-2.5">Action</th>
                 </tr>
               </thead>
@@ -1178,7 +1178,7 @@ export default function EtapeEmbauche({
                           }`}
                         >
                           {embauche.confirmee
-                            ? "Embauche confirmÃ©e"
+                            ? "Embauche confirmée"
                             : "Ã€ confirmer"}
                         </span>
                       </td>
@@ -1246,13 +1246,13 @@ export default function EtapeEmbauche({
 
                       <td className="px-2 py-3 text-center text-xs">
                         <span className={embauche.reglementInterieurCommunique ? "text-emerald-600" : "text-slate-400"}>
-                          {embauche.reglementInterieurCommunique ? "âœ“ CommuniquÃ©" : "â€” En attente"}
+                          {embauche.reglementInterieurCommunique ? "âœ“ Communiqué" : "- En attente"}
                         </span>
                       </td>
 
                       <td className="px-2 py-3 text-center text-xs">
                         <span className={embauche.codeSocieteCommunique ? "text-emerald-600" : "text-slate-400"}>
-                          {embauche.codeSocieteCommunique ? "âœ“ CommuniquÃ©" : "â€” En attente"}
+                          {embauche.codeSocieteCommunique ? "âœ“ Communiqué" : "- En attente"}
                         </span>
                       </td>
 
@@ -1286,7 +1286,7 @@ export default function EtapeEmbauche({
                                 onClick={() => confirmerEmbaucheCandidat(candidat)}
                                 className="w-full rounded-lg border border-amber-300 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-50"
                               >
-                                RÃ©essayer lâ€™e-mail
+                                Réessayer lâ€™e-mail
                               </button>
                             )}
 
@@ -1331,7 +1331,7 @@ export default function EtapeEmbauche({
             </p>
 
             <p className="mt-1 text-[11px] font-medium text-blue-600 lg:hidden">
-              Faites dÃ©filer horizontalement pour voir toutes les piÃ¨ces.
+              Faites défiler horizontalement pour voir toutes les piÃ¨ces.
             </p>
           </div>
 
@@ -1399,7 +1399,7 @@ export default function EtapeEmbauche({
                               key={libelle}
                               className="border-r border-slate-200 px-3 py-3 text-center text-slate-400"
                             >
-                              â€”
+                              -
                             </td>
                           );
                         }
@@ -1537,17 +1537,17 @@ export default function EtapeEmbauche({
                             size={13}
                           />
 
-                          EmbauchÃ©
+                          Embauché
                         </span>
                       )}
                     </div>
 
                     <p className="mt-1 text-xs text-slate-500">
                       {candidat.telephone ||
-                        "â€”"}{" "}
+                        "-"}{" "}
                       Â·{" "}
                       {candidat.email ||
-                        "â€”"}
+                        "-"}
                     </p>
                   </div>
 
@@ -1578,13 +1578,13 @@ export default function EtapeEmbauche({
                         className="text-blue-600"
                       />
 
-                      VÃ©rification du dossier
+                      Vérification du dossier
                     </h3>
 
                     <div className="mb-5 grid gap-5 md:grid-cols-2">
                       <div>
                         <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                          Date de vÃ©rification
+                          Date de vérification
                           <span className="ml-1 text-red-500">
                             *
                           </span>
@@ -1613,7 +1613,7 @@ export default function EtapeEmbauche({
 
                       <div>
                         <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                          VÃ©rificateur
+                          Vérificateur
                           <span className="ml-1 text-red-500">
                             *
                           </span>
@@ -1676,7 +1676,7 @@ export default function EtapeEmbauche({
                           className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-blue-500"
                         >
                           <option value="">
-                            SÃ©lectionner
+                            Sélectionner
                           </option>
 
                           {Number(
@@ -1705,7 +1705,7 @@ export default function EtapeEmbauche({
 
                       <div>
                         <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                          Date de dÃ©but
+                          Date de début
                           <span className="ml-1 text-red-500">
                             *
                           </span>
@@ -1749,12 +1749,12 @@ export default function EtapeEmbauche({
                             },
                             {
                               champ: "contratTravailSigne",
-                              label: "Contrat de travail signÃ©",
+                              label: "Contrat de travail signé",
                               verrouille: embauche.confirmee,
                             },
                             {
                               champ: "journeeIntegrationRealisee",
-                              label: "JournÃ©e dâ€™intÃ©gration rÃ©alisÃ©e",
+                              label: "Journée dâ€™intégration réalisée",
                               verrouille: false,
                             },
                           ].map((item) => (
@@ -1783,7 +1783,7 @@ export default function EtapeEmbauche({
 
                           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                             <p className="text-sm font-semibold text-slate-800">
-                              RÃ¨glement intÃ©rieur communiquÃ©
+                              RÃ¨glement intérieur communiqué
                             </p>
                             <p className={`mt-1 text-xs ${
                               embauche.reglementInterieurCommunique
@@ -1791,14 +1791,14 @@ export default function EtapeEmbauche({
                                 : "text-amber-700"
                             }`}>
                               {embauche.reglementInterieurCommunique
-                                ? "Oui â€” confirmÃ© par le systÃ¨me"
+                                ? "Oui - confirmé par le systÃ¨me"
                                 : "En attente de lâ€™envoi automatique"}
                             </p>
                           </div>
 
                           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                             <p className="text-sm font-semibold text-slate-800">
-                              Code sociÃ©tÃ© communiquÃ©
+                              Code société communiqué
                             </p>
                             <p className={`mt-1 text-xs ${
                               embauche.codeSocieteCommunique
@@ -1806,7 +1806,7 @@ export default function EtapeEmbauche({
                                 : "text-amber-700"
                             }`}>
                               {embauche.codeSocieteCommunique
-                                ? "Oui â€” confirmÃ© par le systÃ¨me"
+                                ? "Oui - confirmé par le systÃ¨me"
                                 : "En attente de lâ€™envoi automatique"}
                             </p>
                           </div>
@@ -1818,12 +1818,12 @@ export default function EtapeEmbauche({
                             : "border-amber-200 bg-amber-50 text-amber-700"
                         }`}>
                           {embauche.documentsCadreEmailEnvoyes
-                            ? `RI et Code sociÃ©tÃ© envoyÃ©s le ${new Intl.DateTimeFormat(
+                            ? `RI et Code société envoyés le ${new Intl.DateTimeFormat(
                                 "fr-FR",
                                 { dateStyle: "short", timeStyle: "short" }
                               ).format(new Date(embauche.dateEnvoiDocumentsCadre))}.`
                             : embauche.erreurEnvoiDocumentsCadre ||
-                              "Les documents seront envoyÃ©s automatiquement lors de la confirmation de lâ€™embauche."}
+                              "Les documents seront envoyés automatiquement lors de la confirmation de lâ€™embauche."}
                         </div>
 
                         {embauche.confirmee &&
@@ -1843,7 +1843,7 @@ export default function EtapeEmbauche({
                                     className="animate-spin"
                                   />
                                 )}
-                                RÃ©essayer lâ€™envoi du RI et du Code sociÃ©tÃ©
+                                Réessayer lâ€™envoi du RI et du Code société
                               </button>
                             </div>
                           )}
@@ -1871,11 +1871,11 @@ export default function EtapeEmbauche({
 
                         <div>
                           <p className="text-sm font-semibold text-slate-800">
-                            Contrat signÃ©
+                            Contrat signé
                           </p>
 
                           <p className="mt-1 text-xs text-slate-500">
-                            Les signatures du candidat et de lâ€™employeur ont Ã©tÃ© vÃ©rifiÃ©es.
+                            Les signatures du candidat et de lâ€™employeur ont été vérifiées.
                           </p>
                         </div>
                       </label>
@@ -1884,7 +1884,7 @@ export default function EtapeEmbauche({
 
                     <div className="mt-5">
                       <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                        Remarque gÃ©nÃ©rale
+                        Remarque générale
                       </label>
 
                       <textarea
@@ -1961,7 +1961,7 @@ export default function EtapeEmbauche({
                         {embauche.checklistOnboardingComplete && (
                           <p className="flex items-center gap-2 text-sm font-medium text-emerald-700">
                             <CheckCircle2 size={17} />
-                            Checklist complÃ¨te â€” prÃªt pour la clÃ´ture
+                            Checklist complÃ¨te - prÃªt pour la clÃ´ture
                           </p>
                         )}
                       </div>

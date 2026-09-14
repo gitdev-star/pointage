@@ -22,7 +22,7 @@ const NOMBRE_ETAPES = 6;
 
 const STATUS_CONFIG = {
   A_DEMARRER: {
-    label: "Ã€ dÃ©marrer",
+    label: "A démarrer",
     className:
       "border-blue-200 bg-blue-50 text-blue-700",
     icon: CirclePlay,
@@ -36,7 +36,7 @@ const STATUS_CONFIG = {
   },
 
   TERMINE: {
-    label: "TerminÃ©",
+    label: "Terminé",
     className:
       "border-emerald-200 bg-emerald-50 text-emerald-700",
     icon: CheckCircle2,
@@ -44,12 +44,12 @@ const STATUS_CONFIG = {
 };
 
 function formatDate(value) {
-  if (!value) return "â€”";
+  if (!value) return "-";
 
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return "â€”";
+    return "-";
   }
 
   return new Intl.DateTimeFormat("fr-FR", {
@@ -89,7 +89,7 @@ function obtenirTypesContrats(demande) {
       nombre: Number(demande.nombre_stage || 0),
     },
     {
-      label: "IntÃ©rim",
+      label: "Intérim",
       nombre: Number(demande.nombre_interim || 0),
     },
     {
@@ -113,7 +113,7 @@ function obtenirTypesContrats(demande) {
 
   return contratsActifs.length > 0
     ? contratsActifs.join(", ")
-    : "â€”";
+    : "-";
 }
 
 function obtenirEtapesTerminees(processus) {
@@ -184,12 +184,12 @@ function normaliserProcessus(processus) {
       demande.poste_nom ||
       demande.designation_poste ||
       processus.poste_nom ||
-      "Poste non renseignÃ©",
+      "Poste non renseigné",
 
     departement:
       demande.departement_nom ||
       processus.departement_nom ||
-      "Non renseignÃ©",
+      "Non renseigné",
 
     nombreARecruter:
       nombreDemande,
@@ -303,7 +303,7 @@ function Progression({
     <div className="min-w-[170px]">
       <div className="mb-1.5 flex justify-between text-xs">
         <span className="font-medium text-slate-600">
-          {nombreTerminees}/{total} Ã©tapes
+          {nombreTerminees}/{total} étapes
         </span>
 
         <span className="text-slate-400">
@@ -575,7 +575,7 @@ useEffect(() => {
             </option>
 
             <option value="A_DEMARRER">
-              Ã€ dÃ©marrer
+              Ã€ démarrer
             </option>
 
             <option value="EN_COURS">
@@ -844,7 +844,7 @@ useEffect(() => {
                           className="px-5 py-12 text-center text-sm text-slate-500"
                         >
                           Aucun processus de
-                          recrutement trouvÃ©.
+                          recrutement trouvé.
                         </td>
                       </tr>
                     )}
@@ -854,7 +854,7 @@ useEffect(() => {
 
               <div className="border-t border-slate-200 bg-slate-50 px-5 py-3 text-sm text-slate-500">
                 {processusFiltres.length} processus
-                affichÃ©(s)
+                affiché(s)
               </div>
             </>
           )}

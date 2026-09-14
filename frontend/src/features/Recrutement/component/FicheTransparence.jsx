@@ -231,7 +231,7 @@ export default function EtapeFicheTransparence({
       setFichier(null);
 
       setErreur(
-        "Formats autorisÃ©s : PDF, PNG, JPG ou JPEG."
+        "Formats autorisés : PDF, PNG, JPG ou JPEG."
       );
 
       return;
@@ -244,7 +244,7 @@ export default function EtapeFicheTransparence({
       setFichier(null);
 
       setErreur(
-        "Le fichier ne doit pas dÃ©passer 10 Mo."
+        "Le fichier ne doit pas dépasser 10 Mo."
       );
 
       return;
@@ -316,7 +316,7 @@ export default function EtapeFicheTransparence({
       setFichier(null);
       setObservations("");
       setMessage(
-        "La nouvelle fiche de transparence a Ã©tÃ© ajoutÃ©e."
+        "La nouvelle fiche de transparence a été ajoutée."
       );
     } catch (error) {
       console.error(
@@ -354,7 +354,7 @@ export default function EtapeFicheTransparence({
         </div>
       )}
 
-      {/* RÃ©sumÃ© */}
+      {/* Résumé */}
       <div className="flex flex-col justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center">
         <div className="flex items-center gap-3">
           <div className="rounded-lg bg-blue-100 p-2.5 text-blue-700">
@@ -390,10 +390,10 @@ export default function EtapeFicheTransparence({
         <div className="flex items-center justify-between gap-3">
           <div>
             <h3 className="font-semibold text-slate-900">
-              Fiches dÃ©jÃ  enregistrÃ©es
+              Fiches déjÃ  enregistrées
             </h3>
             <p className="mt-1 text-sm text-slate-500">
-              Les anciennes fiches sont conservÃ©es et ne sont jamais remplacÃ©es.
+              Les anciennes fiches sont conservées et ne sont jamais remplacées.
             </p>
           </div>
 
@@ -409,7 +409,7 @@ export default function EtapeFicheTransparence({
           </div>
         ) : fiches.length === 0 ? (
           <p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-500">
-            Aucune fiche de transparence enregistrÃ©e.
+            Aucune fiche de transparence enregistrée.
           </p>
         ) : (
           <div className="mt-4 space-y-3">
@@ -520,7 +520,7 @@ export default function EtapeFicheTransparence({
               "
             >
               <option value="">
-                SÃ©lectionner un site
+                Sélectionner un site
               </option>
 
               <option value="SITE_1">
@@ -542,7 +542,7 @@ export default function EtapeFicheTransparence({
       {/* Fichier */}
       <section className="rounded-xl border border-slate-200 bg-white p-5">
         <h3 className="font-semibold text-slate-900">
-          Document numÃ©risÃ©
+          Document numérisé
         </h3>
 
         <p className="mt-1 text-sm text-slate-500">
@@ -571,11 +571,11 @@ export default function EtapeFicheTransparence({
             />
 
             <p className="mt-3 text-sm font-semibold text-slate-800">
-              SÃ©lectionner une nouvelle fiche
+              Sélectionner une nouvelle fiche
             </p>
 
             <p className="mt-1 text-xs text-slate-500">
-              PDF, PNG, JPG ou JPEG â€”
+              PDF, PNG, JPG ou JPEG -
               10 Mo maximum
             </p>
 

@@ -163,7 +163,7 @@ const recrutementApi = {
   ) {
     if (!(fichier instanceof File)) {
       throw new Error(
-        "La fiche de test sÃ©lectionnÃ©e est invalide."
+        "La fiche de test sélectionnée est invalide."
       );
     }
 
@@ -456,7 +456,7 @@ const recrutementApi = {
   async creerOffre({ fichier }) {
     if (!(fichier instanceof File)) {
       throw new Error(
-        "Le fichier sÃ©lectionnÃ© est invalide."
+        "Le fichier sélectionné est invalide."
       );
     }
 
@@ -989,7 +989,7 @@ async enregistrerEmbauche({
 
   /*
    * On ajoute les champs cadres uniquement lorsquâ€™ils sont fournis.
-   * Cela prÃ©serve le fonctionnement du recrutement ouvrier.
+   * Cela préserve le fonctionnement du recrutement ouvrier.
    */
 
   if (dossierEmbaucheComplet !== undefined) {
