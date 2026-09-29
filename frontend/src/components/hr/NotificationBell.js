@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import hrClient from "../../api/hrClient";
+import { useHRAuth } from "../../contexts/HRAuthContext";
 
 const LEVEL_COLORS = {
   info:    { bg: "#e3f2fd", border: "#1565c0", dot: "#1565c0" },
@@ -22,13 +23,16 @@ export default function NotificationBell() {
   const [open,          setOpen]    = useState(false);
   const [loading,       setLoading] = useState(false);
   const ref = useRef(null);
+  const { can } = useHRAuth();
+  const canAlerts = can("alerts_read");
 
   const fetchCount = useCallback(async () => {
+    if (!canAlerts) return;
     try {
       const res = await hrClient.get("alerts/inbox/unread_count/");
       setCount(res.data.count || 0);
     } catch {}
-  }, []);
+  }, [canAlerts]);
 
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
@@ -39,12 +43,13 @@ export default function NotificationBell() {
     finally { setLoading(false); }
   }, []);
 
-  // Poll unread count every 30 seconds
+  // Poll unread count every 60 seconds (only if the user has alerts_read)
   useEffect(() => {
+    if (!canAlerts) { setCount(0); return; }
     fetchCount();
     const interval = setInterval(fetchCount, 60000);
     return () => clearInterval(interval);
-  }, [fetchCount]);
+  }, [fetchCount, canAlerts]);
 
   // Close dropdown on outside click
   useEffect(() => {
