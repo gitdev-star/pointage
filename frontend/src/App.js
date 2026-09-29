@@ -46,6 +46,7 @@ import DemandeRecrutementPage from "./features/Recrutement/component/DemandeRecr
 import ProcessusRecrutement from "./features/Recrutement/component/ProcessusRecrutement";
 import DetailProcessusRecrutement from "./features/Recrutement/component/DetailProceRecru";
 import CompteRenduEntretienCadre from "./features/Recrutement/component/CompteRendu";
+import PermissionRoute from "./routes/PermissionRoute";
 
 
 function App() {
@@ -86,11 +87,22 @@ function App() {
 	        <Route path="hr/work-schedules" element={<WorkSchedules />} />
           <Route path="hr/schedule-assignment" element={<ScheduleAssignment />} />
 	        <Route path="attendance/late-report" element={<ProtectedRoute module="retard"><RetardPage /></ProtectedRoute>} />
-        <Route path="/hr/recrutement" element={<DashboardRecrutement />} />
-          <Route
-  path="/hr/recrutement/demande"
-  element={< DemandeRecrutementPage/>}
-/>
+        <Route
+          path="/hr/recrutement"
+          element={
+            <PermissionRoute permission="recruitment_read">
+              <DashboardRecrutement />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="/hr/recrutement/demande"
+          element={
+            <PermissionRoute permission="recruitment_requests_read">
+              <DemandeRecrutementPage />
+            </PermissionRoute>
+          }
+        />
 
 <Route
   path="/hr/recrutement/demandes/:id/validation"
@@ -106,17 +118,29 @@ function App() {
 
 <Route
   path="/hr/recrutement/processus"
-  element={<ProcessusRecrutement />}
+  element={
+    <PermissionRoute permission="recruitment_read">
+      <ProcessusRecrutement />
+    </PermissionRoute>
+  }
 />
 
 <Route
   path="/hr/recrutement/processus/:id"
-  element={<DetailProcessusRecrutement />}
+  element={
+    <PermissionRoute permission="recruitment_read">
+      <DetailProcessusRecrutement />
+    </PermissionRoute>
+  }
 />
 
 <Route
   path="/hr/recrutement/comptes-rendus"
-  element={<CompteRenduEntretienCadre />}
+  element={
+    <PermissionRoute permission="recruitment_read">
+      <CompteRenduEntretienCadre />
+    </PermissionRoute>
+  }
 />
 
 </Route>

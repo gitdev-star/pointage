@@ -496,6 +496,11 @@ export default function ValidationDemandeRecrutement() {
             />
 
             <Information
+              label="Remarque"
+              value={demande?.remarque || "—"}
+            />
+
+            <Information
               label="Motif"
               value={
                 demande?.motif_libelle

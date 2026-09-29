@@ -163,7 +163,7 @@ const recrutementApi = {
   ) {
     if (!(fichier instanceof File)) {
       throw new Error(
-        "La fiche de test sélectionnée est invalide."
+        "La fiche de test sÃ©lectionnÃ©e est invalide."
       );
     }
 
@@ -456,7 +456,7 @@ const recrutementApi = {
   async creerOffre({ fichier }) {
     if (!(fichier instanceof File)) {
       throw new Error(
-        "Le fichier sélectionné est invalide."
+        "Le fichier sÃ©lectionnÃ© est invalide."
       );
     }
 
@@ -490,6 +490,15 @@ const recrutementApi = {
           offre_id: offreId,
         }
       );
+
+    return response.data;
+  },
+
+  async changerStatutProcessus(processusId, statut, motifPause = "") {
+    const response = await hrClient.post(
+      `recruitment/processus/${processusId}/changer-statut/`,
+      { statut, motif_pause: motifPause }
+    );
 
     return response.data;
   },
@@ -989,7 +998,7 @@ async enregistrerEmbauche({
 
   /*
    * On ajoute les champs cadres uniquement lorsquâ€™ils sont fournis.
-   * Cela préserve le fonctionnement du recrutement ouvrier.
+   * Cela prÃ©serve le fonctionnement du recrutement ouvrier.
    */
 
   if (dossierEmbaucheComplet !== undefined) {
@@ -1046,6 +1055,26 @@ async confirmerEmbauche(embaucheId) {
   );
 
   return response.data;
+},
+
+async telechargerFichePoste(embaucheId, nomCandidat = "candidat") {
+  const response = await hrClient.get(
+    `recruitment/embauches/${embaucheId}/fiche-poste/`,
+    { responseType: "blob" }
+  );
+
+  const url = window.URL.createObjectURL(response.data);
+  const lien = document.createElement("a");
+  const nomSur = nomCandidat
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]+/g, "_");
+
+  lien.href = url;
+  lien.download = `fiche_de_poste_${nomSur || "candidat"}.docx`;
+  document.body.appendChild(lien);
+  lien.click();
+  lien.remove();
+  window.URL.revokeObjectURL(url);
 },
 
   async modifierDocumentCandidat(

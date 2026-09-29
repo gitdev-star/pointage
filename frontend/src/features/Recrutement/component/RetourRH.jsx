@@ -266,16 +266,16 @@ export default function RetourRH({
           </div>
 
           <div class="reference">
-            Réf. : ref-doc-fourni-candidat
+            Réf. : PBI_FIC_Recru_Dossier-00
           </div>
         </div>
 
-        <div class="candidat">
-          <strong>Candidat :</strong>
-          ${nomCandidat}
-        </div>
-
         <div class="documents">
+          <div class="document">
+            <span class="checkbox"></span>
+            Fiche de renseignements
+          </div>
+
           <div class="document">
             <span class="checkbox"></span>
             Copie de la carte d’identité

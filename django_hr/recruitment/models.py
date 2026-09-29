@@ -212,6 +212,11 @@ class DemandeRecrutement(models.Model):
         default=0
     )
 
+    remarque = models.TextField(
+        blank=True,
+        default="",
+    )
+
     date_prevue_recrutement = models.DateField()
 
     motif = models.CharField(
@@ -447,8 +452,14 @@ class DemandeRecrutement(models.Model):
 
 class ProcessusRecrutement(models.Model):
     class Statut(models.TextChoices):
+        PAS_COMMENCE = "PAS_COMMENCE", "Pas commencé"
         EN_COURS = "EN_COURS", "En cours"
-        TERMINE = "TERMINE", "Terminé"
+        EN_PAUSE = "EN_PAUSE", "En pause"
+        CLOTURE = "CLOTURE", "Clôturé"
+        RELANCE_DESISTEMENT = (
+            "RELANCE_DESISTEMENT",
+            "Relancé suite à un désistement",
+        )
 
     ETAPES_OUVRIER = {
         1: "Création de l’offre",
@@ -505,10 +516,14 @@ class ProcessusRecrutement(models.Model):
     )
 
     statut = models.CharField(
-        max_length=20,
+        max_length=30,
         choices=Statut.choices,
-        default=Statut.EN_COURS,
+        default=Statut.PAS_COMMENCE,
     )
+
+    motif_pause = models.TextField(blank=True, default="")
+
+    date_pause = models.DateTimeField(null=True, blank=True)
 
     fichier_suivi = models.FileField(
         upload_to="recrutement/suivi/",
@@ -666,7 +681,7 @@ class ProcessusRecrutement(models.Model):
             )
 
             self.statut = (
-                self.Statut.TERMINE
+                self.Statut.CLOTURE
             )
 
             self.demande.statut = (
@@ -684,6 +699,9 @@ class ProcessusRecrutement(models.Model):
             self.etape_actuelle = (
                 numero_etape + 1
             )
+
+            if self.statut == self.Statut.PAS_COMMENCE:
+                self.statut = self.Statut.EN_COURS
 
         self.save(
             update_fields=[
@@ -2834,7 +2852,6 @@ class Embauche(models.Model):
             f"{self.candidat.nom_complet}"
         )
 
-
 class DesistementEmbauche(models.Model):
     embauche = models.OneToOneField(
         "Embauche",
@@ -2976,6 +2993,3 @@ class DesistementEmbauche(models.Model):
             *args,
             **kwargs
         ) 
-
-    def __str__(self):
-        return f"Desistement — {self.embauche} ({self.date_desistement})"

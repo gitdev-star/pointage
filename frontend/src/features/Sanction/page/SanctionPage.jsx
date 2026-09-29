@@ -17,12 +17,14 @@ export default function SanctionPage() {
   const [alert, setAlert]       = useState(null);
   const [dialog, setDialog]     = useState(false);
   const [editItem, setEditItem] = useState(null);
+  const [sanctionType, setSanctionType] = useState("");
+  const [date, setDate]                 = useState("");
 
   const {
     sanctions, sanctionTypes, loading,
     fetchAll, createSanction, updateSanction,
     createType, updateType, toggleType, autoTerminate,
-  } = useSanctions(tab, searchEmp);
+  } = useSanctions({ sanctionType, date, search: searchEmp });
 
   const handleSave = async (form, isLic) => {
     try {
@@ -71,14 +73,17 @@ export default function SanctionPage() {
 
       {mainTab === 0 && (
         <>
-<SanctionFilter
-  tab={tab}
-  onTabChange={setTab}
-  search={searchEmp}
-  onSearchChange={setSearchEmp}
-  canWrite={can("sanctions_write")}
-  onAdd={openCreate}
-/>
+    <SanctionFilter
+      sanctionType={sanctionType}
+      onSanctionTypeChange={setSanctionType}
+      date={date}
+      onDateChange={setDate}
+      sanctionTypes={sanctionTypes}
+      search={searchEmp}
+      onSearchChange={setSearchEmp}
+      canWrite={can("sanctions_write")}
+      onAdd={openCreate}
+    />
           <SanctionTable
             sanctions={sanctions}
             loading={loading}

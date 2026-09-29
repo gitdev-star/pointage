@@ -33,10 +33,34 @@ const MODULES = [
     { key: "shifts_read",  label: "Voir" },
     { key: "shifts_write", label: "Modifier" },
   ]},
-  { key: "recruitment", label: "Recrutement", perms: [
-    { key: "recruitment_read",  label: "Voir" },
-    { key: "recruitment_write", label: "Modifier" },
-  ]},
+  {
+    key: "recruitment_requests",
+    label: "Demandes de recrutement",
+    perms: [
+      {
+        key: "recruitment_requests_read",
+        label: "Voir",
+      },
+      {
+        key: "recruitment_requests_write",
+        label: "Créer / Modifier",
+      },
+    ],
+  },
+  {
+    key: "recruitment",
+    label: "Processus de recrutement",
+    perms: [
+      {
+        key: "recruitment_read",
+        label: "Voir",
+      },
+      {
+        key: "recruitment_write",
+        label: "Modifier",
+      },
+    ],
+  },
   { key: "contracts", label: "Contrats & Documents", perms: [
     { key: "contracts_read",   label: "Voir" },
     { key: "contracts_write",  label: "Modifier" },

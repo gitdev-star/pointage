@@ -4,9 +4,6 @@ import {
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 
-const STATUS_COLORS = { ACTIVE: "error", CANCELLED: "default", APPEALED: "warning" };
-const STATUS_LABELS = { ACTIVE: "Active", CANCELLED: "Annulée", APPEALED: "En appel" };
-
 export default function SanctionTable({ sanctions, loading, canWrite, onEdit }) {
   if (loading) {
     return (
@@ -26,14 +23,13 @@ export default function SanctionTable({ sanctions, loading, canWrite, onEdit }) 
             <TableCell><strong>Sanction</strong></TableCell>
             <TableCell><strong>Date</strong></TableCell>
             <TableCell><strong>Motif</strong></TableCell>
-            <TableCell><strong>Statut</strong></TableCell>
             {canWrite && <TableCell align="center"><strong>Actions</strong></TableCell>}
           </TableRow>
         </TableHead>
         <TableBody>
           {sanctions.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={7} align="center" sx={{ py: 4, color: "text.secondary" }}>
+              <TableCell colSpan={6} align="center" sx={{ py: 4, color: "text.secondary" }}>
                 Aucune sanction trouvée
               </TableCell>
             </TableRow>
@@ -51,9 +47,6 @@ export default function SanctionTable({ sanctions, loading, canWrite, onEdit }) 
               <TableCell>{row.date}</TableCell>
               <TableCell sx={{ maxWidth: 250, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {row.reason}
-              </TableCell>
-              <TableCell>
-                <Chip label={STATUS_LABELS[row.status]} color={STATUS_COLORS[row.status]} size="small" />
               </TableCell>
               {canWrite && (
                 <TableCell align="center">

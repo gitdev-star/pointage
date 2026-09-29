@@ -27,6 +27,16 @@
 
   /* ── Helpers ─────────────────────────────────────────── */
 
+// Libellé avec astérisque rouge pour les champs obligatoires
+function RequiredLabel({ text }) {
+  return (
+    <>
+      {text}{" "}
+      <Box component="span" sx={{ color: "error.main" }}>*</Box>
+    </>
+  );
+}
+
   function Row({ children, cols }) {
     return (
       <Box
@@ -230,7 +240,7 @@
               />
               <TextField
                 {...sm}
-                label="Prénom *"
+                label="Prénom"
                 value={formData.first_name || ""}
                 onChange={(e) => handleFormChange("first_name", e.target.value)}
                 error={!!formErrors.first_name}
@@ -240,7 +250,7 @@
               />
               <TextField
                 {...sm}
-                label="Nom *"
+                label={<RequiredLabel text="Nom" />}
                 value={formData.last_name || ""}
                 onChange={(e) => handleFormChange("last_name", e.target.value)}
                 error={!!formErrors.last_name}
@@ -250,11 +260,11 @@
               />
             </Row>
             <Row>
-              <FormControl {...sm}>
-                <InputLabel>Sexe</InputLabel>
+              <FormControl {...sm} error={!!formErrors.sexe}>
+                <InputLabel>{<RequiredLabel text="Sexe" />}</InputLabel>
                 <Select
                   value={formData.sexe || ""}
-                  label="Sexe"
+                  label={<RequiredLabel text="Sexe" />}
                   onChange={(e) => handleFormChange("sexe", e.target.value)}
                   sx={inputSx}
                 >
@@ -263,30 +273,37 @@
                     <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
                   ))}
                 </Select>
+                {formErrors.sexe && <FormHelperText>{formErrors.sexe}</FormHelperText>}
               </FormControl>
               <TextField
                 {...sm}
-                label="Date de naissance"
+                label={<RequiredLabel text="Date de naissance" />}
                 type="date"
                 InputLabelProps={{ shrink: true }}
                 value={formData.birth_date || ""}
                 onChange={(e) => handleFormChange("birth_date", e.target.value)}
                 InputProps={{ sx: inputSx }}
+                error={!!formErrors.birth_date}
+                helperText={formErrors.birth_date}
                 required
               />
               <TextField
                 {...sm}
-                label="Lieu de naissance"
+                label={<RequiredLabel text="Lieu de naissance" />}
                 value={formData.birth_place || ""}
                 onChange={(e) => handleFormChange("birth_place", e.target.value)}
+                error={!!formErrors.birth_place}
+                helperText={formErrors.birth_place}
                 InputProps={{ sx: inputSx }}
               />
               <TextField
                 {...sm}
-                label="Nombre d'enfants"
+                label={<RequiredLabel text="Nombre d'enfants" />}
                 type="number"
                 value={formData.nbre_enfants || ""}
                 onChange={(e) => handleFormChange("nbre_enfants", e.target.value)}
+                error={!!formErrors.nbre_enfants}
+                helperText={formErrors.nbre_enfants}
                 InputProps={{ sx: inputSx }}
               />
             </Row>
@@ -306,25 +323,28 @@
               />
               <TextField
                 {...sm}
-                label="Téléphone"
+                label={<RequiredLabel text="Téléphone" />}
                 value={formData.phone || ""}
                 onChange={(e) => handleFormChange("phone", e.target.value)}
+                error={!!formErrors.phone}
+                helperText={formErrors.phone}
                 InputProps={{ sx: inputSx }}
               />
-            </Row>
-            <TextField
-              {...sm}
-              label="Adresse complète"
-              multiline
-              rows={2}
-              value={formData.address || ""}
-              onChange={(e) => handleFormChange("address", e.target.value)}
-              InputProps={{ sx: inputSx }}
-              required
-            />
+              </Row>
               <TextField
                 {...sm}
-                label="CIN"
+                label={<RequiredLabel text="Adresse complète" />}
+                multiline
+                rows={2}
+                value={formData.address || ""}
+                onChange={(e) => handleFormChange("address", e.target.value)}
+                error={!!formErrors.address}
+                helperText={formErrors.address}
+                InputProps={{ sx: inputSx }}
+              />
+              <TextField
+                {...sm}
+                label={<RequiredLabel text="CIN" />}
                 value={formData.cin || ""}
                 onChange={(e) => handleFormChange("cin", e.target.value)}
                 InputProps={{ sx: inputSx }}
@@ -335,7 +355,7 @@
               <Row cols="1fr 1fr">
                 <TextField
                   {...sm}
-                  label="Date de délivrance CIN"
+                  label={<RequiredLabel text="Date de délivrance CIN"/>}
                   type="date"
                   InputLabelProps={{ shrink: true }}
                   value={formData.cin_date || ""}
@@ -346,7 +366,7 @@
                 />
                 <TextField
                   {...sm}
-                  label="Lieu de délivrance CIN"
+                  label={<RequiredLabel text="Lieu de délivrance CIN" />}
                   value={formData.cin_place || ""}
                   onChange={(e) => handleFormChange("cin_place", e.target.value)}
                   error={!!formErrors.cin_place}
@@ -362,7 +382,7 @@
         <Section icon={<BusinessOutlinedIcon fontSize="inherit" />} label="Organisation & Emploi">
             <Row>
               <FormControl {...sm}>
-                <InputLabel>Usine *</InputLabel>
+                <InputLabel>{<RequiredLabel text="Site" />}</InputLabel>
                 <Select
                   value={formData.factory || ""}
                   label="Usine *"
@@ -381,7 +401,7 @@
                 <InputLabel>Département *</InputLabel>
                 <Select
                   value={formData.department || ""}
-                  label="Département *"
+                  label="Département"
                   onChange={(e) => handleFormChange("department", e.target.value)}
                   sx={inputSx}
                 >
@@ -417,7 +437,7 @@
                 InputProps={{ sx: inputSx }}
               /> */}
   <FormControl {...sm} required>
-    <InputLabel>Poste *</InputLabel>
+    <InputLabel>{<RequiredLabel text="Poste" />}</InputLabel>
     <Select
       value={formData.job_title || ""}
       label="Poste *"
@@ -433,7 +453,7 @@
     )}
   </FormControl>
             <FormControl {...sm}>
-              <InputLabel>Classification</InputLabel>
+              <InputLabel>{<RequiredLabel text="Classification" />}</InputLabel>
               
               <Select
                 value={formData.classification || ""}
@@ -472,7 +492,7 @@
                 <InputLabel>Type de contrat</InputLabel>
                 <Select
                   value={formData.contract_type || ""}
-                  label="Type de contrat"
+                  label={<RequiredLabel text="Type de contrat" />}
                   onChange={(e) => handleFormChange("contract_type", e.target.value)}
                   sx={inputSx}
                 >
@@ -499,11 +519,13 @@
           />
           <TextField
             {...sm}
-            label="Date d'embauche"
+            label={<RequiredLabel text="Date d'embauche" />}
             type="date"
             InputLabelProps={{ shrink: true }}
             value={formData.hire_date || ""}
             onChange={(e) => handleFormChange("hire_date", e.target.value)}
+            error={!!formErrors.hire_date}
+  helperText={formErrors.hire_date}
             InputProps={{ sx: inputSx }}
             required
           />

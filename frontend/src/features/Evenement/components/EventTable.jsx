@@ -178,8 +178,11 @@ export default function EventTable({
     <TableContainer
       component={Paper}
       elevation={2}
+      sx={{
+        maxHeight: 600, // ajustez selon vos besoins (ou "70vh" par exemple)
+      }}
     >
-      <Table size="small">
+      <Table size="small" stickyHeader>
         <TableHead>
           <TableRow
             sx={{
@@ -261,12 +264,30 @@ export default function EventTable({
                   </TableCell>
 
                   <TableCell>
-                    <Chip
-                      label={request.leave_type_name}
-                      size="small"
-                      variant="outlined"
-                    />
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                      <Chip
+                        label={request.leave_type_name}
+                        size="small"
+                        variant="outlined"
+                      />
+
+                      {request.auto_generated && (
+                        <Chip
+                          label="Auto"
+                          size="small"
+                          title="Détecté automatiquement via le clocker de permissions"
+                          sx={{
+                            backgroundColor: "#e8f5e9",
+                            color: "#2e7d32",
+                            fontWeight: 600,
+                            fontSize: 10,
+                            height: 20,
+                          }}
+                        />
+                      )}
+                    </Box>
                   </TableCell>
+
 
                   <TableCell>
                     <Box>

@@ -346,12 +346,12 @@ const handleSave = async () => {
   const status = err.response?.status;
   const data = err.response?.data;
 
-  console.error("Erreur sauvegarde employé :", {
+  console.error("Erreur sauvegarde employï¿½ :", {
     status,
     data,
   });
 
-  // Véritable erreur de validation Django REST Framework
+  // Vï¿½ritable erreur de validation Django REST Framework
   if (status === 400 && data && typeof data === "object") {
     const backendErrors = {};
 
@@ -595,7 +595,7 @@ function LastActionCell({ action, at, by }) {
                               </span>
                             </Tooltip>
                           )}
-                          {can("employees_delete") && (
+                          {/* {can("employees_delete") && (
                             <Tooltip title="Supprimer">
                               <span onClick={(e) => e.stopPropagation()}>
                                 <IconButton size="small" color="error"
@@ -604,7 +604,7 @@ function LastActionCell({ action, at, by }) {
                                 </IconButton>
                               </span>
                             </Tooltip>
-                          )}
+                          )} */}
                         </div>
                       </TableCell>
                     )}

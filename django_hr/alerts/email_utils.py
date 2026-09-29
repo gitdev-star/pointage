@@ -11,6 +11,40 @@ from django.utils import timezone
 
 HELPDESK_EMAIL = getattr(settings, "HELPDESK_EMAIL", "helpdesk@pb-industries.mg")
 
+def _employee_lifecycle_profiles():
+    """Active HR profiles allowed to receive hire/termination notices."""
+    from accounts.models import HRProfile
+    from django.db.models.functions import Lower
+
+    usernames = [
+        username.lower()
+        for username in getattr(
+            settings,
+            "EMPLOYEE_LIFECYCLE_NOTIFICATION_USERS",
+            [],
+        )
+    ]
+    return HRProfile.objects.annotate(
+        normalized_username=Lower("username"),
+    ).filter(
+        normalized_username__in=usernames,
+        is_active=True,
+    )
+
+
+def _employee_lifecycle_emails():
+    return list(
+        _employee_lifecycle_profiles()
+        .exclude(email="")
+        .values_list("email", flat=True)
+    )
+
+
+def _employee_lifecycle_user_ids():
+    return list(
+        _employee_lifecycle_profiles()
+        .values_list("auth_user_id", flat=True)
+    )
 
 def _base_html(title: str, body_html: str) -> str:
     """Wraps content in a branded HTML email shell."""

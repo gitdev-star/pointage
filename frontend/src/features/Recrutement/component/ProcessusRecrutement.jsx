@@ -12,7 +12,9 @@ import {
   CirclePlay,
   Clock3,
   Loader2,
+  PauseCircle,
   RefreshCw,
+  RotateCcw,
   Search,
 } from "lucide-react";
 
@@ -21,8 +23,28 @@ import recrutementApi from "../../../api/recrutementApi";
 const NOMBRE_ETAPES = 6;
 
 const STATUS_CONFIG = {
+  PAS_COMMENCE: {
+    label: "Pas commencé",
+    className: "border-blue-200 bg-blue-50 text-blue-700",
+    icon: CirclePlay,
+  },
+  EN_PAUSE: {
+    label: "En pause",
+    className: "border-orange-200 bg-orange-50 text-orange-700",
+    icon: PauseCircle,
+  },
+  CLOTURE: {
+    label: "Clôturé",
+    className: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    icon: CheckCircle2,
+  },
+  RELANCE_DESISTEMENT: {
+    label: "Relancé suite à un désistement",
+    className: "border-violet-200 bg-violet-50 text-violet-700",
+    icon: RotateCcw,
+  },
   A_DEMARRER: {
-    label: "A démarrer",
+    label: "Ã€ dÃ©marrer",
     className:
       "border-blue-200 bg-blue-50 text-blue-700",
     icon: CirclePlay,
@@ -36,7 +58,7 @@ const STATUS_CONFIG = {
   },
 
   TERMINE: {
-    label: "Terminé",
+    label: "TerminÃ©",
     className:
       "border-emerald-200 bg-emerald-50 text-emerald-700",
     icon: CheckCircle2,
@@ -89,7 +111,7 @@ function obtenirTypesContrats(demande) {
       nombre: Number(demande.nombre_stage || 0),
     },
     {
-      label: "Intérim",
+      label: "IntÃ©rim",
       nombre: Number(demande.nombre_interim || 0),
     },
     {
@@ -121,11 +143,11 @@ function obtenirEtapesTerminees(processus) {
     return processus.etapes_terminees.length;
   }
 
-  if (processus.statut === "A_DEMARRER") {
+  if (processus.statut === "PAS_COMMENCE") {
     return 0;
   }
 
-  if (processus.statut === "TERMINE") {
+  if (["CLOTURE", "TERMINE"].includes(processus.statut)) {
     return NOMBRE_ETAPES;
   }
 
@@ -184,12 +206,12 @@ function normaliserProcessus(processus) {
       demande.poste_nom ||
       demande.designation_poste ||
       processus.poste_nom ||
-      "Poste non renseigné",
+      "Poste non renseignÃ©",
 
     departement:
       demande.departement_nom ||
       processus.departement_nom ||
-      "Non renseigné",
+      "Non renseignÃ©",
 
     nombreARecruter:
       nombreDemande,
@@ -254,9 +276,9 @@ function normaliserProcessus(processus) {
     statut:
       processus.statut ||
       (etapesTerminees === 0
-        ? "A_DEMARRER"
+        ? "PAS_COMMENCE"
         : etapesTerminees >= (estCadre ? 5 : NOMBRE_ETAPES)
-          ? "TERMINE"
+          ? "CLOTURE"
           : "EN_COURS"),
   };
 }
@@ -303,7 +325,7 @@ function Progression({
     <div className="min-w-[170px]">
       <div className="mb-1.5 flex justify-between text-xs">
         <span className="font-medium text-slate-600">
-          {nombreTerminees}/{total} étapes
+          {nombreTerminees}/{total} Ã©tapes
         </span>
 
         <span className="text-slate-400">
@@ -574,12 +596,20 @@ useEffect(() => {
               Tous les statuts
             </option>
 
-            <option value="A_DEMARRER">
-              Ã€ démarrer
+            <option value="PAS_COMMENCE">Pas commencé</option>
+
+            <option value="PAS_COMMENCE_LEGACY" hidden>
+              Ã€ dÃ©marrer
             </option>
 
             <option value="EN_COURS">
               En cours
+            </option>
+
+            <option value="EN_PAUSE">En pause</option>
+            <option value="CLOTURE">Clôturé</option>
+            <option value="RELANCE_DESISTEMENT">
+              Relancé suite à un désistement
             </option>
 
             <option value="TERMINE">
@@ -604,7 +634,7 @@ useEffect(() => {
           ) : (
             <>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[2050px]">
+                <table className="w-full min-w-[1900px] [&_th:nth-child(8)]:hidden [&_td:nth-child(8)]:hidden">
                   <thead className="bg-slate-100">
                     <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
                       <th className="px-5 py-4">
@@ -844,7 +874,7 @@ useEffect(() => {
                           className="px-5 py-12 text-center text-sm text-slate-500"
                         >
                           Aucun processus de
-                          recrutement trouvé.
+                          recrutement trouvÃ©.
                         </td>
                       </tr>
                     )}
@@ -854,7 +884,7 @@ useEffect(() => {
 
               <div className="border-t border-slate-200 bg-slate-50 px-5 py-3 text-sm text-slate-500">
                 {processusFiltres.length} processus
-                affiché(s)
+                affichÃ©(s)
               </div>
             </>
           )}

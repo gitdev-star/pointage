@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import CantineList, CantineListItem, Classification, Poste, Factory, Department, Employee, Section, TransportList, TransportListItem, WorkSchedule
-
+MSG_REQUIRED = "Veuillez remplir ce champ."
 
 class ClassificationSerializer(serializers.ModelSerializer):
     last_action    = serializers.CharField(read_only=True, allow_null=True)
@@ -96,18 +96,78 @@ class EmployeeListSerializer(serializers.ModelSerializer):
         return f"{first or ''} {last or ''}".strip()
 
 
+MSG_REQUIRED = "Veuillez remplir ce champ."
+
 class EmployeeDetailSerializer(serializers.ModelSerializer):
     full_name           = serializers.CharField(read_only=True)
     factory_name        = serializers.CharField(source="factory.name",         read_only=True)
-    department_name     = serializers.CharField(source="department.name",      read_only=True)
-    job_title_name      = serializers.CharField(source="job_title.name",       read_only=True, default=None)
-    classification_name = serializers.CharField(source="classification.classe", read_only=True, default=None)
-    classification = serializers.PrimaryKeyRelatedField(
-        queryset=Classification.objects.all(),
-        pk_field=serializers.IntegerField(),
-        allow_null=True, required=False
-    )
+    department_name      = serializers.CharField(source="department.name",      read_only=True)
+    job_title_name       = serializers.CharField(source="job_title.name",       read_only=True, default=None)
+    classification_name  = serializers.CharField(source="classification.classe", read_only=True, default=None)
     employee_id = serializers.CharField(read_only=True)
+
+    # ── Champs obligatoires ──────────────────────────────
+    last_name = serializers.CharField(
+        required=True, allow_blank=False,
+        error_messages={"blank": MSG_REQUIRED, "required": MSG_REQUIRED}
+    )
+    sexe = serializers.CharField(
+        required=True, allow_blank=False,
+        error_messages={"blank": MSG_REQUIRED, "required": MSG_REQUIRED}
+    )
+    birth_date = serializers.DateField(
+        required=True,
+        error_messages={"required": MSG_REQUIRED, "invalid": "Date invalide."}
+    )
+    birth_place = serializers.CharField(
+        required=True, allow_blank=False,
+        error_messages={"blank": MSG_REQUIRED, "required": MSG_REQUIRED}
+    )
+    nbre_enfants = serializers.IntegerField(
+        required=True,
+        error_messages={"required": MSG_REQUIRED, "invalid": MSG_REQUIRED}
+    )
+    phone = serializers.CharField(
+        required=True, allow_blank=False,
+        error_messages={"blank": MSG_REQUIRED, "required": MSG_REQUIRED}
+    )
+    address = serializers.CharField(
+        required=True, allow_blank=False,
+        error_messages={"blank": MSG_REQUIRED, "required": MSG_REQUIRED}
+    )
+    cin = serializers.CharField(
+        required=True, allow_blank=False,
+        error_messages={"blank": MSG_REQUIRED, "required": MSG_REQUIRED}
+    )
+    cin_date = serializers.DateField(
+        required=True,
+        error_messages={"required": MSG_REQUIRED, "invalid": "Date invalide."}
+    )
+    cin_place = serializers.CharField(
+        required=True, allow_blank=False,
+        error_messages={"blank": MSG_REQUIRED, "required": MSG_REQUIRED}
+    )
+    factory = serializers.PrimaryKeyRelatedField(
+        queryset=Factory.objects.all(), required=True,
+        error_messages={"required": MSG_REQUIRED, "does_not_exist": "Usine invalide."}
+    )
+    job_title = serializers.PrimaryKeyRelatedField(
+        queryset=Poste.objects.all(), required=True,
+        error_messages={"required": MSG_REQUIRED, "does_not_exist": "Poste invalide."}
+    )
+    classification = serializers.PrimaryKeyRelatedField(
+        queryset=Classification.objects.all(), pk_field=serializers.IntegerField(),
+        required=True,
+        error_messages={"required": MSG_REQUIRED, "does_not_exist": "Classification invalide."}
+    )
+    contract_type = serializers.ChoiceField(
+        choices=Employee.ContractType.choices, required=True,
+        error_messages={"required": MSG_REQUIRED, "invalid_choice": MSG_REQUIRED}
+    )
+    hire_date = serializers.DateField(
+        required=True,
+        error_messages={"required": MSG_REQUIRED, "invalid": "Date invalide."}
+    )
 
     class Meta:
         model  = Employee
@@ -135,7 +195,6 @@ class EmployeeDetailSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"department": "This department does not belong to the selected factory."}
             )
-        # CIN unique check
         cin = data.get("cin")
         if cin:
             qs = Employee.objects.filter(cin=cin)

@@ -58,6 +58,67 @@ class PermissionRecrutement(BasePermission):
             view,
         )
 
+class PermissionDemandeRecrutement(BasePermission):
+    """
+    Permission réservée aux demandes de recrutement.
+
+    Lecture :
+    perm_recruitment_requests_read.
+
+    Écriture :
+    perm_recruitment_requests_write.
+
+    Les anciennes permissions recruitment_read/write
+    restent acceptées afin de préserver les accès existants.
+    """
+
+    message = (
+        "Vous n’avez pas la permission "
+        "d’accéder aux demandes de recrutement."
+    )
+
+    def has_permission(self, request, view):
+        if is_service_request(request):
+            return True
+
+        profil = get_hr_profile(request)
+
+        if not profil or not profil.is_active:
+            return False
+
+        if profil.is_director:
+            return True
+
+        if request.method in SAFE_METHODS:
+            return bool(
+                profil.has_perm(
+                    "recruitment_requests_read"
+                )
+                or profil.has_perm(
+                    "recruitment_read"
+                )
+            )
+
+        return bool(
+            profil.has_perm(
+                "recruitment_requests_write"
+            )
+            or profil.has_perm(
+                "recruitment_write"
+            )
+        )
+
+    def has_object_permission(
+        self,
+        request,
+        view,
+        objet,
+    ):
+        return self.has_permission(
+            request,
+            view,
+        )
+    
 class PermissionDirecteurRecrutement(
     BasePermission
 ):
@@ -159,14 +220,25 @@ class PermissionProprietaireDemande(
             return True
 
         if request.method in SAFE_METHODS:
-            return profil.has_perm(
-                "recruitment_read"
+            return bool(
+                profil.has_perm(
+                    "recruitment_requests_read"
+                )
+                or profil.has_perm(
+                    "recruitment_read"
+                )
             )
 
-        return bool(
+        peut_modifier = bool(
             profil.has_perm(
+                "recruitment_requests_write"
+            )
+            or profil.has_perm(
                 "recruitment_write"
             )
-            and objet.demandeur_id
-            == profil.id
+        )
+
+        return bool(
+            peut_modifier
+            and objet.demandeur_id == profil.id
         )

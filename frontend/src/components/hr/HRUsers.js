@@ -23,7 +23,16 @@ const MODULES = [
   { key: "leaves",       label: "CongÃ©s",         perms: ["read", "write", "approve"] },
   { key: "reports",      label: "Rapports",       perms: ["read"] },
   { key: "shifts",       label: "Horaires",       perms: ["read", "write"] },
-  { key: "recruitment",  label: "Recrutement",    perms: ["read", "write", "validate"] },
+  {
+    key: "recruitment_requests",
+    label: "Demandes de recrutement",
+    perms: ["read", "write"],
+  },
+  {
+    key: "recruitment",
+    label: "Processus de recrutement",
+    perms: ["read", "write", "validate"],
+  },
   { key: "contracts",    label: "Contrats",       perms: ["read", "write", "delete"] },
   { key: "sanctions",    label: "Sanctions",      perms: ["read", "write"] },
   { key: "retraite",     label: "Retraite",       perms: ["read", "write"] },
@@ -446,8 +455,8 @@ form.is_recruitment_responsible =
   }
   label={
     permForm.is_recruitment_responsible
-      ? "Responsable du recrutement — reçoit les notifications"
-      : "Désigner comme responsable du recrutement"
+      ? "Responsable du recrutement ï¿½ reï¿½oit les notifications"
+      : "Dï¿½signer comme responsable du recrutement"
   }
 />
 

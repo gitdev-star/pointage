@@ -8,6 +8,7 @@ import re
 import requests
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.exceptions import MethodNotAllowed
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import IsAuthenticated
@@ -377,6 +378,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     filterset_fields = ["factory", "department", "status", "contract_type"]
     search_fields = ["first_name", "last_name", "employee_id", "email", "job_title__name", "cin", "cnaps", "matricule_paie"]
     ordering_fields = ["last_name", "hire_date", "employee_id"]
+    http_method_names = ["get", "post", "put", "patch", "head", "options"]
 
     @action(detail=False, methods=["post"], url_path="debauche-one",
             permission_classes=[IsAuthenticated])
@@ -424,6 +426,12 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             "device_deleted": bool(device_result and device_result.get("ok")),
             "device_detail": device_result.get("detail") if device_result else None,
         })
+
+    def destroy(self, request, *args, **kwargs):
+        raise MethodNotAllowed(
+            "DELETE",
+            detail="Un employé ne peut pas être supprimé. Utilisez le statut (Terminated/Inactive) à la place."
+        )
 
     def get_queryset(self):
         qs = super().get_queryset()

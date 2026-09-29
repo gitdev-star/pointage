@@ -1,7 +1,10 @@
 # =====================================================
 # PATH: pointage/django_hr/leaves/views.py
 # =====================================================
-
+from decimal import Decimal
+import os
+from rest_framework.permissions import AllowAny
+from rest_framework.exceptions import PermissionDenied
 from django.utils import timezone
 from datetime import date, datetime, timedelta
 from calendar import monthrange
@@ -388,6 +391,170 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
     filterset_class  = LeaveRequestFilter
     search_fields    = ["employee__first_name", "employee__last_name", "employee__employee_id"]
     ordering_fields  = ["start_date", "created_at"]
+
+    def get_permissions(self):
+        # Le endpoint interne auto_permission est appelé machine-à-machine
+        # par sync_service.py (pas de JWT HR humain) — il s'authentifie
+        # via une clé partagée vérifiée manuellement dans le corps de la
+        # méthode. Toutes les autres actions gardent les permissions par
+        # défaut du ViewSet (JWT HR classique).
+        if self.action == "auto_permission":
+            return [AllowAny()]
+        return super().get_permissions()
+
+    @action(detail=False, methods=["post"], url_path="auto-permission")
+    def auto_permission(self, request):
+        """
+        Créé automatiquement par sync_service.py quand une paire
+        sortie/retour est détectée sur le clocker dédié aux permissions.
+
+        Payload attendu :
+        {
+            "device_user_id": 123,
+            "date": "2026-09-18",
+            "start_time": "10:15:00",
+            "end_time": "10:47:00",
+            "source_attendance_out_id": 88421,
+            "source_attendance_in_id": 88430
+        }
+        """
+        api_key = request.headers.get("X-Internal-Api-Key")
+        expected_key = os.environ.get("INTERNAL_SYNC_API_KEY")
+        if not expected_key or api_key != expected_key:
+            raise PermissionDenied("Clé interne invalide ou manquante.")
+
+        data = request.data
+        device_user_id = data.get("device_user_id")
+        event_date = data.get("date")
+
+        if not device_user_id or not event_date:
+            return Response(
+                {"detail": "device_user_id et date sont requis."},
+                status=400,
+            )
+
+        try:
+            employee = Employee.objects.get(device_user_id=device_user_id)
+        except Employee.DoesNotExist:
+            return Response(
+                {"detail": f"Aucun employé avec device_user_id={device_user_id}"},
+                status=404,
+            )
+
+        try:
+            leave_type = LeaveType.objects.get(code="PM")
+        except LeaveType.DoesNotExist:
+            return Response(
+                {"detail": "Le type d'événement 'PM' (permission en heure) n'existe pas."},
+                status=500,
+            )
+
+        is_close = data.get("source_attendance_in_id") is not None
+
+        # =========================================================
+        # CAS 2 — FERMETURE (retour)
+        # =========================================================
+        if is_close:
+            source_in_id = data["source_attendance_in_id"]
+            end_time = data.get("end_time")
+            if not end_time:
+                return Response({"detail": "end_time requis."}, status=400)
+
+            # Idempotence : ce pointage retour a-t-il déjà fermé un événement ?
+            already = self.get_queryset().filter(
+                source_attendance_in_id=source_in_id
+            ).first()
+            if already:
+                return Response(LeaveRequestSerializer(already).data, status=200)
+
+            open_event = (
+                LeaveRequest.objects
+                .filter(
+                    employee=employee,
+                    start_date=event_date,
+                    leave_type=leave_type,
+                    end_time__isnull=True,
+                )
+                .order_by("-created_at")
+                .first()
+            )
+
+            if not open_event:
+                # Aucun événement ouvert trouvé (ex: le job a raté l'ouverture) —
+                # on ne peut pas deviner l'heure de sortie, donc on refuse plutôt
+                # que de créer un événement avec une durée fausse.
+                return Response(
+                    {"detail": "Aucune permission ouverte trouvée pour cet employé ce jour-là."},
+                    status=409,
+                )
+
+            ref = datetime.strptime("2000-01-01", "%Y-%m-%d").date()
+            start_dt = datetime.combine(ref, open_event.start_time)
+            end_dt = datetime.combine(ref, datetime.strptime(end_time, "%H:%M:%S").time())
+            duration_hours = round((end_dt - start_dt).total_seconds() / 3600, 2) if end_dt > start_dt else None
+
+            old_data = snapshot(open_event)
+            open_event.end_time = end_time
+            open_event.source_attendance_in_id = source_in_id
+            open_event.duration_hours = duration_hours
+            open_event.save(update_fields=["end_time", "source_attendance_in_id", "duration_hours", "updated_at"])
+
+            try:
+                new_data = snapshot(open_event)
+                changes = diff_dict(old_data, new_data)
+                if changes:
+                    log_action(request, open_event, "UPDATE", changes)
+            except Exception as e:
+                print(f"[AUDIT] auto_permission close log_action error: {e}")
+
+            # Refetch via get_queryset() : nécessaire pour last_action / last_action_at
+            # / last_action_by, qui n'existent que via l'annotate() de get_queryset().
+            open_event = self.get_queryset().get(pk=open_event.pk)
+            return Response(LeaveRequestSerializer(open_event).data, status=200)
+
+        # =========================================================
+        # CAS 1 — OUVERTURE (sortie)
+        # =========================================================
+        source_out_id = data.get("source_attendance_out_id")
+        start_time = data.get("start_time")
+        if not source_out_id or not start_time:
+            return Response(
+                {"detail": "source_attendance_out_id et start_time sont requis."},
+                status=400,
+            )
+
+        already = self.get_queryset().filter(
+            source_attendance_out_id=source_out_id
+        ).first()
+        if already:
+            return Response(LeaveRequestSerializer(already).data, status=200)
+
+        leave = LeaveRequest.objects.create(
+            employee=employee,
+            leave_type=leave_type,
+            start_date=event_date,
+            end_date=event_date,
+            start_time=start_time,
+            end_time=None,
+            days_requested=Decimal("1.0"),
+            duration_hours=None,
+            reason="Détecté automatiquement via le clocker de permissions (en cours).",
+            auto_generated=True,
+            source_attendance_out_id=source_out_id,
+        )
+
+        try:
+            log_action(request, leave, "CREATE")
+        except Exception as e:
+            print(f"[AUDIT] auto_permission open log_action error: {e}")
+
+        try:
+            notify_leave_created(leave, triggered_by="Système (clocker permission)")
+        except Exception as e:
+            print(f"[NOTIFY] leave_created (auto) error: {e}")
+
+        leave = self.get_queryset().get(pk=leave.pk)
+        return Response(LeaveRequestSerializer(leave).data, status=201)
     
     def get_queryset(self):
         qs = super().get_queryset()

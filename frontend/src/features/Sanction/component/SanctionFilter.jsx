@@ -2,30 +2,40 @@ import { Box, TextField, InputAdornment, FormControl, InputLabel, Select, MenuIt
 import SearchIcon from "@mui/icons-material/Search";
 import AddIcon from "@mui/icons-material/Add";
 
-const STATUSES = [
-  { value: "", label: "Toutes" },
-  { value: "ACTIVE", label: "Actives" },
-  { value: "CANCELLED", label: "Annulées" },
-  { value: "APPEALED", label: "En appel" },
-];
-
-export default function SanctionFilter({ tab, onTabChange, search, onSearchChange, canWrite, onAdd }) {
+export default function SanctionFilter({
+  sanctionType, onSanctionTypeChange,
+  date, onDateChange,
+  sanctionTypes = [],
+  search, onSearchChange,
+  canWrite, onAdd,
+}) {
   return (
-    <Box display="flex" gap={2} mb={2} alignItems="center">
-      <FormControl size="small" sx={{ minWidth: 160 }}>
-        <InputLabel>Statut</InputLabel>
+    <Box display="flex" gap={2} mb={2} alignItems="center" flexWrap="wrap">
+      <FormControl size="small" sx={{ minWidth: 180 }}>
+        <InputLabel>Sanction</InputLabel>
         <Select
-          value={tab}
-          label="Statut"
-          onChange={(e) => onTabChange(e.target.value)}
+          value={sanctionType}
+          label="Sanction"
+          onChange={(e) => onSanctionTypeChange(e.target.value)}
         >
-          {STATUSES.map(({ value, label }) => (
-            <MenuItem key={value} value={value}>
-              {label}
+          <MenuItem value="">Toutes</MenuItem>
+          {sanctionTypes.filter(Boolean).map((t) => (
+            <MenuItem key={t.id} value={t.id}>
+              {t.name}
             </MenuItem>
           ))}
         </Select>
       </FormControl>
+
+      <TextField
+        size="small"
+        label="Date"
+        type="date"
+        value={date}
+        onChange={(e) => onDateChange(e.target.value)}
+        InputLabelProps={{ shrink: true }}
+        sx={{ width: 170 }}
+      />
 
       <TextField
         size="small"

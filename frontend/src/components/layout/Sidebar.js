@@ -23,14 +23,22 @@ const RECRUTEMENT_ITEMS = [
   {
     to: "/hr/recrutement",
     label: "Tableau de bord",
+    permission: "recruitment_read",
   },
   {
     to: "/hr/recrutement/demande",
     label: "Demande de recrutement",
+    permission: "recruitment_requests_read",
   },
   {
     to: "/hr/recrutement/processus",
     label: "Processus de recrutement",
+    permission: "recruitment_read",
+  },
+  {
+    to: "/hr/recrutement/comptes-rendus",
+    label: "Comptes rendus",
+    permission: "recruitment_read",
   },
 ];
 
@@ -38,8 +46,15 @@ export default function Sidebar({ isOpen, onClose }) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const { hrProfile, canSee } = useHRAuth();
-  const peutVoirRecrutement = canSee("recruitment");
+  const {
+    hrProfile,
+    can,
+    canSee,
+  } = useHRAuth();
+
+  const peutVoirRecrutement =
+    can("recruitment_read")
+    || can("recruitment_requests_read");
 
   /*
    * Le menu s'ouvre automatiquement lorsque l'utilisateur
@@ -223,7 +238,9 @@ export default function Sidebar({ isOpen, onClose }) {
 
     {recrutementOpen && (
       <div className="ml-7 border-l border-white/20 bg-black/10">
-        {RECRUTEMENT_ITEMS.map((item) => {
+        {RECRUTEMENT_ITEMS
+          .filter((item) => can(item.permission))
+          .map((item) => {
           const isActive =
             location.pathname === item.to;
 

@@ -194,6 +194,15 @@ CACHE_TTL_SHORT  = 60 * 5
 CACHE_TTL_MEDIUM = 60 * 30
 CACHE_TTL_LONG   = 60 * 60
 
+EMPLOYEE_LIFECYCLE_NOTIFICATION_USERS = [
+    username.strip()
+    for username in os.getenv(
+        "EMPLOYEE_LIFECYCLE_NOTIFICATION_USERS",
+        "sandratra.t,fy.t,eric.s,eric.r,aya-ennour.ely,rebeka.r,tsiory.r,ravaka.r,henintsoa.r,lucia.r",
+    ).split(",")
+    if username.strip()
+]
+
 # ── Email ──────────────────────────────────────────────
 EMAIL_BACKEND       = os.environ.get("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
 EMAIL_HOST          = os.environ.get("EMAIL_HOST")

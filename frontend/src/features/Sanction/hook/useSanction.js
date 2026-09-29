@@ -1,18 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
 import hrClient from "../../../api/hrClient";
 
-export default function useSanctions(tab, searchEmp) {
+export default function useSanctions({ sanctionType, date, search } = {}) {
   const [sanctions, setSanctions]         = useState([]);
   const [sanctionTypes, setSanctionTypes] = useState([]);
   const [loading, setLoading]             = useState(false);
-
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
       const params = {};
-      if (tab) params.status = tab;
-      if (searchEmp)     params.search = searchEmp;
+      if (sanctionType) params.sanction_type = sanctionType;
+      if (date)         params.date          = date;
+      if (search)       params.search        = search;
 
       const [s, t] = await Promise.all([
         hrClient.get("sanctions/",       { params }),
@@ -20,19 +20,19 @@ export default function useSanctions(tab, searchEmp) {
       ]);
 
       setSanctions(s.data.results ?? s.data);
-const rawTypes = (t.data.results ?? t.data ?? []).filter(Boolean);
-setSanctionTypes([
-  ...rawTypes
-    .filter((x) => x && x.code !== "LICENCIEMENT")
-    .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name)),
-  ...rawTypes.filter((x) => x && x.code === "LICENCIEMENT"),
-]);
+      const rawTypes = (t.data.results ?? t.data ?? []).filter(Boolean);
+      setSanctionTypes([
+        ...rawTypes
+          .filter((x) => x && x.code !== "LICENCIEMENT")
+          .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name)),
+        ...rawTypes.filter((x) => x && x.code === "LICENCIEMENT"),
+      ]);
     } catch {
       throw new Error("Erreur de chargement des sanctions");
     } finally {
       setLoading(false);
     }
-  }, [tab, searchEmp]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sanctionType, date, search]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 

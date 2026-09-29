@@ -76,6 +76,13 @@ class HRProfile(models.Model):
     perm_recruitment_validate = models.BooleanField(
         default=False
     )
+    perm_recruitment_requests_read = models.BooleanField(
+    default=False
+    )
+
+    perm_recruitment_requests_write = models.BooleanField(
+        default=False
+    )
 
     class Meta:
     	ordering = ["username"]
@@ -137,7 +144,10 @@ class HRProfile(models.Model):
             modules.append("reports")
         if self.perm_shifts_read:
             modules.append("shifts")
-        if self.perm_recruitment_read:
+        if (
+            self.perm_recruitment_read
+            or self.perm_recruitment_requests_read
+        ):
             modules.append("recruitment")
         if self.perm_contracts_read:
             modules.append("contracts")

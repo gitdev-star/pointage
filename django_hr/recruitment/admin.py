@@ -137,6 +137,7 @@ class DemandeRecrutementAdmin(
                     "poste",
                     "nombre_cdi",
                     "nombre_cdd",
+                    "remarque",
                     "afficher_nombre_total",
                     "date_prevue_recrutement",
                     "motif",

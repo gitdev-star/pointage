@@ -13,6 +13,8 @@ import FormulaireDemandeRecrutement
 import HistoriqueMesDemandes
   from "./HistoriqueDemande";
 
+import { useHRAuth } from "../../../contexts/HRAuthContext";
+
 
 const TABS = {
   FORMULAIRE: "FORMULAIRE",
@@ -21,12 +23,22 @@ const TABS = {
 
 
 export default function DemandeRecrutementPage() {
-  const [
-    activeTab,
-    setActiveTab,
-  ] = useState(
-    TABS.FORMULAIRE
+
+  const { can } = useHRAuth();
+
+  const peutEcrire = can(
+    "recruitment_requests_write"
   );
+  
+
+const [
+  activeTab,
+  setActiveTab,
+] = useState(
+  peutEcrire
+    ? TABS.FORMULAIRE
+    : TABS.HISTORIQUE
+);
 
   const [
     historiqueVersion,
@@ -65,14 +77,15 @@ export default function DemandeRecrutementPage() {
         {/* Onglets */}
         <div className="mb-6 border-b border-slate-200">
           <div className="flex gap-1 overflow-x-auto">
-            <button
-              type="button"
-              onClick={() =>
-                setActiveTab(
-                  TABS.FORMULAIRE
-                )
-              }
-              className={`
+            {peutEcrire && (
+  <button
+    type="button"
+    onClick={() =>
+      setActiveTab(
+        TABS.FORMULAIRE
+      )
+    }
+    className={`
                 relative flex items-center
                 gap-2 whitespace-nowrap
                 px-5 py-3 text-sm
@@ -84,16 +97,11 @@ export default function DemandeRecrutementPage() {
                     : "text-slate-500 hover:text-slate-800"
                 }
               `}
-            >
-              <FilePlus2 size={18} />
-
-              Nouvelle demande
-
-              {activeTab ===
-                TABS.FORMULAIRE && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t bg-blue-600" />
-              )}
-            </button>
+  >
+    <FilePlus2 size={18} />
+    Nouvelle demande
+  </button>
+)}
 
 
             <button
@@ -130,14 +138,15 @@ export default function DemandeRecrutementPage() {
 
 
         {/* Contenu de l’onglet formulaire */}
-        {activeTab ===
-          TABS.FORMULAIRE && (
-          <FormulaireDemandeRecrutement
-            onSubmitted={
-              handleDemandeSubmitted
-            }
-          />
-        )}
+        {peutEcrire
+          && activeTab === TABS.FORMULAIRE
+          && (
+            <FormulaireDemandeRecrutement
+              onSubmitted={
+                handleDemandeSubmitted
+              }
+            />
+          )}
 
 
         {/* Contenu de l’onglet historique */}

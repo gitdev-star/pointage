@@ -35,6 +35,8 @@ from .services.preparation_embauche import (
     supprimer_taches_si_non_retenu,
 )
 
+from .services.fiche_poste import generer_fiche_poste
+
 from openpyxl import Workbook
 
 from rest_framework import (
@@ -382,6 +384,54 @@ class DemandeRecrutementViewSet(
             },
             status=status.HTTP_200_OK,
         )
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="changer-statut-processus-indisponible",
+    )
+    def changer_statut_processus_indisponible(self, request, pk=None):
+        processus = self.get_object()
+        nouveau_statut = request.data.get("statut")
+
+        if nouveau_statut == ProcessusRecrutement.Statut.EN_PAUSE:
+            motif = str(request.data.get("motif_pause", "")).strip()
+            if not motif:
+                return Response(
+                    {"motif_pause": "Précisez la raison de la mise en pause."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if processus.statut == ProcessusRecrutement.Statut.CLOTURE:
+                return Response(
+                    {"detail": "Un recrutement clôturé ne peut pas être mis en pause."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            processus.statut = ProcessusRecrutement.Statut.EN_PAUSE
+            processus.motif_pause = motif
+            processus.date_pause = timezone.now()
+        elif nouveau_statut == ProcessusRecrutement.Statut.EN_COURS:
+            if processus.statut != ProcessusRecrutement.Statut.EN_PAUSE:
+                return Response(
+                    {"detail": "Seul un recrutement en pause peut être repris."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            processus.statut = (
+                ProcessusRecrutement.Statut.EN_COURS
+                if processus.etapes_terminees
+                else ProcessusRecrutement.Statut.PAS_COMMENCE
+            )
+            processus.motif_pause = ""
+            processus.date_pause = None
+        else:
+            return Response(
+                {"statut": "Statut demandé non autorisé."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        processus.save(
+            update_fields=["statut", "motif_pause", "date_pause", "date_modification"]
+        )
+        return Response(self.get_serializer(processus).data)
 
     @action(
         detail=True,
@@ -772,6 +822,10 @@ class ProcessusRecrutementViewSet(
 
         # ÃƒÆ’Ã¢â‚¬Â°tape 1 commune :
         # crÃƒÆ’Ã‚Â©ation ou sÃƒÆ’Ã‚Â©lection de lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢offre.
+        # La création et la publication de l'offre sont facultatives.
+        if numero_etape in (1, 2):
+            return None
+
         if numero_etape == 1:
             if not processus.offre_id:
                 return (
@@ -1148,6 +1202,12 @@ class ProcessusRecrutementViewSet(
             self.get_object()
         )
 
+        if processus_initial.statut == ProcessusRecrutement.Statut.EN_PAUSE:
+            return Response(
+                {"detail": "Reprenez le processus avant de terminer une étape."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         try:
             numero_etape = int(
                 request.data.get(
@@ -1323,11 +1383,51 @@ class ProcessusRecrutementViewSet(
             status=status.HTTP_200_OK,
         )
 
-    @action(
-        detail=True,
-        methods=["get"],
-        url_path="fichier-suivi-excel",
-    )
+    @action(detail=True, methods=["post"], url_path="changer-statut")
+    def changer_statut(self, request, pk=None):
+        processus = self.get_object()
+        nouveau_statut = request.data.get("statut")
+
+        if nouveau_statut == ProcessusRecrutement.Statut.EN_PAUSE:
+            motif = str(request.data.get("motif_pause", "")).strip()
+            if not motif:
+                return Response(
+                    {"motif_pause": "Précisez la raison de la mise en pause."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if processus.statut == ProcessusRecrutement.Statut.CLOTURE:
+                return Response(
+                    {"detail": "Un recrutement clôturé ne peut pas être mis en pause."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            processus.statut = ProcessusRecrutement.Statut.EN_PAUSE
+            processus.motif_pause = motif
+            processus.date_pause = timezone.now()
+        elif nouveau_statut == ProcessusRecrutement.Statut.EN_COURS:
+            if processus.statut != ProcessusRecrutement.Statut.EN_PAUSE:
+                return Response(
+                    {"detail": "Seul un recrutement en pause peut être repris."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            processus.statut = (
+                ProcessusRecrutement.Statut.EN_COURS
+                if processus.etapes_terminees
+                else ProcessusRecrutement.Statut.PAS_COMMENCE
+            )
+            processus.motif_pause = ""
+            processus.date_pause = None
+        else:
+            return Response(
+                {"statut": "Statut demandé non autorisé."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        processus.save(
+            update_fields=["statut", "motif_pause", "date_pause", "date_modification"]
+        )
+        return Response(self.get_serializer(processus).data)
+
+    @action(detail=True, methods=["get"], url_path="fichier-suivi-excel")
     def fichier_suivi_excel(
         self,
         request,
@@ -1650,7 +1750,7 @@ class CandidatViewSet(
             processus.statut
             ==
             ProcessusRecrutement
-            .Statut.TERMINE
+            .Statut.CLOTURE
         ):
             raise drf_serializers.ValidationError(
                 {
@@ -1740,7 +1840,7 @@ class CandidatViewSet(
             processus.statut
             ==
             ProcessusRecrutement
-            .Statut.TERMINE
+            .Statut.CLOTURE
         ):
             raise drf_serializers.ValidationError(
                 {
@@ -2901,6 +3001,40 @@ class EmbaucheViewSet(ModelViewSet):
         "-date_creation",
     ]
 
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path="fiche-poste",
+    )
+    def fiche_poste(self, request, pk=None):
+        embauche = self.get_object()
+
+        if not embauche.confirmee:
+            raise ValidationError({
+                "detail": (
+                    "La fiche de poste est disponible après "
+                    "la confirmation de l’embauche."
+                )
+            })
+
+        contenu = generer_fiche_poste(embauche)
+        nom_fichier = (
+            f"fiche_de_poste_{embauche.candidat.nom}_"
+            f"{embauche.candidat.prenom}.docx"
+        ).replace(" ", "_")
+
+        reponse = HttpResponse(
+            contenu.getvalue(),
+            content_type=(
+                "application/vnd.openxmlformats-officedocument."
+                "wordprocessingml.document"
+            ),
+        )
+        reponse["Content-Disposition"] = (
+            f'attachment; filename="{nom_fichier}"'
+        )
+        return reponse
+
     def perform_destroy(self, instance):
         if instance.date_confirmation:
             raise ValidationError(
@@ -3383,7 +3517,7 @@ class DesistementEmbaucheViewSet(
                 etape_reprise = 3
 
                 processus.statut = (
-                    ProcessusRecrutement.Statut.EN_COURS
+                    ProcessusRecrutement.Statut.RELANCE_DESISTEMENT
                 )
                 processus.etape_actuelle = etape_reprise
                 processus.etapes_terminees = [

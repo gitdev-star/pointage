@@ -8,6 +8,7 @@ import {
   AlertCircle,
   BriefcaseBusiness,
   CheckCircle2,
+  Download,
   FileCheck2,
   Loader2,
   Save,
@@ -255,7 +256,7 @@ export default function EtapeEmbauche({
     async function chargerDonnees() {
       if (!processusId) {
         setErreur(
-          "Lâ€™identifiant du processus est introuvable."
+          "L'identifiant du processus est introuvable."
         );
 
         setChargement(false);
@@ -598,7 +599,7 @@ export default function EtapeEmbauche({
         0
       ) {
         setErreur(
-          `Aucune piÃ¨ce obligatoire nâ€™est disponible pour ${nom}.`
+          `Aucune pièce obligatoire n'est disponible pour ${nom}.`
         );
 
         return false;
@@ -613,7 +614,7 @@ export default function EtapeEmbauche({
 
       if (documentSansRemarque) {
         setErreur(
-          `Ajoutez une remarque pour la piÃ¨ce Â« ${documentSansRemarque.libelle} Â» non reÃ§ue de ${nom}.`
+          `Ajoutez une remarque pour la pièce Â« ${documentSansRemarque.libelle} Â» non reçue de ${nom}.`
         );
 
         return false;
@@ -623,7 +624,7 @@ export default function EtapeEmbauche({
     if (estCadre) {
       if (!embauche.dossierEmbaucheComplet) {
         setErreur(
-          `Le dossier dâ€™embauche de ${nom} doit Ãªtre complet.`
+          `Le dossier d'embauche de ${nom} doit Ãªtre complet.`
         );
         return false;
       }
@@ -818,7 +819,7 @@ export default function EtapeEmbauche({
         );
 
         setMessage(
-          `Lâ€™embauche de ${obtenirNomCandidat(
+          `L'embauche de ${obtenirNomCandidat(
             candidat
           )} a été confirmée.`
         );
@@ -834,6 +835,36 @@ export default function EtapeEmbauche({
       }
     };
 
+  const telechargerFichePoste = async (
+    candidat
+  ) => {
+    const embauche = embauches[candidat.id];
+
+    if (!embauche?.id || !embauche.confirmee) {
+      setErreur(
+        "Confirmez d’abord l’embauche avant de télécharger la fiche de poste."
+      );
+      return;
+    }
+
+    setCandidatEnCours(candidat.id);
+    setErreur("");
+
+    try {
+      await recrutementApi.telechargerFichePoste(
+        embauche.id,
+        obtenirNomCandidat(candidat)
+      );
+    } catch (error) {
+      console.error(error);
+      setErreur(
+        recrutementApi.extraireErreur(error)
+      );
+    } finally {
+      setCandidatEnCours(null);
+    }
+  };
+
   const enregistrerChecklistCadre = async (
     candidat
   ) => {
@@ -841,7 +872,7 @@ export default function EtapeEmbauche({
 
     if (!embauche?.id) {
       setErreur(
-        "Confirmez dâ€™abord lâ€™embauche avant dâ€™enregistrer la suite de lâ€™onboarding."
+        "Confirmez d'abord l'embauche avant d'enregistrer la suite de l'onboarding."
       );
       return;
     }
@@ -927,7 +958,7 @@ export default function EtapeEmbauche({
       ) {
         setErreur(
           estCadre
-            ? "Toutes les checklists dâ€™onboarding doivent Ãªtre complÃ¨tes avant la clÃ´ture."
+            ? "Toutes les checklists d'onboarding doivent Ãªtre complètes avant la clÃ´ture."
             : "Toutes les embauches doivent Ãªtre confirmées avant la clÃ´ture."
         );
 
@@ -940,12 +971,12 @@ export default function EtapeEmbauche({
         let processusMisAJour;
 
         /*
-         * Si le composant parent gÃ¨re
+         * Si le composant parent gère
          * terminer-etape, on utilise
          * uniquement onComplete.
          *
          * Sinon, le composant appelle
-         * directement lâ€™API.
+         * directement l'API.
          */
         if (onComplete) {
           processusMisAJour =
@@ -1111,11 +1142,11 @@ export default function EtapeEmbauche({
         <section className="w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-200 px-3 py-3 sm:px-4">
             <h3 className="font-semibold text-slate-900">
-              Checklist dâ€™embauche et dâ€™onboarding des cadres
+              Checklist d'embauche et d'onboarding des cadres
             </h3>
             <p className="mt-1 text-xs text-slate-500">
               Une ligne correspond Ã  un candidat. Le RI et le Code société
-              sont validés automatiquement aprÃ¨s leur envoi par e-mail.
+              sont validés automatiquement après leur envoi par e-mail.
             </p>
             <p className="mt-1 text-[11px] font-medium text-blue-600 lg:hidden">
               Faites défiler horizontalement pour voir toutes les colonnes.
@@ -1126,7 +1157,7 @@ export default function EtapeEmbauche({
             className="block w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain pb-1"
             tabIndex={0}
             role="region"
-            aria-label="Checklist dâ€™embauche scrollable horizontalement"
+            aria-label="Checklist d'embauche scrollable horizontalement"
           >
             <table className="w-full min-w-[1050px] border-collapse text-sm">
               <thead className="bg-slate-100">
@@ -1265,7 +1296,7 @@ export default function EtapeEmbauche({
                             className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
                           >
                             {traitement ? <Loader2 size={15} className="animate-spin" /> : <UserCheck size={15} />}
-                            Confirmer lâ€™embauche
+                            Confirmer l'embauche
                           </button>
                         ) : (
                           <div className="space-y-2">
@@ -1279,6 +1310,16 @@ export default function EtapeEmbauche({
                               Enregistrer
                             </button>
 
+                            <button
+                              type="button"
+                              disabled={traitement}
+                              onClick={() => telechargerFichePoste(candidat)}
+                              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-blue-300 bg-white px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+                            >
+                              <Download size={15} />
+                              Fiche de poste
+                            </button>
+
                             {!embauche.documentsCadreEmailEnvoyes && (
                               <button
                                 type="button"
@@ -1286,7 +1327,7 @@ export default function EtapeEmbauche({
                                 onClick={() => confirmerEmbaucheCandidat(candidat)}
                                 className="w-full rounded-lg border border-amber-300 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-50"
                               >
-                                Réessayer lâ€™e-mail
+                                Réessayer l'e-mail
                               </button>
                             )}
 
@@ -1315,7 +1356,7 @@ export default function EtapeEmbauche({
 
       {estCadre && candidats.length === 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-10 text-center text-sm text-amber-700">
-          Aucun candidat cadre retenu nâ€™est disponible pour lâ€™embauche.
+          Aucun candidat cadre retenu n'est disponible pour l'embauche.
         </div>
       )}
 
@@ -1327,11 +1368,11 @@ export default function EtapeEmbauche({
             </h3>
 
             <p className="mt-1 text-xs text-slate-500">
-              Une piÃ¨ce peut rester non reÃ§ue, mais une remarque devient alors obligatoire.
+              Une pièce peut rester non reçue, mais une remarque devient alors obligatoire.
             </p>
 
             <p className="mt-1 text-[11px] font-medium text-blue-600 lg:hidden">
-              Faites défiler horizontalement pour voir toutes les piÃ¨ces.
+              Faites défiler horizontalement pour voir toutes les pièces.
             </p>
           </div>
 
@@ -1428,7 +1469,7 @@ export default function EtapeEmbauche({
                                 className="h-4 w-4 rounded border-slate-300 text-blue-600"
                               />
 
-                              ReÃ§ue
+                              Reçue
                             </label>
 
                             {remarqueObligatoire && (
@@ -1551,11 +1592,23 @@ export default function EtapeEmbauche({
                     </p>
                   </div>
 
+                  {embauche.confirmee && (
+                    <button
+                      type="button"
+                      disabled={traitement}
+                      onClick={() => telechargerFichePoste(candidat)}
+                      className="inline-flex items-center gap-2 rounded-lg border border-blue-300 bg-white px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+                    >
+                      <Download size={15} />
+                      Télécharger la fiche de poste
+                    </button>
+                  )}
+
                   {!estCadre && (
                     <p className="text-sm text-slate-600">
                       {nombrePiecesRecues}/
                       {embauche.documents.length}{" "}
-                      piÃ¨ces reÃ§ues
+                      pièces reçues
                     </p>
                   )}
                 </div>
@@ -1737,14 +1790,14 @@ export default function EtapeEmbauche({
                     {estCadre ? (
                       <div className="mt-5 space-y-3">
                         <h4 className="text-sm font-semibold text-slate-900">
-                          Checklist obligatoire dâ€™embauche et dâ€™onboarding
+                          Checklist obligatoire d'embauche et d'onboarding
                         </h4>
 
                         <div className="grid gap-3 md:grid-cols-2">
                           {[
                             {
                               champ: "dossierEmbaucheComplet",
-                              label: "Dossier dâ€™embauche complet",
+                              label: "Dossier d'embauche complet",
                               verrouille: embauche.confirmee,
                             },
                             {
@@ -1754,7 +1807,7 @@ export default function EtapeEmbauche({
                             },
                             {
                               champ: "journeeIntegrationRealisee",
-                              label: "Journée dâ€™intégration réalisée",
+                              label: "Journée d'intégration réalisée",
                               verrouille: false,
                             },
                           ].map((item) => (
@@ -1783,7 +1836,7 @@ export default function EtapeEmbauche({
 
                           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                             <p className="text-sm font-semibold text-slate-800">
-                              RÃ¨glement intérieur communiqué
+                              Règlement intérieur communiqué
                             </p>
                             <p className={`mt-1 text-xs ${
                               embauche.reglementInterieurCommunique
@@ -1791,8 +1844,8 @@ export default function EtapeEmbauche({
                                 : "text-amber-700"
                             }`}>
                               {embauche.reglementInterieurCommunique
-                                ? "Oui - confirmé par le systÃ¨me"
-                                : "En attente de lâ€™envoi automatique"}
+                                ? "Oui - confirmé par le système"
+                                : "En attente de l'envoi automatique"}
                             </p>
                           </div>
 
@@ -1806,8 +1859,8 @@ export default function EtapeEmbauche({
                                 : "text-amber-700"
                             }`}>
                               {embauche.codeSocieteCommunique
-                                ? "Oui - confirmé par le systÃ¨me"
-                                : "En attente de lâ€™envoi automatique"}
+                                ? "Oui - confirmé par le système"
+                                : "En attente de l'envoi automatique"}
                             </p>
                           </div>
                         </div>
@@ -1823,7 +1876,7 @@ export default function EtapeEmbauche({
                                 { dateStyle: "short", timeStyle: "short" }
                               ).format(new Date(embauche.dateEnvoiDocumentsCadre))}.`
                             : embauche.erreurEnvoiDocumentsCadre ||
-                              "Les documents seront envoyés automatiquement lors de la confirmation de lâ€™embauche."}
+                              "Les documents seront envoyés automatiquement lors de la confirmation de l'embauche."}
                         </div>
 
                         {embauche.confirmee &&
@@ -1843,7 +1896,7 @@ export default function EtapeEmbauche({
                                     className="animate-spin"
                                   />
                                 )}
-                                Réessayer lâ€™envoi du RI et du Code société
+                                Réessayer l'envoi du RI et du Code société
                               </button>
                             </div>
                           )}
@@ -1875,7 +1928,7 @@ export default function EtapeEmbauche({
                           </p>
 
                           <p className="mt-1 text-xs text-slate-500">
-                            Les signatures du candidat et de lâ€™employeur ont été vérifiées.
+                            Les signatures du candidat et de l'employeur ont été vérifiées.
                           </p>
                         </div>
                       </label>
@@ -1932,7 +1985,7 @@ export default function EtapeEmbauche({
                             />
                           )}
 
-                          Confirmer lâ€™embauche
+                          Confirmer l'embauche
                         </button>
                       </div>
                     )}
@@ -1961,7 +2014,7 @@ export default function EtapeEmbauche({
                         {embauche.checklistOnboardingComplete && (
                           <p className="flex items-center gap-2 text-sm font-medium text-emerald-700">
                             <CheckCircle2 size={17} />
-                            Checklist complÃ¨te - prÃªt pour la clÃ´ture
+                            Checklist complète - prÃªt pour la clÃ´ture
                           </p>
                         )}
                       </div>
@@ -1975,8 +2028,8 @@ export default function EtapeEmbauche({
 
         {candidats.length === 0 && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-10 text-center text-sm text-amber-700">
-            Aucun candidat nâ€™est disponible
-            pour lâ€™embauche.
+            Aucun candidat n'est disponible
+            pour l'embauche.
           </div>
         )}
       </div>

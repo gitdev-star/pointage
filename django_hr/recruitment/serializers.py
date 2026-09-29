@@ -23,19 +23,20 @@ from .models import (
 
 
 DOCUMENTS_RH_PAR_DEFAUT = [
+    "Fiche de renseignements",
     "2 photocopies de la CIN",
-    "1 photocopie lÃƒÆ’Ã‚Â©galisÃƒÆ’Ã‚Â©e de la CIN",
-    "2 certificats de rÃƒÆ’Ã‚Â©sidence",
-    "4 photos rÃƒÆ’Ã‚Â©centes",
+    "1 photocopie légalisée de la CIN",
+    "2 certificats de résidence",
+    "4 photos récentes",
     "1 photocopie de la carte CNAPS",
-    "NumÃƒÆ’Ã‚Â©ro de compte bancaire ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â RIB de 23 chiffres",
+    "Numéro de compte bancaire - RIB de 23 chiffres",
     (
         "Copie du livret de famille ou actes de naissance "
         "des enfants de moins de 21 ans"
     ),
-    "Photocopies de tous les diplÃƒÆ’Ã‚Â´mes",
+    "Photocopies de tous les diplômes",
     "Copies des certificats de travail",
-    "CV et demande dÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢emploi",
+    "CV et demande d' emploi",
 ]
 
 
@@ -66,14 +67,14 @@ def valider_fichier(
         )
 
         raise serializers.ValidationError(
-            f"Formats autorisÃƒÆ’Ã‚Â©s : {extensions}."
+            f"Formats autorisés : {extensions}."
         )
 
     taille_maximale = 10 * 1024 * 1024
 
     if fichier.size > taille_maximale:
         raise serializers.ValidationError(
-            "Le fichier ne doit pas dÃƒÆ’Ã‚Â©passer 10 Mo."
+            "Le fichier ne doit pas dépasser 10 Mo."
         )
 
     return fichier
@@ -2096,7 +2097,7 @@ class DocumentCandidatSerializer(
                 {
                     "remarque": (
                         "Une remarque est obligatoire "
-                        "lorsque la piÃ¨ce n'est pas reÃ§ue."
+                        "lorsque la pièce n'est pas reçue."
                     )
                 }
             )

@@ -174,6 +174,7 @@ function creerFormulaireInitial(
 
     nombre_cdi: 0,
     nombre_cdd: 0,
+    remarque: "",
 
     date_prevue_recrutement: "",
 
@@ -665,6 +666,8 @@ export default function FormulaireDemandeRecrutement({
         nombre_cdd: Number(
           form.nombre_cdd || 0
         ),
+
+        remarque: form.remarque.trim(),
 
         date_prevue_recrutement:
           form.date_prevue_recrutement,
@@ -1169,7 +1172,7 @@ export default function FormulaireDemandeRecrutement({
               </div>
 
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-4 md:grid-cols-3">
                 <InputField
                   label="Nombre de CDI"
                   name="nombre_cdi"
@@ -1189,6 +1192,14 @@ export default function FormulaireDemandeRecrutement({
                   min="0"
                   required
                 />
+              <TextAreaField
+                label="Remarque (si nécessaire)"
+                name="remarque"
+                value={form.remarque}
+                onChange={handleChange}
+                rows={3}
+                placeholder="Ajoutez une précision concernant les contrats demandés..."
+              />
               </div>
 
 

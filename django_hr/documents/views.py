@@ -100,10 +100,33 @@ def remove_underline(doc):
                         if r.underline:
                             r.underline = False
 
+DATE_FR_PATTERN = re.compile(
+    r"\d{1,2}\s+(?:janvier|f\u00e9vrier|mars|avril|mai|juin|juillet|"
+    r"ao\u00fbt|septembre|octobre|novembre|d\u00e9cembre)\s+\d{4}",
+    re.IGNORECASE,
+)
 
-def fill_template(tpl_path, reps, strip_underline=False, mergefields=None):
+def replace_date_everywhere(doc, new_date):
+    def _repl_para(p):
+        full = "".join(r.text for r in p.runs)
+        if not full:
+            return
+        new = DATE_FR_PATTERN.sub(new_date, full)
+        if new != full and p.runs:
+            p.runs[0].text = new
+            for r in p.runs[1:]:
+                r.text = ""
+
+    for p in doc.paragraphs:
+        _repl_para(p)
+    for tbl in doc.tables:
+        for row in tbl.rows:
+            for cell in row.cells:
+                for p in cell.paragraphs:
+                    _repl_para(p)
+
+def fill_template(tpl_path, reps, strip_underline=False, mergefields=None, date_replacement=None):
     from docx import Document
-    from docx.oxml.ns import qn
     doc = Document(tpl_path)
 
     if mergefields:
@@ -121,6 +144,10 @@ def fill_template(tpl_path, reps, strip_underline=False, mergefields=None):
             replace_in_paragraph(p, reps)
         for p in sec.footer.paragraphs:
             replace_in_paragraph(p, reps)
+
+    if date_replacement:
+        replace_date_everywhere(doc, date_replacement)
+
     if strip_underline:
         remove_underline(doc)
     # Remove trailing blank paragraphs that cause extra blank pages
@@ -161,7 +188,7 @@ def build_attestation(emp, extra):
         "Civilit\u00e9"                                              : civ,
         "Nom et Pr\u00e9nom"                                         : name,
         "Fonction"                                                    : emp.job_title or "\u2014",
-        "Classification"                                              : classif,
+        "classifications"                                              : classif,
         "Matricule"                                                   : emp.employee_id or "\u2014",
         "Date d\u2019embauhce"                                       : hire,
         "D\u00e9termin\u00e9e / ind\u00e9termin\u00e9e (rayer la mention inutile)" : contrat_txt,
@@ -273,7 +300,18 @@ def build_evaluation_cdd(emp, extra):
     hire     = fmt_date(emp.hire_date)
     raw_hire = extra.get("date_debut") or str(emp.hire_date or date.today())
     d_debut  = fmt_date(raw_hire)
-    d_fin    = fmt_date(extra.get("date_fin_eval")) if extra.get("date_fin_eval") else add_months(raw_hire, 6)
+
+    # Date de fin du contrat ACTUEL (celui qu'on évalue)
+    raw_fin = extra.get("date_fin_eval") or (
+        (datetime.strptime(raw_hire[:10], "%Y-%m-%d").date() if isinstance(raw_hire, str) else raw_hire)
+        + relativedelta(months=6)
+    )
+    d_fin = fmt_date(raw_fin)
+
+    # Période du RENOUVELLEMENT : commence à la fin du contrat actuel, +6 mois
+    renew_debut = d_fin
+    renew_fin   = add_months(raw_fin, 6)
+
     name     = f"{emp.last_name} {emp.first_name}"
     civ      = civilite(emp)
     today    = today_fr()
@@ -291,12 +329,12 @@ def build_evaluation_cdd(emp, extra):
         "Fonction\xa0: "                                : f"Fonction\xa0: {emp.job_title or chr(8212)}",
         "Matricule\xa0: "                               : f"Matricule\xa0: {emp.employee_id or chr(8212)}",
         "Section\xa0:\t\t\t\t\t\tSite\xa0: "     : f"Section\xa0: {section}      Site\xa0: {factory}",
-        # Renewal letter date placeholders (copy 1)
-        "allant du xxxxx au xxxxx"                       : f"allant du {d_debut} au {d_fin}",
-        "manomboka ny xxxxxx  hatramin\u2019ny xxxxx"   : f"manomboka ny {d_debut} hatramin\u2019ny {d_fin}",
+        # Renewal letter date placeholders (copy 1) — utilisent désormais renew_debut/renew_fin
+        "allant du xxxxx au xxxxx"                       : f"allant du {renew_debut} au {renew_fin}",
+        "manomboka ny xxxxxx  hatramin\u2019ny xxxxx"   : f"manomboka ny {renew_debut} hatramin\u2019ny {renew_fin}",
         # Renewal letter date placeholders (copy 2)
-        "allant du xxxxxx au xxxxxxxxxxxxx"              : f"allant du {d_debut} au {d_fin}",
-        "manomboka ny xxxxxxxxx  hatramin\u2019ny xxxxxxxxxxxxxxx" : f"manomboka ny {d_debut} hatramin\u2019ny {d_fin}",
+        "allant du xxxxxx au xxxxxxxxxxxxx"              : f"allant du {renew_debut} au {renew_fin}",
+        "manomboka ny xxxxxxxxx  hatramin\u2019ny xxxxxxxxxxxxxxx" : f"manomboka ny {renew_debut} hatramin\u2019ny {renew_fin}",
     })
 
 def build_cdd_18(emp, extra):
@@ -550,16 +588,20 @@ def build_fin_cdd(emp, extra):
     section  = emp.section.name if emp.section else (emp.department.name if emp.department else "\u2014")
     matricule = emp.employee_id or "\u2014"
 
-    return fill_template(os.path.join(TEMPLATES_DIR, "fin_cdd_terme.docx"), {
-        "Antananarivo le,02 juillet 2026"                              : f"Antananarivo le,{date_fin}",
-        "Mr / Mme  RAMIARINARIVO  Cébastien Youlo Mabialahy"           : f"Mr / Mme  {name}",
-        "Fonction\xa0: Machiniste"                                     : f"Fonction\xa0: {fonction}",
-        "Matricule\xa0:  005089"                                       : f"Matricule\xa0:  {matricule}",
-        "Section\xa0: Machiniste"                                      : f"Section\xa0: {section}",
-        "[DATE EMBAUCHE]" : hire,  
-        "18 février 2025" : hire,      # date d'embauche (corps FR + MG)
-        "02 juillet 2026" : date_fin,  # date d'effet (en-tête + corps FR + MG)
-    })
+    return fill_template(
+        os.path.join(TEMPLATES_DIR, "fin_cdd_terme.docx"),
+        {
+            "Mr / Mme  RAMIARINARIVO  Cébastien Youlo Mabialahy"           : f"Mr / Mme  {name}",
+            "Fonction\xa0: Machiniste"                                     : f"Fonction\xa0: {fonction}",
+            "Matricule\xa0:  005089"                                       : f"Matricule\xa0:  {matricule}",
+            "Section\xa0: Machiniste"                                      : f"Section\xa0: {section}",
+            "[DATE EMBAUCHE]" : hire,
+            "18 février 2025" : hire,
+            # NB: la ligne "02 juillet 2026" est retirée d'ici → elle vivait dans le corps
+            # mais ne matchait jamais réellement, voir mergefields ci-dessous.
+        },
+        mergefields={"F9": date_fin},
+    )
 
 
 def civ_abbrev(emp):
@@ -567,17 +609,37 @@ def civ_abbrev(emp):
 
 def build_essai_non_concluant(emp, extra):
     """Lettre de rupture pour essai non concluant."""
-    date_fin  = fmt_date(extra.get("date_fin") or date.today())
-    name      = f"{emp.last_name} {emp.first_name}"
-    fonction  = emp.job_title.name if emp.job_title else "\u2014"
-    matricule = emp.employee_id or "\u2014"
 
-    return fill_template(os.path.join(TEMPLATES_DIR, "essai_non_concluant.docx"), {
-        "M. RANDRIANOTAHINA Tiavina Milison Rova" : f"{civ_abbrev(emp)} {name}",
-        "Mle 006418"                              : f"Mle {matricule}",
-        "Machiniste"                              : fonction,   # remplace les 3 occurrences (titre, phrase FR, citation MG)
-        "07 juillet 2026"                          : date_fin,   # remplace en-tête + corps FR + corps MG
-    })
+    print("========== ESSAI NON CONCLUANT ==========")
+    print("EMPLOYEE :", emp.id, emp.first_name, emp.last_name)
+    print("EXTRA RECU :", extra)
+    print("=========================================")
+
+    date_fin_raw = extra.get("date_fin") if extra else None
+
+    if not date_fin_raw:
+        raise ValueError("La date d'effet (rupture) est obligatoire.")
+
+    date_fin = fmt_date(date_fin_raw)
+
+    name = f"{emp.last_name} {emp.first_name}"
+    fonction = emp.job_title.name if emp.job_title else "—"
+    matricule = emp.employee_id or "—"
+
+    print("NOM :", name)
+    print("MATRICULE :", matricule)
+    print("FONCTION :", fonction)
+    print("DATE :", date_fin)
+
+    return fill_template(
+        os.path.join(TEMPLATES_DIR, "essai_non_concluant.docx"),
+        {
+            "M. RANDRIANOTAHINA Tiavina Milison Rova": f"{civ_abbrev(emp)} {name}",
+            "Mle 006418": f"Mle {matricule}",
+            "Machiniste": fonction,
+        },
+        mergefields={"date_fin_en_lettre": date_fin},
+    )
 
 BUILDERS = {
     "attestation"     : (build_attestation,      "Attestation_emploi"),

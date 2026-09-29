@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 MESSAGE_TEST = (
     "CECI EST UN TEST MAIL POUR "
-    "LE SYSTÃˆME DE RECRUTEMENT"
+    "LE SYSTEME DE RECRUTEMENT"
 )
 
 
@@ -57,7 +57,7 @@ def ajouter_bandeau_test_html(
     contenu_html,
 ):
     """
-    Ajoute un grand bandeau rouge aprÃ¨s
+    Ajoute un grand bandeau rouge après
     l'ouverture de la balise body.
     """
 
@@ -135,32 +135,17 @@ def envoyer_email(
         logger.warning(
             (
                 "Aucun destinataire pour "
-                "lâ€™e-mail : %s"
+                "l'e-mail : %s"
             ),
             sujet,
         )
 
         return False
 
-    sujet_test = f"[TEST] {sujet}"
-
-    contenu_texte_test = (
-        f"{'=' * 70}\n"
-        f"{MESSAGE_TEST}\n"
-        f"{'=' * 70}\n\n"
-        f"{contenu_texte}"
-    )
-
-    contenu_html_test = (
-        ajouter_bandeau_test_html(
-            contenu_html
-        )
-    )
-
     try:
         message = EmailMultiAlternatives(
-            subject=sujet_test,
-            body=contenu_texte_test,
+            subject=sujet,
+            body=contenu_texte,
             from_email=(
                 settings.DEFAULT_FROM_EMAIL
             ),
@@ -168,7 +153,7 @@ def envoyer_email(
         )
 
         message.attach_alternative(
-            contenu_html_test,
+            contenu_html,
             "text/html",
         )
 
@@ -190,11 +175,11 @@ def envoyer_email(
         )
 
         logger.info(
-            "E-mail envoyé à  %s : %s",
+            "E-mail envoyé Ã  %s : %s",
             ", ".join(
                 destinataires_valides
             ),
-            sujet_test,
+            sujet,
         )
 
         return True
@@ -202,10 +187,10 @@ def envoyer_email(
     except Exception:
         logger.exception(
             (
-                "Erreur pendant lâ€™envoi "
-                "de lâ€™e-mail : %s"
+                "Erreur pendant l'envoi "
+                "de l'e-mail : %s"
             ),
-            sujet_test,
+            sujet,
         )
 
         return False
@@ -221,11 +206,6 @@ def emails_directeurs_rh():
             is_active=True,
         )
         .exclude(email="")
-        .exclude(
-            email__iexact=(
-                "testmail.mg"
-            )
-        )
         .values_list(
             "email",
             flat=True,
@@ -234,7 +214,7 @@ def emails_directeurs_rh():
 
 
 def emails_directeurs_recrutement():
-    """Adresses des directeurs chargés de la premiÃ¨re validation."""
+    """Adresses des directeurs chargés de la première validation."""
 
     return list(
         HRProfile.objects
@@ -274,7 +254,7 @@ def notifier_processus_recrutement_cree(
     processus,
 ):
     """
-    Informe les responsables du recrutement aprÃ¨s
+    Informe les responsables du recrutement après
     l'approbation du DRH et la création du processus.
     """
 
@@ -325,7 +305,7 @@ def notifier_processus_recrutement_cree(
         "Bonjour,\n\n"
         "Une demande de recrutement a été approuvée par "
         "le directeur et le DRH. Le processus de recrutement "
-        "a été créé et peut maintenant Ãªtre pris en charge.\n\n"
+        "a été crée et peut maintenant être pris en charge.\n\n"
         f"Référence : {demande.reference}\n"
         f"Poste : {poste}\n"
         f"Type de recrutement : {type_recrutement}\n"
@@ -955,7 +935,7 @@ def notifier_decision_demande(
             <p>
               Votre demande pour le poste
               <strong>{escape(poste)}</strong>
-              a reÃ§u la décision suivante :
+              a reçu la décision suivante :
             </p>
 
             <p style="
@@ -993,7 +973,7 @@ def envoyer_compte_rendu_cadre(
 ):
     """
     Envoie le compte rendu d'entretien cadre
-    au DRH avec le PDF en piÃ¨ce jointe.
+    au DRH avec le PDF en pièce jointe.
     """
 
     destinataires = nettoyer_destinataires(
@@ -1043,7 +1023,7 @@ def envoyer_compte_rendu_cadre(
     )
 
     contenu_texte = (
-        "Un compte rendu dâ€™entretien cadre "
+        "Un compte rendu d'entretien cadre "
         "est disponible.\n\n"
         f"Référence : {reference}\n"
         f"Candidat : {candidat.nom_complet}\n"
@@ -1075,7 +1055,7 @@ def envoyer_compte_rendu_cadre(
             color: white;
           ">
             <h2 style="margin: 0;">
-              Compte rendu dâ€™entretien cadre
+              Compte rendu d'entretien cadre
             </h2>
 
             <p style="
@@ -1089,7 +1069,7 @@ def envoyer_compte_rendu_cadre(
           <div style="padding: 24px;">
             <p>
               Un nouveau compte rendu
-              dâ€™entretien a été validé.
+              d'entretien a été validé.
             </p>
 
             <table style="
@@ -1323,7 +1303,7 @@ def notifier_services_preparation_cadre(
 
         sujet = (
             "[Recrutement] Préparation de "
-            f"lâ€™embauche de "
+            f"l'embauche de "
             f"{candidat.nom_complet}"
         )
 
@@ -1343,7 +1323,7 @@ def notifier_services_preparation_cadre(
             f"préparations avant la date "
             f"de prise de poste.\n\n"
             f"Cordialement,\n"
-            f"SystÃ¨me RH"
+            f"Système RH"
         )
 
         contenu_html = f"""
@@ -1368,7 +1348,7 @@ def notifier_services_preparation_cadre(
                 color: white;
               ">
                 <h2 style="margin: 0;">
-                  Préparation dâ€™une embauche
+                  Préparation d'une embauche
                 </h2>
 
                 <p style="
@@ -1458,7 +1438,7 @@ def notifier_services_preparation_cadre(
 
                 <p>
                   Cordialement,<br>
-                  <strong>SystÃ¨me RH</strong>
+                  <strong>Système RH</strong>
                 </p>
               </div>
             </div>
@@ -1477,7 +1457,7 @@ def notifier_services_preparation_cadre(
             ""
             if envoye
             else (
-                "Lâ€™envoi de la notification "
+                "L'envoi de la notification "
                 "a échoué. Consultez les logs "
                 "du serveur pour obtenir le détail."
             )
@@ -1534,7 +1514,7 @@ def _charger_document_onboarding(
     if not chemin_configure:
         raise FileNotFoundError(
             f"Le chemin du document Â« {nom_par_defaut} Â» "
-            "nâ€™est pas configuré."
+            "n'est pas configuré."
         )
 
     chemin = Path(chemin_configure)
@@ -1559,8 +1539,8 @@ def _charger_document_onboarding(
 
 def envoyer_documents_onboarding_cadre(embauche):
     """
-    Envoie le rÃ¨glement intérieur et le Code de la société au
-    candidat cadre, puis conserve une trace complÃ¨te de la tentative.
+    Envoie le règlement intérieur et le Code de la société au
+    candidat cadre, puis conserve une trace complète de la tentative.
 
     Réglages attendus dans settings.py :
         RECRUTEMENT_RI_PATH
@@ -1606,7 +1586,7 @@ def envoyer_documents_onboarding_cadre(embauche):
         embauche.erreur_envoi_documents_cadre = message
 
         logger.warning(
-            "Documents dâ€™onboarding non envoyés pour lâ€™embauche %s : %s",
+            "Documents d'onboarding non envoyés pour l'embauche %s : %s",
             embauche.pk,
             message,
         )
@@ -1619,12 +1599,12 @@ def envoyer_documents_onboarding_cadre(embauche):
 
     if not embauche.est_cadre:
         return enregistrer_echec(
-            "Lâ€™envoi du RI et du Code société est réservé aux cadres."
+            "L'envoi du RI et du Code société est réservé aux cadres."
         )
 
     if not destinataires:
         return enregistrer_echec(
-            "Le candidat cadre ne possÃ¨de aucune adresse e-mail."
+            "Le candidat cadre ne possède aucune adresse e-mail."
         )
 
     try:
@@ -1652,18 +1632,18 @@ def envoyer_documents_onboarding_cadre(embauche):
     )
 
     sujet = (
-        "[Recrutement] Documents dâ€™intégration - "
+        "[Recrutement] Documents d'intégration - "
         f"{demande.reference}"
     )
 
     contenu_texte = (
         f"Bonjour {candidat.nom_complet},\n\n"
-        "Votre embauche a été validée. Vous trouverez en piÃ¨ces "
-        "jointes le rÃ¨glement intérieur et le Code de la société.\n\n"
+        "Votre embauche a été validée. Vous trouverez en pièces "
+        "jointes le règlement intérieur et le Code de la société.\n\n"
         f"Référence : {demande.reference}\n"
         f"Poste : {poste}\n"
         f"Date de prise de poste : {embauche.date_debut_contrat}\n\n"
-        "Cordialement,\nSystÃ¨me RH"
+        "Cordialement,\nSystème RH"
     )
 
     contenu_html = f"""
@@ -1674,7 +1654,7 @@ def envoyer_documents_onboarding_cadre(embauche):
                     border:1px solid #e2e8f0;border-radius:12px;
                     overflow:hidden;">
           <div style="padding:20px 24px;background:#2563eb;color:white;">
-            <h2 style="margin:0;">Documents dâ€™intégration</h2>
+            <h2 style="margin:0;">Documents d'intégration</h2>
             <p style="margin:8px 0 0;">{escape(demande.reference)}</p>
           </div>
           <div style="padding:24px;">
@@ -1684,7 +1664,7 @@ def envoyer_documents_onboarding_cadre(embauche):
               <strong>{escape(poste)}</strong>.
             </p>
             <p>
-              Vous trouverez en piÃ¨ces jointes le rÃ¨glement intérieur
+              Vous trouverez en pièces jointes le règlement intérieur
               et le Code de la société.
             </p>
             <table style="width:100%;border-collapse:collapse;margin:20px 0;">
@@ -1695,7 +1675,7 @@ def envoyer_documents_onboarding_cadre(embauche):
                 </td>
               </tr>
             </table>
-            <p>Cordialement,<br><strong>SystÃ¨me RH</strong></p>
+            <p>Cordialement,<br><strong>Système RH</strong></p>
           </div>
         </div>
       </body>
@@ -1712,7 +1692,7 @@ def envoyer_documents_onboarding_cadre(embauche):
 
     if not envoye:
         return enregistrer_echec(
-            "Lâ€™envoi de lâ€™e-mail dâ€™onboarding a échoué. "
+            "L'envoi de l'e-mail d'onboarding a échoué. "
             "Consultez les logs du serveur."
         )
 

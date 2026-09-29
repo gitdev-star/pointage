@@ -88,6 +88,15 @@ export default function PresenceDashboard() {
     });
   };
 
+console.log("CALCUL ABSENCE", {
+  totalActive: state.totalActive,
+  presents: state.kpi?.presents,
+  late: state.kpi?.late,
+  absentCount,
+  attendanceRows: state.attendanceData.length,
+  filters: state.filters,
+});
+
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <DashboardHeader

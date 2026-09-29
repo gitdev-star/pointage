@@ -362,7 +362,7 @@ export default function EtapeSuiviCandidatures({
       );
     } catch (error) {
       console.error(
-        "Erreur dâ€™ajout du candidat :",
+        "Erreur d'ajout du candidat :",
         error
       );
 
@@ -484,11 +484,11 @@ export default function EtapeSuiviCandidatures({
       );
 
       setMessage(
-        "La fiche de test a été enregistrée. Le candidat est reÃ§u."
+        "La fiche de test a été enregistrée. Le candidat est reçu."
       );
     } catch (error) {
       console.error(
-        "Erreur dâ€™ajout de la fiche :",
+        "Erreur d'ajout de la fiche :",
         error
       );
 
@@ -504,7 +504,7 @@ export default function EtapeSuiviCandidatures({
     async (candidat) => {
       const confirmation =
         window.confirm(
-          "Retirer la fiche de test ? Le candidat passera au statut non reÃ§u."
+          "Retirer la fiche de test ? Le candidat passera au statut non reçu."
         );
 
       if (!confirmation) return;
@@ -627,7 +627,7 @@ export default function EtapeSuiviCandidatures({
 
     if (nombreRecus === 0) {
       setErreur(
-        "Ajoutez au moins une fiche de test. Aucun candidat nâ€™est reÃ§u."
+        "Ajoutez au moins une fiche de test. Aucun candidat n'est reçu."
       );
 
       return;
@@ -700,7 +700,7 @@ export default function EtapeSuiviCandidatures({
             </p>
 
             <p className="text-xs text-slate-500">
-              {nombreRecus} reÃ§u(s) avec
+              {nombreRecus} reçu(s) avec
               une fiche de test
             </p>
           </div>
@@ -853,7 +853,7 @@ export default function EtapeSuiviCandidatures({
               </label>
 
               <input
-                value="Récupérée automatiquement aprÃ¨s lâ€™enregistrement"
+                value="Récupérée automatiquement après l'enregistrement"
                 disabled
                 className="
                   w-full cursor-not-allowed
@@ -1133,8 +1133,8 @@ export default function EtapeSuiviCandidatures({
                             {candidatRecu(
                               candidat
                             )
-                              ? "ReÃ§u"
-                              : "Non reÃ§u"}
+                              ? "Reçu"
+                              : "Non reçu"}
                           </span>
                         </td>
 
@@ -1187,7 +1187,7 @@ export default function EtapeSuiviCandidatures({
         <p className="mt-1 text-sm text-slate-500">
           La génération du fichier est
           facultative et ne bloque pas la
-          validation de lâ€™étape.
+          validation de l'étape.
         </p>
 
         <button
