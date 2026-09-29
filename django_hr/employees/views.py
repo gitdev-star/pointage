@@ -12,6 +12,7 @@ from rest_framework.exceptions import MethodNotAllowed
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import IsAuthenticated
+from accounts.permissions import require_perm
 from django_filters.rest_framework import DjangoFilterBackend
 from datetime import date
 from django.utils import timezone
@@ -922,8 +923,15 @@ class ClassificationViewSet(AuditedModelViewSet):
     def get_queryset(self):
         return with_last_action(super().get_queryset(), "classification")
 
+    def get_permissions(self):
+        perm = ("classification_read"
+                if self.request.method in ("GET", "HEAD", "OPTIONS")
+                else "classification_write")
+        return [require_perm(perm)()]
+
 
 @api_view(["GET"])
+@permission_classes([require_perm("classification_read")])
 def cached_classifications(request):
     data = cache.get("classifications_list")
     if not data:

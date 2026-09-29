@@ -48,6 +48,8 @@ class HRProfile(models.Model):
     perm_alerts_write      = models.BooleanField(default=False)
     perm_organisation_read  = models.BooleanField(default=False)
     perm_organisation_write = models.BooleanField(default=False)
+    perm_classification_read  = models.BooleanField(default=False)
+    perm_classification_write = models.BooleanField(default=False)
     perm_hr_events_read    = models.BooleanField(default=False)
     perm_hr_events_write   = models.BooleanField(default=False)
     perm_hr_users_manage   = models.BooleanField(default=False)

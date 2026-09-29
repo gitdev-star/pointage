@@ -78,6 +78,10 @@ const MODULES = [
     { key: "pay_events_read",  label: "Voir" },
     { key: "pay_events_write", label: "Modifier" },
   ]},
+  { key: "classification", label: "Classification", perms: [
+    { key: "classification_read",  label: "Voir" },
+    { key: "classification_write", label: "Modifier" },
+  ] },
   { key: "organisation", label: "Organisation", perms: [
     { key: "organisation_read",  label: "Voir" },
     { key: "organisation_write", label: "Modifier" },

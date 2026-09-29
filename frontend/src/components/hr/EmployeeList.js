@@ -85,6 +85,8 @@ export default function EmployeeList() {
   const [factories, setFactories]     = useState([]);
   const [departments, setDepartments] = useState([]);
   const [sections, setSections]       = useState([]);
+  const { can: canHR } = useHRAuth();
+  const canSeeClassif = canHR("classification_read");
   const [classifications, setClassifications] = useState([]);
   const [postes, setPostes]               = useState([]);
   const [loading, setLoading]         = useState(false);
@@ -157,11 +159,15 @@ export default function EmployeeList() {
       .then(r => setDepartments(r.data.results || r.data)).catch(() => {});
     hrClient.get("employees/sections/?page_size=500")
       .then(r => setSections(r.data.results || r.data)).catch(() => {});
-    hrClient.get("employees/classifications/?page_size=200")
-      .then(r => setClassifications(r.data.results || r.data)).catch(() => {});
     hrClient.get("employees/postes/?page_size=500")
       .then(r => setPostes(r.data.results || r.data)).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!canSeeClassif) { setClassifications([]); return; }
+    hrClient.get("employees/classifications/?page_size=200")
+      .then(r => setClassifications(r.data.results || r.data)).catch(() => {});
+  }, [canSeeClassif]);
 
   const handleSearchChange = (val) => {
     setSearchInput(val);

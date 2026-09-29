@@ -39,6 +39,7 @@ const MODULES = [
   { key: "pay_events",   label: "Événements paie",perms: ["read", "write"] },
   { key: "alerts",       label: "Alertes",        perms: ["read", "write"] },
   { key: "organisation", label: "Organisation",   perms: ["read", "write"] },
+  { key: "classification", label: "Classification", perms: ["read", "write"] },
   { key: "hr_events",    label: "Événements RH",  perms: ["read", "write"] },
   { key: "transport",    label: "Transport",           perms: ["read", "write"] },
   { key: "cantine",      label: "Cantine",             perms: ["read", "write"] },

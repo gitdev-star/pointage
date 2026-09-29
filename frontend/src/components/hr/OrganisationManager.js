@@ -130,6 +130,8 @@ export default function OrganisationManager() {
   const { can } = useHRAuth();
   const canWrite  = can("organisation_write");
   const canDelete = can("organisation_write");
+  const canSeeClassification   = can("classification_read");
+  const canWriteClassification = can("classification_write");
 
   const [tab, setTab]               = useState(0);
   const [factories, setFactories]   = useState([]);
@@ -197,7 +199,8 @@ export default function OrganisationManager() {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const entries = Object.entries(ENTITY_CONFIG);
+      const entries = Object.entries(ENTITY_CONFIG)
+        .filter(([k]) => k !== "classification" || canSeeClassification);
       const results = await Promise.all(entries.map(([, cfg]) => fetchAllResource(cfg.url)));
       entries.forEach(([, cfg], i) => setterMap[cfg.key](results[i]));
     } catch {
@@ -206,7 +209,7 @@ export default function OrganisationManager() {
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetchAllResource]);
+  }, [fetchAllResource, canSeeClassification]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
@@ -414,11 +417,11 @@ const filteredPostes = postes.filter(p => {
       )}
 
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 3 }}>
-        <Tab label={`Usines (${factories.length})`} />
-        <Tab label={`Départements (${departments.length})`} />
-        <Tab label={`Sections (${sections.length})`} />
-        <Tab label={`Classifications (${classifications.length})`} />
-        <Tab label={`Postes (${postes.length})`} />
+        <Tab value={0} label={`Usines (${factories.length})`} />
+        <Tab value={1} label={`Départements (${departments.length})`} />
+        <Tab value={2} label={`Sections (${sections.length})`} />
+        {canSeeClassification && <Tab value={3} label={`Classifications (${classifications.length})`} />}
+        <Tab value={4} label={`Postes (${postes.length})`} />
       </Tabs>
 
       <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
@@ -481,7 +484,7 @@ const filteredPostes = postes.filter(p => {
           canWrite={canWrite} canDelete={canDelete}
         />
       )}
-     {tab === 3 && (
+     {tab === 3 && canSeeClassification && (
   <CRUDTable
     columns={classificationColumns}
     rows={filteredClassifications.map(c => ({ ...c, id: c.id_classification }))}
@@ -489,8 +492,8 @@ const filteredPostes = postes.filter(p => {
     onAdd={() => openAdd("classification")}
     onEdit={row => openEdit("classification", row)}
     onDelete={row => setDeleteDialog({ type: "classification", id: row.id, name: row.classe })}
-    canWrite={canWrite}
-    canDelete={canDelete}
+    canWrite={canWriteClassification}
+    canDelete={canWriteClassification}
   />
 )}
               {tab === 4 && (
