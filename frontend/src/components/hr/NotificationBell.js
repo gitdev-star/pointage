@@ -87,6 +87,8 @@ export default function NotificationBell() {
     return `${Math.floor(diff / 86400)}j`;
   };
 
+  if (!canAlerts) return null;
+
   return (
     <div ref={ref} style={{ position: "relative", display: "inline-block" }}>
       {/* Bell button */}
