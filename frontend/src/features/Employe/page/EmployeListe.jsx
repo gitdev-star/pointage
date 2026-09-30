@@ -190,6 +190,14 @@ const fetchEmployees = useCallback(async () => {
 
   useEffect(() => { fetchEmployees(); }, [fetchEmployees]);
 
+  const canSeeClassif = can("classification_read");
+  useEffect(() => {
+    if (!canSeeClassif) { setClassifications([]); return; }
+    hrClient.get("employees/classifications/?page_size=100")
+      .then((r) => setClassifications(r.data.results || r.data || []))
+      .catch(() => {});
+  }, [canSeeClassif]);
+
 useEffect(() => {
   hrClient.get("employees/factories/?page_size=100")
     .then((r) => setFactories(r.data.results || r.data || []))
@@ -200,15 +208,6 @@ useEffect(() => {
   hrClient.get("employees/sections/?page_size=500")
     .then((r) => setSections(r.data.results || r.data || []))
     .catch(() => {});
-// Dans EmployeListe.jsx, remplace le fetch classifications par :
-hrClient.get("employees/classifications/?page_size=100")
-  .then((r) => {
-    // // console.log("✅ classifications OK:", r.data);
-    setClassifications(r.data.results || r.data || []);
-  })
-  .catch((err) => {
-    // // console.error("❌ classifications error:", err.response?.status, err.response?.data);
-  });
 hrClient.get("employees/postes/?page_size=500&is_active=true")
     .then((r) => {
       // // console.log("✅ postes OK:", r.data);
