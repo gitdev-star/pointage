@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('accounts', '0013_hrprofile_is_recruitment_responsible_and_more'),
+        ('accounts', '0014_hrprofile_perm_recruitment_requests_read_and_more'),
     ]
 
     operations = [
