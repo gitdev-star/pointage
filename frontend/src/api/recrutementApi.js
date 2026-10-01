@@ -54,6 +54,23 @@ const recrutementApi = {
   // CANDIDATS
   // ===================================================
 
+  async obtenirTableauDeBord({
+  annee,
+  trimestre,
+}) {
+  const response = await hrClient.get(
+    `${DEMANDES_URL}tableau-de-bord/`,
+    {
+      params: {
+        annee,
+        trimestre,
+      },
+    }
+  );
+
+  return response.data;
+},
+
   async obtenirCandidats(params = {}) {
     const response = await hrClient.get(
       "recruitment/candidats/",
