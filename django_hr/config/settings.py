@@ -194,13 +194,13 @@ CACHE_TTL_SHORT  = 60 * 5
 CACHE_TTL_MEDIUM = 60 * 30
 CACHE_TTL_LONG   = 60 * 60
 
-EMPLOYEE_LIFECYCLE_NOTIFICATION_USERS = [
-    username.strip()
-    for username in os.getenv(
-        "EMPLOYEE_LIFECYCLE_NOTIFICATION_USERS",
-        "sandratra.t,fy.t,eric.s,eric.r,aya-ennour.ely,rebeka.r,tsiory.r,ravaka.r,henintsoa.r,lucia.r",
+EMPLOYEE_CREATED_NOTIFICATION_EMAILS = [
+    email.strip().lower()
+    for email in os.getenv(
+        "EMPLOYEE_CREATED_NOTIFICATION_EMAILS",
+        "",
     ).split(",")
-    if username.strip()
+    if email.strip()
 ]
 
 # ── Email ──────────────────────────────────────────────

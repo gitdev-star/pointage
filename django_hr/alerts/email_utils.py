@@ -299,20 +299,83 @@ def notify_employee_created(employee, triggered_by: str = "Inconnu"):
         "</table>",
     ])
 
-    hr_emails = list(
-        HRProfile.objects.filter(is_active=True)
-        .exclude(email="")
-        .filter(email__iendswith="@pb-industries.mg")  # exclude test/junk domains (test.com, blanks, etc.)
-        .values_list("email", flat=True)
-    )
-    recipients = list({HELPDESK_EMAIL} | set(hr_emails))
-    print(f"[EMAIL DEBUG] notify_employee_created recipients ({len(recipients)}): {recipients}")
+    # hr_emails = list(
+    #     HRProfile.objects.filter(is_active=True)
+    #     .exclude(email="")
+    #     .filter(email__iendswith="@pb-industries.mg")  # exclude test/junk domains (test.com, blanks, etc.)
+    #     .values_list("email", flat=True)
+    # )
+    # recipients = list({HELPDESK_EMAIL} | set(hr_emails))
+    # print(f"[EMAIL DEBUG] notify_employee_created recipients ({len(recipients)}): {recipients}")
 
-    html = _base_html("Nouvel employé créé", body_html)
-    _send(subject, html, text, recipients)
-    _notify_inapp(subject, f"Employe: {emp.full_name} | Contrat: {emp.contract_type}", level="success", category="employee")
+    # html = _base_html("Nouvel employé créé", body_html)
+    # _send(subject, html, text, recipients)
+    # _notify_inapp(subject, f"Employe: {emp.full_name} | Contrat: {emp.contract_type}", level="success", category="employee")
     
-    
+    recipients = list(
+        dict.fromkeys(
+            email.strip().lower()
+            for email in getattr(
+                settings,
+                "EMPLOYEE_CREATED_NOTIFICATION_EMAILS",
+                [],
+            )
+            if email.strip()
+        )
+    )
+
+    print(
+        "[EMAIL DEBUG] "
+        f"notify_employee_created recipients "
+        f"({len(recipients)}): {recipients}"
+    )
+
+    if not recipients:
+        print(
+            "[EMAIL WARNING] Aucun destinataire configuré "
+            "pour la création d'un employé."
+        )
+        return
+
+    html = _base_html(
+        "Nouvel employé créé",
+        body_html,
+    )
+
+    _send(
+        subject,
+        html,
+        text,
+        recipients,
+    )
+
+    from django.db.models.functions import Lower
+
+    recipient_user_ids = list(
+        HRProfile.objects
+        .annotate(
+            normalized_email=Lower("email")
+        )
+        .filter(
+            normalized_email__in=recipients,
+            is_active=True,
+        )
+        .values_list(
+            "auth_user_id",
+            flat=True,
+        )
+    )
+
+    _notify_inapp(
+        subject,
+        (
+            f"Employé : {emp.full_name} | "
+            f"Contrat : {emp.contract_type}"
+        ),
+        level="success",
+        category="employee",
+        user_ids=recipient_user_ids,
+    )
     
 def notify_bulk_resiliation(employees: list, triggered_by: str = "Système"):
     """Fired after a CSV import that terminated one or more employees.
@@ -537,31 +600,79 @@ def notify_maternity_ending_soon(maternity, days_remaining: int):
 # In-app notification helper
 # ─────────────────────────────────────────────────────────────
 
-def _notify_inapp(title, message, level="info", category="system"):
+# def _notify_inapp(title, message, level="info", category="system"):
+#     try:
+#         from alerts.models import InAppNotification
+#         from accounts.models import HRProfile
+#         user_ids = list(HRProfile.objects.values_list("auth_user_id", flat=True))
+#         if not user_ids:
+#             # Fallback: single broadcast if no HR profiles found
+#             InAppNotification.objects.create(
+#                 auth_user_id=None,
+#                 title=title,
+#                 message=message,
+#                 level=level,
+#                 category=category,
+#             )
+#         else:
+#             for uid in user_ids:
+#                 InAppNotification.objects.create(
+#                     auth_user_id=uid,
+#                     title=title,
+#                     message=message,
+#                     level=level,
+#                     category=category,
+#                 )
+#     except Exception as exc:
+#         print(f"[INAPP ERROR] {title}: {exc}")
+
+def _notify_inapp(
+    title,
+    message,
+    level="info",
+    category="system",
+    user_ids=None,
+):
+    """
+    Crée des notifications uniquement pour les utilisateurs
+    explicitement fournis.
+
+    Une liste absente ou vide ne déclenche jamais une diffusion
+    générale.
+    """
     try:
         from alerts.models import InAppNotification
-        from accounts.models import HRProfile
-        user_ids = list(HRProfile.objects.values_list("auth_user_id", flat=True))
+
         if not user_ids:
-            # Fallback: single broadcast if no HR profiles found
-            InAppNotification.objects.create(
-                auth_user_id=None,
-                title=title,
-                message=message,
-                level=level,
-                category=category,
+            print(
+                "[INAPP WARNING] Notification ignorée : "
+                f"aucun destinataire explicite — {title}"
             )
-        else:
-            for uid in user_ids:
-                InAppNotification.objects.create(
-                    auth_user_id=uid,
+            return
+
+        destinataires = {
+            int(user_id)
+            for user_id in user_ids
+            if user_id
+        }
+
+        InAppNotification.objects.bulk_create(
+            [
+                InAppNotification(
+                    auth_user_id=user_id,
                     title=title,
                     message=message,
                     level=level,
                     category=category,
                 )
+                for user_id in destinataires
+            ]
+        )
+
     except Exception as exc:
-        print(f"[INAPP ERROR] {title}: {exc}")
+        print(
+            f"[INAPP ERROR] {title}: {exc}"
+        )
 
 
 def notify_maternity_returned(maternity, triggered_by: str = "Inconnu"):

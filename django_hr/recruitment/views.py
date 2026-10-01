@@ -2,6 +2,18 @@ from io import BytesIO
 
 from rest_framework.viewsets import ModelViewSet
 
+from datetime import datetime
+
+from django.db.models import (
+    Count,
+    F,
+    IntegerField,
+    Sum,
+    Value,
+)
+from django.db.models.functions import Coalesce, ExtractMonth
+from django.utils.timezone import make_aware
+
 from .emails import (
     notifier_decision_demande,
     notifier_nouvelle_demande,
@@ -82,6 +94,7 @@ from .permissions import (
     PermissionDirecteurRecrutement,
     PermissionDRHRecrutement,
     PermissionProprietaireDemande,
+    PermissionDemandeRecrutement,
 )
 
 from .serializers import (
@@ -199,6 +212,260 @@ class DemandeRecrutementViewSet(
         "-date_creation",
     ]
 
+    @action(
+    detail=False,
+    methods=["get"],
+    url_path="tableau-de-bord",
+)
+    def tableau_de_bord(self, request):
+        try:
+            annee = int(
+                request.query_params.get(
+                    "annee",
+                    timezone.localdate().year,
+                )
+            )
+
+            trimestre = int(
+                request.query_params.get(
+                    "trimestre",
+                    ((timezone.localdate().month - 1) // 3) + 1,
+                )
+            )
+        except (TypeError, ValueError):
+            return Response(
+                {
+                    "detail": (
+                        "L’année et le trimestre doivent "
+                        "être des nombres entiers."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if trimestre not in [1, 2, 3, 4]:
+            return Response(
+                {
+                    "detail": (
+                        "Le trimestre doit être compris "
+                        "entre 1 et 4."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        mois_debut = ((trimestre - 1) * 3) + 1
+
+        debut = make_aware(
+            datetime(
+                annee,
+                mois_debut,
+                1,
+            )
+        )
+
+        if trimestre == 4:
+            fin = make_aware(
+                datetime(
+                    annee + 1,
+                    1,
+                    1,
+                )
+            )
+        else:
+            fin = make_aware(
+                datetime(
+                    annee,
+                    mois_debut + 3,
+                    1,
+                )
+            )
+
+        statuts_refuses = [
+            DemandeRecrutement.Statut.BROUILLON,
+            DemandeRecrutement.Statut.REFUSEE,
+            DemandeRecrutement.Statut.REFUSEE_DIRECTEUR,
+            DemandeRecrutement.Statut.REFUSEE_DRH,
+        ]
+
+        demandes = (
+            DemandeRecrutement.objects
+            .filter(
+                date_creation__gte=debut,
+                date_creation__lt=fin,
+            )
+            .exclude(
+                statut__in=statuts_refuses,
+            )
+        )
+
+        embauches = (
+            Embauche.objects
+            .filter(
+                date_confirmation__gte=debut,
+                date_confirmation__lt=fin,
+                date_confirmation__isnull=False,
+            )
+        )
+
+        demandes_par_departement = {
+            item["departement_id"]: {
+                "departement": item["departement__name"],
+                "demandes": item["demandes"] or 0,
+            }
+            for item in (
+                demandes
+                .values(
+                    "departement_id",
+                    "departement__name",
+                )
+                .annotate(
+                    demandes=Coalesce(
+                        Sum(
+                            F("nombre_cdi")
+                            + F("nombre_cdd")
+                        ),
+                        Value(0),
+                        output_field=IntegerField(),
+                    )
+                )
+                .order_by("departement__name")
+            )
+        }
+
+        recrutes_par_departement = {
+            item[
+                "candidat__processus__demande__departement_id"
+            ]: item["recrutes"]
+            for item in (
+                embauches
+                .values(
+                    (
+                        "candidat__processus__demande__"
+                        "departement_id"
+                    )
+                )
+                .annotate(
+                    recrutes=Count("id")
+                )
+            )
+        }
+
+        ids_departements = set(
+            demandes_par_departement
+        ) | set(
+            recrutes_par_departement
+        )
+
+        departements = []
+
+        for departement_id in ids_departements:
+            demande_info = demandes_par_departement.get(
+                departement_id,
+                {},
+            )
+
+            nombre_demande = demande_info.get(
+                "demandes",
+                0,
+            )
+
+            nombre_recrute = recrutes_par_departement.get(
+                departement_id,
+                0,
+            )
+
+            departements.append(
+                {
+                    "departement": demande_info.get(
+                        "departement",
+                        "Département non renseigné",
+                    ),
+                    "demandes": nombre_demande,
+                    "recrutes": nombre_recrute,
+                    "ecart": max(
+                        nombre_demande - nombre_recrute,
+                        0,
+                    ),
+                }
+            )
+
+        departements.sort(
+            key=lambda item: item["departement"]
+        )
+
+        recrutes_par_mois = {
+            item["mois"]: item["recrutes"]
+            for item in (
+                embauches
+                .annotate(
+                    mois=ExtractMonth(
+                        "date_confirmation"
+                    )
+                )
+                .values("mois")
+                .annotate(
+                    recrutes=Count("id")
+                )
+                .order_by("mois")
+            )
+        }
+
+        noms_mois = {
+            1: "Janvier",
+            2: "Février",
+            3: "Mars",
+            4: "Avril",
+            5: "Mai",
+            6: "Juin",
+            7: "Juillet",
+            8: "Août",
+            9: "Septembre",
+            10: "Octobre",
+            11: "Novembre",
+            12: "Décembre",
+        }
+
+        mois = [
+            {
+                "mois": noms_mois[numero],
+                "recrutes": recrutes_par_mois.get(
+                    numero,
+                    0,
+                ),
+            }
+            for numero in range(
+                mois_debut,
+                mois_debut + 3,
+            )
+        ]
+
+        return Response(
+            {
+                "annee": annee,
+                "trimestre": trimestre,
+                "mois": mois,
+                "departements": departements,
+                "indicateurs": {
+                    "total_demandes": sum(
+                        item["demandes"]
+                        for item in departements
+                    ),
+                    "total_recrutes": sum(
+                        item["recrutes"]
+                        for item in departements
+                    ),
+                    "total_ecart": sum(
+                        item["ecart"]
+                        for item in departements
+                    ),
+                    "total_departements": len(
+                        departements
+                    ),
+                },
+            }
+        )
+
     def perform_create(self, serializer):
         demande = serializer.save()
 
@@ -235,12 +502,12 @@ class DemandeRecrutementViewSet(
             "destroy",
         ]:
             return [
-                PermissionRecrutement(),
+                PermissionDemandeRecrutement(),
                 PermissionProprietaireDemande(),
             ]
 
         return [
-            PermissionRecrutement()
+            PermissionDemandeRecrutement()
         ]
 
     @action(
