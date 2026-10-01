@@ -4,6 +4,7 @@
 
 import csv
 import io
+import os
 import re
 import requests
 from rest_framework import viewsets, filters, status
@@ -265,6 +266,91 @@ def _parse_row(row, row_num):
         "classification_name":   classification_val,
     }, None
 
+def _device_only_fallback(raw):
+    """ID absent de RH : on supprime quand meme des pointeuses (prestataires)."""
+    stripped = (raw or "").strip().lstrip("0")
+    if not stripped.isdigit():
+        return None
+    dev_id = int(stripped)
+    blocking = (
+        Employee.objects.filter(device_user_id=dev_id)
+        .exclude(status=Employee.Status.TERMINATED)
+        .first()
+    )
+    if blocking:
+        return Response(
+            {
+                "employee_id": raw,
+                "found": True,
+                "detail": f"Refuse : cet ID pointeuse appartient a l'employe RH "
+                          f"{blocking.employee_id} (statut {blocking.status}). "
+                          f"Saisissez son matricule.",
+            },
+            status=status.HTTP_409_CONFLICT,
+        )
+    summary = _summarize_device_result(_delete_on_devices(dev_id))
+    return Response({
+        "employee_id": raw,
+        "found": True,
+        "hors_rh": True,
+        "already_terminated": False,
+        "status_updated": False,
+        "device_deleted": summary["deleted"],
+        "device_partial": summary["partial"],
+        "device_ok_count": summary["ok_count"],
+        "device_failed": summary["failed"],
+        "device_detail": summary["detail"],
+    })
+
+
+def _find_employee(raw):
+    """Exact match first, then padded/unpadded variants of the matricule."""
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    emp = Employee.objects.filter(employee_id=raw).first()
+    if emp:
+        return emp
+    stripped = raw.lstrip("0")
+    if not stripped:
+        return None
+    candidates = [c for c in (stripped, stripped.zfill(6)) if c != raw]
+    return Employee.objects.filter(employee_id__in=candidates).first()
+
+
+def _delete_on_devices(device_user_id):
+    """Same call the signal makes, for employees that are already TERMINATED."""
+    try:
+        resp = requests.delete(
+            f"{ATTENDANCE_SERVICE_URL}/devices/users/{device_user_id}",
+            headers={"X-Service-Key": os.getenv("SERVICE_INTERNAL_KEY")},
+            timeout=60,
+        )
+        return {"ok": resp.status_code == 200, "detail": resp.json()}
+    except Exception as e:
+        return {"ok": False, "detail": str(e)}
+
+
+def _summarize_device_result(device_result):
+    """Compute the real outcome from the per-device results."""
+    empty = {"deleted": False, "partial": False, "ok_count": 0, "failed": {}, "detail": None}
+    if not device_result:
+        return empty
+    detail = device_result.get("detail")
+    results = detail.get("results") if isinstance(detail, dict) else None
+    if not isinstance(results, dict):
+        return {**empty, "detail": detail}
+    failed = {ip: v for ip, v in results.items() if v != "deleted"}
+    ok_count = len(results) - len(failed)
+    return {
+        "deleted": bool(device_result.get("ok")) and ok_count > 0,
+        "partial": bool(failed) and ok_count > 0,
+        "ok_count": ok_count,
+        "failed": failed,
+        "detail": detail,
+    }
+
+
 class AuditedModelViewSet(viewsets.ModelViewSet):
     """ModelViewSet qui journalise automatiquement CREATE / UPDATE / DELETE
     dans AuditLog, sur le même principe que EmployeeViewSet."""
@@ -385,15 +471,21 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             permission_classes=[IsAuthenticated])
     def debauche_one(self, request):
         """
-        Body : { "employee_id": "1210" }  (matricule)
+        Body : { "employee_id": "1210" }  (matricule, padded or not)
         Passe l'employe a TERMINATED - le signal existant se charge
         de la suppression sur les pointeuses et de l'email si motif_depart.
+        Si l'employe est deja TERMINATED, le signal ne se declenche pas :
+        on balaie alors les pointeuses directement.
         """
         emp_id = str(request.data.get("employee_id", "")).strip()
         if not emp_id:
             return Response({"detail": "employee_id requis."}, status=status.HTTP_400_BAD_REQUEST)
 
-        employee = Employee.objects.filter(employee_id=emp_id).first()
+        employee = _find_employee(emp_id)
+        if not employee:
+            fallback = _device_only_fallback(emp_id)
+            if fallback is not None:
+                return fallback
         if not employee:
             return Response(
                 {"employee_id": emp_id, "found": False, "detail": "Employe introuvable."},
@@ -403,12 +495,20 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         already_terminated = employee.status == Employee.Status.TERMINATED
 
         before = snapshot(employee)
-        employee.status = Employee.Status.TERMINATED
-        if not employee.termination_date:
-            employee.termination_date = timezone.now().date()
-        employee.save()  # declenche le signal (suppression pointeuses)
 
-        device_result = getattr(employee, "_device_delete_result", None)
+        if already_terminated:
+            if employee.device_user_id:
+                device_result = _delete_on_devices(employee.device_user_id)
+            else:
+                device_result = {"ok": False, "detail": "no device_user_id on record"}
+        else:
+            employee.status = Employee.Status.TERMINATED
+            if not employee.termination_date:
+                employee.termination_date = timezone.now().date()
+            employee.save()  # declenche le signal (suppression pointeuses)
+            device_result = getattr(employee, "_device_delete_result", None)
+
+        summary = _summarize_device_result(device_result)
 
         if not already_terminated:
             try:
@@ -421,11 +521,66 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
         return Response({
             "employee_id": emp_id,
+            "matched_employee_id": employee.employee_id,
             "found": True,
             "already_terminated": already_terminated,
             "status_updated": True,
-            "device_deleted": bool(device_result and device_result.get("ok")),
-            "device_detail": device_result.get("detail") if device_result else None,
+            "device_deleted": summary["deleted"],
+            "device_partial": summary["partial"],
+            "device_ok_count": summary["ok_count"],
+            "device_failed": summary["failed"],
+            "device_detail": summary["detail"],
+        })
+
+    @action(detail=False, methods=["post"], url_path="debauche-device-only",
+            permission_classes=[IsAuthenticated])
+    def debauche_device_only(self, request):
+        """
+        Prestataires / IDs presents sur les pointeuses mais absents de RH.
+        Body : { "device_user_id": "4757" }  (zeros de tete ignores)
+        Refuse si l'ID correspond a un employe RH non TERMINATED.
+        """
+        from django.db.models import Q
+
+        raw = str(request.data.get("device_user_id") or request.data.get("employee_id") or "").strip()
+        stripped = raw.lstrip("0")
+        if not stripped.isdigit():
+            return Response(
+                {"employee_id": raw, "found": False, "detail": "ID pointeuse invalide (chiffres uniquement)."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        dev_id = int(stripped)
+
+        blocking = (
+            Employee.objects
+            .filter(Q(device_user_id=dev_id) | Q(employee_id__in=[stripped, stripped.zfill(6)]))
+            .exclude(status=Employee.Status.TERMINATED)
+            .first()
+        )
+        if blocking:
+            return Response(
+                {
+                    "employee_id": raw,
+                    "found": True,
+                    "detail": f"Refuse : cet ID correspond a l'employe RH {blocking.employee_id} "
+                              f"(statut {blocking.status}). Utilisez la debauche normale.",
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        device_result = _delete_on_devices(dev_id)
+        summary = _summarize_device_result(device_result)
+        return Response({
+            "employee_id": raw,
+            "found": True,
+            "hors_rh": True,
+            "already_terminated": False,
+            "status_updated": False,
+            "device_deleted": summary["deleted"],
+            "device_partial": summary["partial"],
+            "device_ok_count": summary["ok_count"],
+            "device_failed": summary["failed"],
+            "device_detail": summary["detail"],
         })
 
     def destroy(self, request, *args, **kwargs):

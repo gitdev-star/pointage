@@ -135,7 +135,7 @@ export default function BulkDebauche() {
                     <TableCell>
                       {r.state === "pending" && <Chip size="small" label="En attente" />}
                       {r.state === "running" && <Chip size="small" label="En cours..." color="info" />}
-                      {r.state === "done" && <Chip size="small" label="Terminated" color="success" />}
+                      {r.state === "done" && <Chip size="small" label={r.hors_rh ? "Hors RH" : "Terminated"} color="success" />}
                       {r.state === "error" && <Chip size="small" label="Erreur" color="error" />}
                     </TableCell>
                     <TableCell>
