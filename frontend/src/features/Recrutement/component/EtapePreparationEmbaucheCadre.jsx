@@ -152,7 +152,7 @@ export default function EtapePreparationEmbaucheCadre({
       const resultat =
         await recrutementApi.terminerEtapeProcessus(
           processusId,
-          4
+          3
         );
 
       setMessage(
@@ -161,7 +161,7 @@ export default function EtapePreparationEmbaucheCadre({
       );
 
       onComplete?.({
-        etape: 4,
+        etape: 3,
         processus: resultat?.processus,
       });
     } catch (error) {

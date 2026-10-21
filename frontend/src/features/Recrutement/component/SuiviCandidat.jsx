@@ -7,10 +7,9 @@ import React, {
 import {
   CheckCircle2,
   Download,
-  FileText,
-  FileUp,
   Loader2,
   Plus,
+  Printer,
   RefreshCw,
   Search,
   Trash2,
@@ -19,16 +18,6 @@ import {
 } from "lucide-react";
 
 import recrutementApi from "../../../api/recrutementApi";
-
-const TAILLE_MAXIMALE =
-  10 * 1024 * 1024;
-
-const EXTENSIONS_AUTORISEES = [
-  "pdf",
-  "png",
-  "jpg",
-  "jpeg",
-];
 
 function dateDuJour() {
   const date = new Date();
@@ -56,15 +45,6 @@ function creerCandidatInitial() {
       dateDuJour(),
     observations: "",
   };
-}
-
-function extensionFichier(nom) {
-  return (
-    nom
-      ?.split(".")
-      .pop()
-      ?.toLowerCase() || ""
-  );
 }
 
 function formatDate(value) {
@@ -98,14 +78,6 @@ function obtenirErreur(error) {
   );
 }
 
-function fichierTestUrl(candidat) {
-  return (
-    candidat.fiche_test_url ||
-    candidat.fiche_test ||
-    null
-  );
-}
-
 function candidatActif(candidat) {
   return candidat.statut !== "DESISTE";
 }
@@ -117,9 +89,133 @@ function candidatRecu(candidat) {
 
   return (
     candidat.statut === "RECU" ||
-    candidat.statut === "EMBAUCHE" ||
-    Boolean(fichierTestUrl(candidat))
+    candidat.statut === "EMBAUCHE"
   );
+}
+
+function echapperHtml(valeur) {
+  return String(valeur ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+// Fiche « Documents à fournir » : la même pour tous
+// les candidats, imprimée 6 fois par page A4.
+function contenuListeDossiers(documents) {
+  const lignes = documents
+    .map(
+      (libelle) => `
+        <div class="document">
+          <span class="checkbox"></span>
+          ${echapperHtml(libelle)}
+        </div>
+      `
+    )
+    .join("");
+
+  const fiche = `
+    <section class="fiche">
+      <div class="entete-fiche">
+        <div>
+          <h1>Documents à fournir</h1>
+          <p class="subtitle">Processus de recrutement</p>
+        </div>
+
+        <div class="reference">
+          Réf. : PBI_FIC_Recru_Dossier-00
+        </div>
+      </div>
+
+      <div class="documents">${lignes}</div>
+    </section>
+  `;
+
+  return `
+    <!DOCTYPE html>
+    <html lang="fr">
+      <head>
+        <meta charset="UTF-8" />
+        <title>Liste des dossiers à fournir</title>
+        <style>
+          @page { size: A4 portrait; margin: 6mm; }
+          * { box-sizing: border-box; }
+          html, body {
+            width: 100%;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            color: #0f172a;
+            background: #ffffff;
+          }
+          .planche {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 3mm;
+            width: 100%;
+            height: 285mm;
+          }
+          .fiche {
+            overflow: hidden;
+            border: 1px dashed #64748b;
+            border-radius: 2mm;
+            padding: 3mm;
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+          .entete-fiche {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 2mm;
+            padding-bottom: 1.5mm;
+            border-bottom: 1px solid #cbd5e1;
+          }
+          h1 { margin: 0; font-size: 11px; line-height: 1.2; }
+          .subtitle { margin: 0.8mm 0 0; color: #64748b; font-size: 7px; }
+          .reference {
+            max-width: 38mm;
+            color: #334155;
+            font-size: 6.5px;
+            font-weight: 700;
+            text-align: right;
+          }
+          .documents {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            column-gap: 2mm;
+            margin-top: 1.5mm;
+          }
+          .document {
+            display: flex;
+            align-items: center;
+            gap: 1.5mm;
+            min-height: 6mm;
+            padding: 0.8mm 0;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 7px;
+            line-height: 1.15;
+          }
+          .checkbox {
+            width: 3.2mm;
+            height: 3.2mm;
+            flex: 0 0 3.2mm;
+            border: 1px solid #334155;
+            display: inline-block;
+          }
+          @media screen {
+            body { padding: 6mm; background: #e2e8f0; }
+            .planche { max-width: 198mm; margin: 0 auto; background: #ffffff; }
+          }
+        </style>
+      </head>
+      <body>
+        <main class="planche">${fiche.repeat(6)}</main>
+      </body>
+    </html>
+  `;
 }
 
 function ChampCandidat({
@@ -209,6 +305,11 @@ export default function EtapeSuiviCandidatures({
   const [
     telechargement,
     setTelechargement,
+  ] = useState(false);
+
+  const [
+    generationListe,
+    setGenerationListe,
   ] = useState(false);
 
   const [
@@ -423,40 +524,10 @@ export default function EtapeSuiviCandidatures({
     }
   };
 
-  const ajouterFicheTest = async (
+  const basculerFicheTest = async (
     candidat,
-    fichier
+    recue
   ) => {
-    if (!fichier) return;
-
-    const extension =
-      extensionFichier(
-        fichier.name
-      );
-
-    if (
-      !EXTENSIONS_AUTORISEES.includes(
-        extension
-      )
-    ) {
-      setErreur(
-        "La fiche de test doit Ãªtre au format PDF, PNG, JPG ou JPEG."
-      );
-
-      return;
-    }
-
-    if (
-      fichier.size >
-      TAILLE_MAXIMALE
-    ) {
-      setErreur(
-        "La fiche de test ne doit pas dépasser 10 Mo."
-      );
-
-      return;
-    }
-
     setCandidatEnCours(
       candidat.id
     );
@@ -467,9 +538,9 @@ export default function EtapeSuiviCandidatures({
     try {
       const candidatModifie =
         await recrutementApi
-          .ajouterFicheTest(
+          .modifierFicheTestRecue(
             candidat.id,
-            fichier
+            recue
           );
 
       setCandidats(
@@ -482,13 +553,9 @@ export default function EtapeSuiviCandidatures({
                 : item
           )
       );
-
-      setMessage(
-        "La fiche de test a été enregistrée. Le candidat est reçu."
-      );
     } catch (error) {
       console.error(
-        "Erreur d'ajout de la fiche :",
+        "Erreur de mise à jour de la fiche de test :",
         error
       );
 
@@ -500,46 +567,51 @@ export default function EtapeSuiviCandidatures({
     }
   };
 
-  const supprimerFicheTest =
-    async (candidat) => {
-      const confirmation =
-        window.confirm(
-          "Retirer la fiche de test ? Le candidat passera au statut non reçu."
-        );
-
-      if (!confirmation) return;
-
-      setCandidatEnCours(
-        candidat.id
-      );
-
+  const genererListeDossiers =
+    async () => {
       setErreur("");
       setMessage("");
 
+      // La fenêtre est ouverte tout de suite, sinon le
+      // navigateur la bloque après l'appel au serveur.
+      const fenetre =
+        window.open("", "_blank");
+
+      if (!fenetre) {
+        setErreur(
+          "Le navigateur a bloqué la fenêtre d’impression."
+        );
+
+        return;
+      }
+
+      setGenerationListe(true);
+
       try {
-        const candidatModifie =
+        const resultat =
           await recrutementApi
-            .supprimerFicheTest(
-              candidat.id
+            .genererListeDossiers(
+              recrutement.id
             );
 
-        setCandidats(
-          (previous) =>
-            previous.map(
-              (item) =>
-                item.id ===
-                candidat.id
-                  ? candidatModifie
-                  : item
-            )
+        fenetre.document.write(
+          contenuListeDossiers(
+            resultat.documents || []
+          )
         );
+        fenetre.document.close();
+        fenetre.focus();
+        fenetre.print();
 
         setMessage(
-          "La fiche de test a été retirée."
+          resultat.message ||
+            "La liste des dossiers à fournir a été générée."
         );
       } catch (error) {
+        fenetre.close();
+
         console.error(
-          "Erreur de suppression de la fiche :",
+          "Erreur de génération de la liste :",
           error
         );
 
@@ -547,7 +619,7 @@ export default function EtapeSuiviCandidatures({
           obtenirErreur(error)
         );
       } finally {
-        setCandidatEnCours(null);
+        setGenerationListe(false);
       }
     };
 
@@ -627,7 +699,7 @@ export default function EtapeSuiviCandidatures({
 
     if (nombreRecus === 0) {
       setErreur(
-        "Ajoutez au moins une fiche de test. Aucun candidat n'est reçu."
+        "Cochez la fiche de test d'au moins un candidat."
       );
 
       return;
@@ -654,7 +726,7 @@ export default function EtapeSuiviCandidatures({
         );
 
         onComplete?.({
-          etape: 4,
+          etape: 3,
 
           suiviCandidatures: {
             candidats: candidatsActifs,
@@ -952,7 +1024,7 @@ export default function EtapeSuiviCandidatures({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1000px]">
+            <table className="w-full min-w-[760px]">
               <thead className="bg-slate-100">
                 <tr className="text-left text-xs font-semibold uppercase text-slate-600">
                   <th className="px-4 py-3">
@@ -971,16 +1043,8 @@ export default function EtapeSuiviCandidatures({
                     Source
                   </th>
 
-                  <th className="px-4 py-3">
+                  <th className="px-4 py-3 text-center">
                     Fiche de test
-                  </th>
-
-                  <th className="px-4 py-3">
-                    Résultat
-                  </th>
-
-                  <th className="px-4 py-3 text-right">
-                    Action
                   </th>
                 </tr>
               </thead>
@@ -988,10 +1052,9 @@ export default function EtapeSuiviCandidatures({
               <tbody className="divide-y divide-slate-200">
                 {candidatsFiltres.map(
                   (candidat) => {
-                    const ficheUrl =
-                      fichierTestUrl(
-                        candidat
-                      );
+                    const embauche =
+                      candidat.statut ===
+                      "EMBAUCHE";
 
                     const chargementCandidat =
                       candidatEnCours ===
@@ -1004,17 +1067,39 @@ export default function EtapeSuiviCandidatures({
                         }
                       >
                         <td className="px-4 py-4">
-                          <p className="text-sm font-semibold text-slate-900">
-                            {
-                              candidat.prenom
-                            }{" "}
-                            {candidat.nom}
-                          </p>
+                          <div className="flex items-start gap-2">
+                            <button
+                              type="button"
+                              title="Supprimer le candidat"
+                              onClick={() =>
+                                supprimerCandidat(
+                                  candidat
+                                )
+                              }
+                              disabled={
+                                chargementCandidat
+                              }
+                              className="rounded p-1 text-red-500 hover:bg-red-50 disabled:opacity-50"
+                            >
+                              <Trash2
+                                size={15}
+                              />
+                            </button>
 
-                          <p className="text-xs text-slate-500">
-                            {candidat.email ||
-                              "Aucun e-mail"}
-                          </p>
+                            <div>
+                              <p className="text-sm font-semibold text-slate-900">
+                                {
+                                  candidat.prenom
+                                }{" "}
+                                {candidat.nom}
+                              </p>
+
+                              <p className="text-xs text-slate-500">
+                                {candidat.email ||
+                                  "Aucun e-mail"}
+                              </p>
+                            </div>
+                          </div>
                         </td>
 
                         <td className="px-4 py-4 text-sm text-slate-600">
@@ -1033,128 +1118,34 @@ export default function EtapeSuiviCandidatures({
                             "Offre publiée"}
                         </td>
 
-                        <td className="px-4 py-4">
-                          {ficheUrl ? (
-                            <div className="flex items-center gap-2">
-                              <a
-                                href={
-                                  ficheUrl
-                                }
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1.5 text-sm font-semibold text-blue-700"
-                              >
-                                <FileText
-                                  size={
-                                    16
-                                  }
-                                />
-                                Ouvrir
-                              </a>
-
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  supprimerFicheTest(
-                                    candidat
-                                  )
-                                }
-                                disabled={
-                                  chargementCandidat
-                                }
-                                className="rounded p-1.5 text-red-600 hover:bg-red-50"
-                              >
-                                <Trash2
-                                  size={
-                                    16
-                                  }
-                                />
-                              </button>
-                            </div>
-                          ) : (
-                            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">
-                              {chargementCandidat ? (
-                                <Loader2
-                                  size={
-                                    15
-                                  }
-                                  className="animate-spin"
-                                />
-                              ) : (
-                                <FileUp
-                                  size={
-                                    15
-                                  }
-                                />
-                              )}
-
-                              Ajouter la fiche
-
-                              <input
-                                type="file"
-                                accept=".pdf,.png,.jpg,.jpeg"
-                                disabled={
-                                  chargementCandidat
-                                }
-                                onChange={(
-                                  event
-                                ) => {
-                                  ajouterFicheTest(
-                                    candidat,
-                                    event
-                                      .target
-                                      .files?.[0]
-                                  );
-
-                                  event.target.value =
-                                    "";
-                                }}
-                                className="hidden"
-                              />
-                            </label>
-                          )}
-                        </td>
-
-                        <td className="px-4 py-4">
-                          <span
-                            className={`
-                              rounded-full
-                              px-2.5 py-1
-                              text-xs font-semibold
-                              ${
-                                candidatRecu(
-                                  candidat
-                                )
-                                  ? "bg-emerald-100 text-emerald-700"
-                                  : "bg-slate-100 text-slate-600"
-                              }
-                            `}
-                          >
-                            {candidatRecu(
-                              candidat
-                            )
-                              ? "Reçu"
-                              : "Non reçu"}
-                          </span>
-                        </td>
-
-                        <td className="px-4 py-4 text-right">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              supprimerCandidat(
-                                candidat
-                              )
-                            }
-                            disabled={
-                              chargementCandidat
-                            }
-                            className="rounded-lg p-2 text-red-600 hover:bg-red-50 disabled:opacity-50"
-                          >
-                            <Trash2
-                              size={17}
+                        <td className="px-4 py-4 text-center">
+                          {chargementCandidat ? (
+                            <Loader2
+                              size={18}
+                              className="inline animate-spin text-blue-600"
                             />
-                          </button>
+                          ) : (
+                            <input
+                              type="checkbox"
+                              title={
+                                embauche
+                                  ? "Candidat déjà embauché"
+                                  : "Fiche de test reçue"
+                              }
+                              checked={candidatRecu(
+                                candidat
+                              )}
+                              disabled={embauche}
+                              onChange={(event) =>
+                                basculerFicheTest(
+                                  candidat,
+                                  event.target
+                                    .checked
+                                )
+                              }
+                              className="h-5 w-5 cursor-pointer accent-blue-600 disabled:cursor-not-allowed"
+                            />
+                          )}
                         </td>
                       </tr>
                     );
@@ -1165,7 +1156,7 @@ export default function EtapeSuiviCandidatures({
                   0 && (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={5}
                       className="px-5 py-10 text-center text-sm text-slate-500"
                     >
                       Aucun candidat trouvé.
@@ -1176,6 +1167,50 @@ export default function EtapeSuiviCandidatures({
             </table>
           </div>
         )}
+      </section>
+
+      {/* Liste des dossiers à fournir */}
+      <section className="rounded-xl border border-blue-200 bg-blue-50/40 p-5">
+        <h3 className="font-semibold text-slate-900">
+          Liste des dossiers à fournir
+        </h3>
+
+        <p className="mt-1 text-sm text-slate-500">
+          Une seule liste pour tous les candidats
+          dont la fiche de test est cochée. Elle est
+          facultative : vous pouvez passer à l'étape
+          suivante sans la générer. Si vous cochez un
+          nouveau candidat ensuite, générez-la à nouveau.
+        </p>
+
+        <button
+          type="button"
+          onClick={genererListeDossiers}
+          disabled={
+            generationListe ||
+            nombreRecus === 0
+          }
+          className="
+            mt-4 inline-flex
+            items-center gap-2
+            rounded-lg bg-blue-600
+            px-4 py-2.5 text-sm
+            font-semibold text-white
+            hover:bg-blue-700
+            disabled:opacity-50
+          "
+        >
+          {generationListe ? (
+            <Loader2
+              size={17}
+              className="animate-spin"
+            />
+          ) : (
+            <Printer size={17} />
+          )}
+
+          Générer la liste des dossiers à fournir
+        </button>
       </section>
 
       {/* Excel facultatif */}

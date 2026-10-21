@@ -180,7 +180,7 @@ const recrutementApi = {
   ) {
     if (!(fichier instanceof File)) {
       throw new Error(
-        "La fiche de test sÃ©lectionnÃ©e est invalide."
+        "La fiche de test sélectionnée est invalide."
       );
     }
 
@@ -213,6 +213,35 @@ const recrutementApi = {
       response.data?.candidat ||
       response.data
     );
+  },
+
+  // Étape 4 (ouvriers) : case « fiche de test reçue ».
+  async modifierFicheTestRecue(
+    candidatId,
+    recue
+  ) {
+    const response =
+      await hrClient.patch(
+        `recruitment/candidats/${candidatId}/`,
+        {
+          fiche_test_recue: Boolean(recue),
+        }
+      );
+
+    return response.data;
+  },
+
+  // Étape 4 (ouvriers) : une seule liste des dossiers
+  // à fournir pour tous les candidats reçus.
+  async genererListeDossiers(
+    processusId
+  ) {
+    const response =
+      await hrClient.post(
+        `recruitment/processus/${processusId}/generer-liste-dossiers/`
+      );
+
+    return response.data;
   },
 
   async confirmerSuiviCandidatures({
@@ -401,10 +430,13 @@ const recrutementApi = {
       datePublication
     );
 
-    formData.append(
-      "date_limite_candidature",
-      dateLimiteCandidature
-    );
+    // Facultative : n'est plus demandée à l'écran.
+    if (dateLimiteCandidature) {
+      formData.append(
+        "date_limite_candidature",
+        dateLimiteCandidature
+      );
+    }
 
     formData.append(
       "lien_ou_reference",
@@ -473,7 +505,7 @@ const recrutementApi = {
   async creerOffre({ fichier }) {
     if (!(fichier instanceof File)) {
       throw new Error(
-        "Le fichier sÃ©lectionnÃ© est invalide."
+        "Le fichier sélectionné est invalide."
       );
     }
 
@@ -640,7 +672,7 @@ async obtenirPostes(params = {}) {
     );
   },
 
-  // PremiÃ¨re validation : directeur
+  // Première validation : directeur
   async validerDemande(
     id,
     motifDecision = ""
@@ -673,7 +705,7 @@ async obtenirPostes(params = {}) {
     return response.data;
   },
 
-  // DeuxiÃ¨me validation : DRH
+  // Deuxième validation : DRH
   async approuverDemandeDRH(
     id,
     commentaireDRH = ""
@@ -1014,8 +1046,8 @@ async enregistrerEmbauche({
   };
 
   /*
-   * On ajoute les champs cadres uniquement lorsquâ€™ils sont fournis.
-   * Cela prÃ©serve le fonctionnement du recrutement ouvrier.
+   * On ajoute les champs cadres uniquement lorsqu'ils sont fournis.
+   * Cela préserve le fonctionnement du recrutement ouvrier.
    */
 
   if (dossierEmbaucheComplet !== undefined) {
@@ -1115,7 +1147,7 @@ async telechargerFichePoste(embaucheId, nomCandidat = "candidat") {
   },
 
   // ===================================================
-  // PRÃ‰PARATION DE Lâ€™EMBAUCHE
+  // PRÃ‰PARATION DE L'EMBAUCHE
   // ===================================================
 
   async obtenirTachesPreparation(

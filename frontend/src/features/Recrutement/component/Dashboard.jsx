@@ -20,6 +20,7 @@ import {
   Building2,
   CalendarDays,
   TrendingUp,
+  Users,
 } from "lucide-react";
 
 import recrutementApi from "../../../api/recrutementApi";
@@ -159,6 +160,7 @@ export default function DashboardRecrutement() {
     departements: [],
     indicateurs: {
       total_demandes: 0,
+      total_personnes: 0,
       total_recrutes: 0,
       total_ecart: 0,
       total_departements: 0,
@@ -209,6 +211,12 @@ export default function DashboardRecrutement() {
                     ?.total_demandes ??
                   0,
 
+                total_personnes:
+                  resultat
+                    ?.indicateurs
+                    ?.total_personnes ??
+                  0,
+
                 total_recrutes:
                   resultat
                     ?.indicateurs
@@ -253,6 +261,7 @@ export default function DashboardRecrutement() {
             departements: [],
             indicateurs: {
               total_demandes: 0,
+              total_personnes: 0,
               total_recrutes: 0,
               total_ecart: 0,
               total_departements: 0,
@@ -324,6 +333,10 @@ export default function DashboardRecrutement() {
       totalDemandes:
         donnees.indicateurs
           ?.total_demandes ?? 0,
+
+      totalPersonnes:
+        donnees.indicateurs
+          ?.total_personnes ?? 0,
 
       totalRecrutes:
         donnees.indicateurs
@@ -435,15 +448,25 @@ export default function DashboardRecrutement() {
         </div>
       )}
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <StatCard
           title="Besoins exprimés"
           value={
             indicateurs.totalDemandes
           }
-          subtitle="Postes demandés"
+          subtitle="Demandes de recrutement"
           icon={BriefcaseBusiness}
           color="bg-blue-100 text-blue-700"
+        />
+
+        <StatCard
+          title="Personnes à recruter"
+          value={
+            indicateurs.totalPersonnes
+          }
+          subtitle="Postes demandés (CDI + CDD)"
+          icon={Users}
+          color="bg-sky-100 text-sky-700"
         />
 
         <StatCard

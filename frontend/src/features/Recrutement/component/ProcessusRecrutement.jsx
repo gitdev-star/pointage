@@ -20,7 +20,7 @@ import {
 
 import recrutementApi from "../../../api/recrutementApi";
 
-const NOMBRE_ETAPES = 6;
+const NOMBRE_ETAPES = 4;
 
 const STATUS_CONFIG = {
   PAS_COMMENCE: {
@@ -44,7 +44,7 @@ const STATUS_CONFIG = {
     icon: RotateCcw,
   },
   A_DEMARRER: {
-    label: "Ã€ dÃ©marrer",
+    label: "A démarrer",
     className:
       "border-blue-200 bg-blue-50 text-blue-700",
     icon: CirclePlay,
@@ -58,7 +58,7 @@ const STATUS_CONFIG = {
   },
 
   TERMINE: {
-    label: "TerminÃ©",
+    label: "Terminé",
     className:
       "border-emerald-200 bg-emerald-50 text-emerald-700",
     icon: CheckCircle2,
@@ -111,7 +111,7 @@ function obtenirTypesContrats(demande) {
       nombre: Number(demande.nombre_stage || 0),
     },
     {
-      label: "IntÃ©rim",
+      label: "Intérim",
       nombre: Number(demande.nombre_interim || 0),
     },
     {
@@ -187,12 +187,6 @@ function normaliserProcessus(processus) {
     0
   );
 
-  const estCadre =
-    String(
-      demande.type_recrutement ||
-        processus.type_recrutement ||
-        "OUVRIER"
-    ).toUpperCase() === "CADRE";
 
   return {
     id: processus.id,
@@ -206,12 +200,17 @@ function normaliserProcessus(processus) {
       demande.poste_nom ||
       demande.designation_poste ||
       processus.poste_nom ||
-      "Poste non renseignÃ©",
+      "Poste non renseigné",
 
     departement:
       demande.departement_nom ||
       processus.departement_nom ||
-      "Non renseignÃ©",
+      "Non renseigné",
+
+    site:
+      demande.factory_nom ||
+      processus.factory_nom ||
+      "",
 
     nombreARecruter:
       nombreDemande,
@@ -271,13 +270,13 @@ function normaliserProcessus(processus) {
 
     etapesTerminees,
 
-    nombreEtapes: estCadre ? 5 : NOMBRE_ETAPES,
+    nombreEtapes: NOMBRE_ETAPES,
 
     statut:
       processus.statut ||
       (etapesTerminees === 0
         ? "PAS_COMMENCE"
-        : etapesTerminees >= (estCadre ? 5 : NOMBRE_ETAPES)
+        : etapesTerminees >= NOMBRE_ETAPES
           ? "CLOTURE"
           : "EN_COURS"),
   };
@@ -325,7 +324,7 @@ function Progression({
     <div className="min-w-[170px]">
       <div className="mb-1.5 flex justify-between text-xs">
         <span className="font-medium text-slate-600">
-          {nombreTerminees}/{total} Ã©tapes
+          {nombreTerminees}/{total} étapes
         </span>
 
         <span className="text-slate-400">
@@ -352,12 +351,26 @@ function Progression({
   );
 }
 
+// Colonnes d'identification figées à gauche sur grand écran, pour
+// savoir de quel recrutement il s'agit jusqu'à la colonne « Statut ».
+const FIGEE = "lg:sticky lg:z-10";
+const COLONNES_FIGEES = {
+  reference: `${FIGEE} lg:left-0 lg:w-[150px] lg:min-w-[150px]`,
+  poste: `${FIGEE} lg:left-[150px] lg:w-[200px] lg:min-w-[200px]`,
+  departement: `${FIGEE} lg:left-[350px] lg:w-[160px] lg:min-w-[160px]`,
+  contrat: `${FIGEE} lg:left-[510px] lg:w-[120px] lg:min-w-[120px]`,
+  site: `${FIGEE} lg:left-[630px] lg:w-[120px] lg:min-w-[120px] lg:border-r lg:border-slate-200`,
+};
+const FOND_TETE = "bg-slate-100";
+const FOND_LIGNE = "bg-white group-hover:bg-slate-50";
+
 export default function ProcessusRecrutement() {
   const navigate = useNavigate();
 
   const [processus, setProcessus] = useState([]);
   const [recherche, setRecherche] = useState("");
   const [statut, setStatut] = useState("TOUS");
+  const [site, setSite] = useState("TOUS");
 
   const [chargement, setChargement] =
     useState(true);
@@ -426,9 +439,20 @@ useEffect(() => {
         statut === "TOUS" ||
         item.statut === statut;
 
-      return correspondStatut;
+      const correspondSite =
+        site === "TOUS" ||
+        item.site === site;
+
+      return correspondStatut && correspondSite;
     });
-  }, [processus, statut]);
+  }, [processus, statut, site]);
+
+  const sites = useMemo(
+    () =>
+      [...new Set(processus.map((item) => item.site).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b, "fr")),
+    [processus]
+  );
 
   const ouvrirProcessus = (id) => {
     navigate(
@@ -481,7 +505,7 @@ useEffect(() => {
   return (
     <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-7xl">
-        {/* En-tÃªte */}
+        {/* En-tête */}
         <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div className="flex items-center gap-3">
             <div className="rounded-xl bg-blue-100 p-3 text-blue-700">
@@ -555,7 +579,7 @@ useEffect(() => {
         )}
 
         {/* Filtres */}
-        <div className="mb-5 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-[1fr_220px]">
+        <div className="mb-5 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-[1fr_220px_200px]">
           <div className="relative">
             <Search
               size={18}
@@ -599,7 +623,7 @@ useEffect(() => {
             <option value="PAS_COMMENCE">Pas commencé</option>
 
             <option value="PAS_COMMENCE_LEGACY" hidden>
-              Ã€ dÃ©marrer
+              A démarrer
             </option>
 
             <option value="EN_COURS">
@@ -615,6 +639,29 @@ useEffect(() => {
             <option value="TERMINE">
               Terminés
             </option>
+          </select>
+
+          <select
+            value={site}
+            onChange={(event) =>
+              setSite(event.target.value)
+            }
+            className="
+              rounded-lg border border-slate-300
+              bg-white px-3 py-2.5 text-sm
+              outline-none focus:border-blue-500
+              focus:ring-2 focus:ring-blue-100
+            "
+          >
+            <option value="TOUS">
+              Tous les sites
+            </option>
+
+            {sites.map((nom) => (
+              <option key={nom} value={nom}>
+                {nom}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -633,24 +680,29 @@ useEffect(() => {
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[1900px] [&_th:nth-child(8)]:hidden [&_td:nth-child(8)]:hidden">
-                  <thead className="bg-slate-100">
+              <div className="max-h-[70vh] overflow-auto">
+                <table className="w-full min-w-[2000px] [&_th:nth-child(9)]:hidden [&_td:nth-child(9)]:hidden">
+                  {/* En-tête figé en haut pendant le défilement vertical. */}
+                  <thead className="sticky top-0 z-20 bg-slate-100 shadow-[0_1px_0_0_#e2e8f0]">
                     <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      <th className="px-5 py-4">
+                      <th className={`px-5 py-4 ${FOND_TETE} ${COLONNES_FIGEES.reference}`}>
                         Référence
                       </th>
 
-                      <th className="px-5 py-4">
+                      <th className={`px-5 py-4 ${FOND_TETE} ${COLONNES_FIGEES.poste}`}>
                         Poste
                       </th>
 
-                      <th className="px-5 py-4">
+                      <th className={`px-5 py-4 ${FOND_TETE} ${COLONNES_FIGEES.departement}`}>
                         Département
                       </th>
 
-                      <th className="px-5 py-4">
+                      <th className={`px-5 py-4 ${FOND_TETE} ${COLONNES_FIGEES.contrat}`}>
                         Contrat
+                      </th>
+
+                      <th className={`px-5 py-4 ${FOND_TETE} ${COLONNES_FIGEES.site}`}>
+                        Site demandeur
                       </th>
 
                       <th className="px-5 py-4 text-center">
@@ -697,9 +749,6 @@ useEffect(() => {
                         Statut
                       </th>
 
-                      <th className="px-5 py-4 text-right">
-                        Action
-                      </th>
                     </tr>
                   </thead>
 
@@ -728,24 +777,43 @@ useEffect(() => {
                         return (
                         <tr
                           key={item.id}
-                          className="transition hover:bg-slate-50"
+                          onClick={() =>
+                            ouvrirProcessus(item.id)
+                          }
+                          onKeyDown={(event) => {
+                            if (
+                              event.key === "Enter" ||
+                              event.key === " "
+                            ) {
+                              event.preventDefault();
+                              ouvrirProcessus(item.id);
+                            }
+                          }}
+                          tabIndex={0}
+                          role="link"
+                          title={`Ouvrir le processus ${item.reference}`}
+                          className="group cursor-pointer transition hover:bg-slate-50 focus:bg-blue-50/60 focus:outline-none"
                         >
-                          <td className="whitespace-nowrap px-5 py-4 text-sm font-semibold text-blue-700">
+                          <td className={`whitespace-nowrap px-5 py-4 text-sm font-semibold text-blue-700 ${FOND_LIGNE} ${COLONNES_FIGEES.reference}`}>
                             {item.reference}
                           </td>
 
-                          <td className="px-5 py-4 text-sm font-semibold text-slate-900">
+                          <td className={`px-5 py-4 text-sm font-semibold text-slate-900 ${FOND_LIGNE} ${COLONNES_FIGEES.poste}`}>
                             {item.poste}
                           </td>
 
-                          <td className="px-5 py-4 text-sm text-slate-700">
+                          <td className={`px-5 py-4 text-sm text-slate-700 ${FOND_LIGNE} ${COLONNES_FIGEES.departement}`}>
                             {item.departement}
                           </td>
 
-                          <td className="px-5 py-4">
+                          <td className={`px-5 py-4 ${FOND_LIGNE} ${COLONNES_FIGEES.contrat}`}>
                             <span className="inline-flex rounded-md bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700">
                               {item.typeContrat}
                             </span>
+                          </td>
+
+                          <td className={`whitespace-nowrap px-5 py-4 text-sm text-slate-700 ${FOND_LIGNE} ${COLONNES_FIGEES.site}`}>
+                            {item.site || "—"}
                           </td>
 
                           <td className="px-4 py-4 text-center">
@@ -833,34 +901,6 @@ useEffect(() => {
                               }
                             />
                           </td>
-
-                          <td className="px-5 py-4 text-right">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                ouvrirProcessus(
-                                  item.id
-                                )
-                              }
-                              className="
-                                inline-flex items-center
-                                gap-2 rounded-lg
-                                bg-blue-600 px-4
-                                py-2.5 text-sm
-                                font-semibold text-white
-                                transition
-                                hover:bg-blue-700
-                              "
-                            >
-                              {item.statut ===
-                              "A_DEMARRER"
-                                ? "Commencer"
-                                : item.statut ===
-                                    "TERMINE"
-                                  ? "Consulter"
-                                  : "Continuer"}
-                            </button>
-                          </td>
                         </tr>
                         );
                       }
@@ -870,11 +910,11 @@ useEffect(() => {
                       0 && (
                       <tr>
                         <td
-                          colSpan={12}
+                          colSpan={16}
                           className="px-5 py-12 text-center text-sm text-slate-500"
                         >
                           Aucun processus de
-                          recrutement trouvÃ©.
+                          recrutement trouvé.
                         </td>
                       </tr>
                     )}
@@ -884,7 +924,7 @@ useEffect(() => {
 
               <div className="border-t border-slate-200 bg-slate-50 px-5 py-3 text-sm text-slate-500">
                 {processusFiltres.length} processus
-                affichÃ©(s)
+                affiché(s)
               </div>
             </>
           )}

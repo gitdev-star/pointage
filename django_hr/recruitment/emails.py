@@ -175,7 +175,7 @@ def envoyer_email(
         )
 
         logger.info(
-            "E-mail envoyé Ã  %s : %s",
+            "E-mail envoyé à  %s : %s",
             ", ".join(
                 destinataires_valides
             ),
@@ -309,7 +309,7 @@ def notifier_processus_recrutement_cree(
         f"Référence : {demande.reference}\n"
         f"Poste : {poste}\n"
         f"Type de recrutement : {type_recrutement}\n"
-        f"Nombre Ã  recruter : {nombre_a_recruter}\n\n"
+        f"Nombre à  recruter : {nombre_a_recruter}\n\n"
         f"Accéder au processus : {url_processus}\n"
     )
 
@@ -348,7 +348,7 @@ def notifier_processus_recrutement_cree(
             <p>
               La demande de recrutement a été approuvée par
               le directeur et le DRH. Le processus est maintenant
-              disponible et peut Ãªtre pris en charge.
+              disponible et peut être pris en charge.
             </p>
 
             <div style="
@@ -364,7 +364,7 @@ def notifier_processus_recrutement_cree(
                 <strong>Type :</strong> {escape(type_recrutement)}
               </p>
               <p style="margin: 0;">
-                <strong>Nombre Ã  recruter :</strong>
+                <strong>Nombre à  recruter :</strong>
                 {nombre_a_recruter}
               </p>
             </div>
@@ -1030,7 +1030,7 @@ def envoyer_compte_rendu_cadre(
         f"Poste : {poste}\n"
         f"Décision : {decision}\n\n"
         "Le compte rendu complet est joint "
-        "Ã  cet e-mail au format PDF."
+        "à  cet e-mail au format PDF."
     )
 
     contenu_html = f"""
@@ -1108,7 +1108,7 @@ def envoyer_compte_rendu_cadre(
 
             <p style="margin-top: 20px;">
               Le compte rendu complet est joint
-              Ã  cet e-mail au format PDF.
+              à  cet e-mail au format PDF.
             </p>
           </div>
         </div>
@@ -1164,7 +1164,7 @@ def notifier_services_preparation_cadre(
     if not taches:
         logger.warning(
             (
-                "Aucune tÃ¢che de préparation "
+                "Aucune tâche de préparation "
                 "pour le candidat %s."
             ),
             candidat.pk,
@@ -1316,7 +1316,7 @@ def notifier_services_preparation_cadre(
             f"Référence : "
             f"{demande.reference}\n"
             f"Site : {site}\n\n"
-            f"TÃ¢ches attribuées au "
+            f"Tâches attribuées au "
             f"{nom_service} :\n"
             f"{liste_taches_texte}\n\n"
             f"Merci de réaliser ces "
@@ -1422,7 +1422,7 @@ def notifier_services_preparation_cadre(
                 </table>
 
                 <h3>
-                  TÃ¢ches destinées au
+                  Tâches destinées au
                   {escape(nom_service)}
                 </h3>
 
@@ -1510,7 +1510,7 @@ def _charger_document_onboarding(
     chemin_configure,
     nom_par_defaut,
 ):
-    """Charge un document Ã  joindre Ã  l'e-mail d'onboarding."""
+    """Charge un document à  joindre à  l'e-mail d'onboarding."""
     if not chemin_configure:
         raise FileNotFoundError(
             f"Le chemin du document Â« {nom_par_defaut} Â» "
@@ -1551,8 +1551,8 @@ def envoyer_documents_onboarding_cadre(embauche):
     demande = processus.demande
     destinataires = nettoyer_destinataires([candidat.email])
 
-    # Ã‰vite un double envoi lors d'un double clic ou d'une nouvelle
-    # tentative de confirmation de la mÃªme embauche.
+    # à‰vite un double envoi lors d'un double clic ou d'une nouvelle
+    # tentative de confirmation de la même embauche.
     if embauche.documents_cadre_email_envoyes:
         return {
             "envoye": True,
@@ -1564,7 +1564,7 @@ def envoyer_documents_onboarding_cadre(embauche):
             "erreur": "",
         }
 
-    # La tentative est comptabilisée mÃªme si la configuration est invalide.
+    # La tentative est comptabilisée même si la configuration est invalide.
     Embauche.objects.filter(pk=embauche.pk).update(
         nombre_tentatives_envoi_documents_cadre=(
             models.F("nombre_tentatives_envoi_documents_cadre") + 1

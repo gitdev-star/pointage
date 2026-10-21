@@ -100,7 +100,8 @@
 import React, { useState } from "react";
 import "./LoginPage.css";
 import { login } from "../api/auth";
-import { useNavigate } from "react-router-dom";
+// import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, User, Lock } from "lucide-react";
 import loginIllustration from "../assets/image.jpg";
 
@@ -113,6 +114,7 @@ const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
 
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -123,7 +125,16 @@ const LoginPage = () => {
 
     setLoading(false);
 
-    if (success) navigate("/");
+    // if (success) navigate("/");
+    if (success) {
+      const destination = location.state?.from;
+      navigate(
+        typeof destination === "string" && destination.startsWith("/")
+          ? destination
+          : "/",
+        { replace: true }
+      );
+    }
     else setError("Identifiants incorrects.");
   };
 

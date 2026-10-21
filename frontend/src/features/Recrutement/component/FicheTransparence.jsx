@@ -105,6 +105,25 @@ function IconeFichier({
   );
 }
 
+// Lieu de travail repris du site de la demande : PBI1 → « PBI 1 » (SITE_1).
+// Un site sans équivalent (ex : Atelier Centrale) laisse le champ vide.
+function lieuDepuisSite(recrutement) {
+  const demande =
+    recrutement?.demande_detail ||
+    recrutement?.demande ||
+    {};
+
+  const site = String(
+    demande.factory_nom || recrutement?.factory_nom || ""
+  )
+    .replace(/\s+/g, "")
+    .toUpperCase();
+
+  const correspondance = site.match(/^PBI?([123])$/);
+
+  return correspondance ? `SITE_${correspondance[1]}` : "";
+}
+
 export default function EtapeFicheTransparence({
   recrutement,
   onComplete,
@@ -130,8 +149,11 @@ export default function EtapeFicheTransparence({
     setDateFiche,
   ] = useState(dateDuJour());
 
+  // Lieu imposé par le site de la demande : non modifiable.
+  const lieuImpose = lieuDepuisSite(recrutement);
+
   const [lieu, setLieu] =
-    useState("");
+    useState(lieuImpose);
 
   const [
     observations,
@@ -177,7 +199,9 @@ export default function EtapeFicheTransparence({
             });
 
         if (actif) {
-          setFiches(resultat.fiches || []);
+          const liste = resultat.fiches || [];
+          setFiches(liste);
+          reprendreDerniereFiche(liste);
         }
       } catch (error) {
         if (actif) {
@@ -196,6 +220,23 @@ export default function EtapeFicheTransparence({
       actif = false;
     };
   }, [processusId]);
+
+  // Affiche dans le formulaire les informations de la fiche la plus
+  // récente, pour qu'on retrouve ce qui a été saisi en revenant sur
+  // l'étape (le fichier, lui, reste à joindre pour une nouvelle fiche).
+  function reprendreDerniereFiche(liste) {
+    if (!liste.length) return;
+
+    const derniere = [...liste].sort((a, b) =>
+      String(b.date_upload || b.date_fiche || "").localeCompare(
+        String(a.date_upload || a.date_fiche || "")
+      )
+    )[0];
+
+    if (derniere.date_fiche) setDateFiche(derniere.date_fiche);
+    if (derniere.lieu && !lieuImpose) setLieu(derniere.lieu);
+    setObservations(derniere.observations || "");
+  }
 
   const modifierChamp = (
     callback,
@@ -311,10 +352,9 @@ export default function EtapeFicheTransparence({
         ...precedentes,
       ]);
 
-      setDateFiche(dateDuJour());
-      setLieu("");
+      setDateFiche(fiche?.date_fiche || dateFiche);
+      setLieu(fiche?.lieu || lieu);
       setFichier(null);
-      setObservations("");
       setMessage(
         "La nouvelle fiche de transparence a été ajoutée."
       );
@@ -367,7 +407,7 @@ export default function EtapeFicheTransparence({
             </p>
 
             <p className="text-xs text-slate-500">
-              {recrutement.reference} Â·{" "}
+              {recrutement.reference} ·{" "}
               {recrutement.poste}
             </p>
           </div>
@@ -390,7 +430,7 @@ export default function EtapeFicheTransparence({
         <div className="flex items-center justify-between gap-3">
           <div>
             <h3 className="font-semibold text-slate-900">
-              Fiches déjÃ  enregistrées
+              Fiches déjà enregistrées
             </h3>
             <p className="mt-1 text-sm text-slate-500">
               Les anciennes fiches sont conservées et ne sont jamais remplacées.
@@ -431,7 +471,7 @@ export default function EtapeFicheTransparence({
                         {nom}
                       </p>
                       <p className="mt-1 text-xs text-slate-500">
-                        {fiche.date_fiche} Â· {fiche.lieu_libelle || fiche.lieu}
+                        {fiche.date_fiche} · {fiche.lieu_libelle || fiche.lieu}
                       </p>
                     </div>
                   </div>
@@ -501,7 +541,13 @@ export default function EtapeFicheTransparence({
             </label>
 
             <select
-              value={lieu}
+              value={lieuImpose || lieu}
+              disabled={Boolean(lieuImpose)}
+              title={
+                lieuImpose
+                  ? "Repris du site de la demande de recrutement"
+                  : undefined
+              }
               onChange={(event) =>
                 modifierChamp(
                   setLieu,
@@ -517,6 +563,9 @@ export default function EtapeFicheTransparence({
                 focus:border-blue-500
                 focus:ring-2
                 focus:ring-blue-100
+                disabled:cursor-not-allowed
+                disabled:bg-slate-100
+                disabled:text-slate-500
               "
             >
               <option value="">
@@ -704,7 +753,7 @@ export default function EtapeFicheTransparence({
           }
           onClick={() =>
             onComplete?.({
-              etape: 3,
+              etape: 2,
               ficheTransparence:
                 fiches[0],
               fichesTransparence:

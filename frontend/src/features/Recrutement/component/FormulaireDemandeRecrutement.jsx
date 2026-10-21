@@ -16,6 +16,23 @@ import {
 import recrutementApi from "../../../api/recrutementApi";
 
 
+const DEPARTEMENTS = [
+  "ACCESSOIRES",
+  "EXPEDITION",
+  "HR",
+  "LOGISTIC",
+  "MAINTENANCE",
+  "PRODUCTION",
+  "QUALITE",
+  "CUTTING",
+  "FINANCE",
+  "IMMOBILISATION",
+  "IT",
+  "MAGASIN",
+  "DESIGN",
+  "LABO",
+];
+
 const MOTIFS_RECRUTEMENT = [
   {
     value: "RAJOUT",
@@ -162,13 +179,21 @@ function creerFormulaireInitial(
 ) {
   return {
     type_recrutement: "",
+
+    matricule_demandeur:
+      profil?.matricule || "",
+    nom_demandeur:
+      profil?.nom_complet || "",
+    poste_demandeur:
+      profil?.poste_nom || "",
+    departement_demandeur:
+      profil?.departement_employe_nom || "",
+
     factory: profil?.factory
       ? String(profil.factory)
       : "",
 
-    departement: profil?.department
-      ? String(profil.department)
-      : "",
+    departement: "",
 
     poste: "",
 
@@ -292,18 +317,33 @@ function TextAreaField({
 
 function InformationDemandeur({
   label,
+  name,
   value,
+  valeurProfil,
+  onChange,
 }) {
-  return (
-    <div>
-      <p className="mb-1.5 text-sm font-medium text-slate-700">
-        {label}
-      </p>
+  if (valeurProfil) {
+    return (
+      <div>
+        <p className="mb-1.5 text-sm font-medium text-slate-700">
+          {label}
+        </p>
 
-      <div className="min-h-[42px] rounded-lg border border-slate-200 bg-slate-100 px-3.5 py-2.5 text-sm text-slate-700">
-        {value || "Non renseigné"}
+        <div className="min-h-[42px] rounded-lg border border-slate-200 bg-slate-100 px-3.5 py-2.5 text-sm text-slate-700">
+          {valeurProfil}
+        </div>
       </div>
-    </div>
+    );
+  }
+
+  return (
+    <InputField
+      label={label}
+      name={name}
+      value={value}
+      onChange={onChange}
+      placeholder="Non renseigné — à compléter (facultatif)"
+    />
   );
 }
 
@@ -315,9 +355,6 @@ export default function FormulaireDemandeRecrutement({
     useState(null);
 
   const [sites, setSites] =
-    useState([]);
-
-  const [departements, setDepartements] =
     useState([]);
 
   const [postes, setPostes] =
@@ -360,25 +397,6 @@ export default function FormulaireDemandeRecrutement({
   );
 
 
-  const departementsFiltres = useMemo(
-    () => {
-      if (!form.factory) {
-        return [];
-      }
-
-      return departements.filter(
-        (departement) =>
-          String(departement.factory) ===
-          String(form.factory)
-      );
-    },
-    [
-      departements,
-      form.factory,
-    ]
-  );
-
-
   useEffect(() => {
     let composantActif = true;
 
@@ -390,12 +408,10 @@ export default function FormulaireDemandeRecrutement({
         const [
           profilConnecte,
           listeSites,
-          listeDepartements,
           listePostes,
         ] = await Promise.all([
           recrutementApi.obtenirMonProfil(),
           recrutementApi.obtenirSites(),
-          recrutementApi.obtenirDepartements(),
           recrutementApi.obtenirPostes(),
         ]);
 
@@ -412,12 +428,6 @@ export default function FormulaireDemandeRecrutement({
           )
         );
 
-        setDepartements(
-          listeDepartements.filter(
-            (departement) =>
-              departement.is_active !== false
-          )
-        );
         setPostes(
           (Array.isArray(listePostes)
             ? listePostes
@@ -444,11 +454,6 @@ export default function FormulaireDemandeRecrutement({
           )
         );
 
-        if (!profilConnecte.matricule) {
-          setErrorMessage(
-            "Aucune fiche employé active n’est liée à votre compte. Contactez l’administrateur."
-          );
-        }
       } catch (error) {
         console.error(error);
 
@@ -521,13 +526,6 @@ export default function FormulaireDemandeRecrutement({
 
 
   const validerFormulaire = () => {
-    if (!profil?.matricule) {
-      return (
-        "Votre compte n’est pas lié à une "
-        + "fiche employé active."
-      );
-    }
-
      if (!form.type_recrutement) {
     return (
       "Sélectionnez le type de recrutement."
@@ -544,17 +542,6 @@ export default function FormulaireDemandeRecrutement({
       + "poste sont obligatoires."
     );
   }
-
-    if (
-      !form.factory ||
-      !form.departement ||
-      !form.poste
-    ) {
-      return (
-        "Le site, le département et le "
-        + "poste sont obligatoires."
-      );
-    }
 
     if (nombreTotal < 1) {
       return (
@@ -650,12 +637,20 @@ export default function FormulaireDemandeRecrutement({
     try {
       const payload = {
         type_recrutement:form.type_recrutement,
-  
+
+        matricule_demandeur:
+          form.matricule_demandeur.trim(),
+        nom_demandeur:
+          form.nom_demandeur.trim(),
+        poste_demandeur:
+          form.poste_demandeur.trim(),
+        departement_demandeur:
+          form.departement_demandeur.trim(),
+
         factory: Number(form.factory),
 
-        departement: Number(
-          form.departement
-        ),
+        departement_choisi:
+          form.departement,
 
         poste: Number(form.poste),
 
@@ -810,6 +805,7 @@ export default function FormulaireDemandeRecrutement({
 
                 <p className="mt-1 text-xs text-slate-500">
                   Informations récupérées automatiquement depuis votre compte.
+                  Les champs manquants peuvent être complétés (facultatif).
                 </p>
               </div>
             </div>
@@ -817,27 +813,36 @@ export default function FormulaireDemandeRecrutement({
             <div className="grid gap-5 md:grid-cols-2">
               <InformationDemandeur
                 label="Matricule"
-                value={profil?.matricule}
+                name="matricule_demandeur"
+                value={form.matricule_demandeur}
+                valeurProfil={profil?.matricule}
+                onChange={handleChange}
               />
 
               <InformationDemandeur
                 label="Nom et prénom"
-                value={
-                  profil?.nom_complet
-                }
+                name="nom_demandeur"
+                value={form.nom_demandeur}
+                valeurProfil={profil?.nom_complet}
+                onChange={handleChange}
               />
 
               <InformationDemandeur
                 label="Poste du demandeur"
-                value={profil?.poste_nom}
+                name="poste_demandeur"
+                value={form.poste_demandeur}
+                valeurProfil={profil?.poste_nom}
+                onChange={handleChange}
               />
 
               <InformationDemandeur
                 label="Département du demandeur"
-                value={
-                  profil
-                    ?.departement_employe_nom
+                name="departement_demandeur"
+                value={form.departement_demandeur}
+                valeurProfil={
+                  profil?.departement_employe_nom
                 }
+                onChange={handleChange}
               />
             </div>
           </section>
@@ -945,13 +950,13 @@ export default function FormulaireDemandeRecrutement({
                     Sélectionner un département
                   </option>
 
-                  {departementsFiltres.map(
+                  {DEPARTEMENTS.map(
                     (departement) => (
                       <option
-                        key={departement.id}
-                        value={departement.id}
+                        key={departement}
+                        value={departement}
                       >
-                        {departement.name}
+                        {departement}
                       </option>
                     )
                   )}
@@ -1225,10 +1230,7 @@ export default function FormulaireDemandeRecrutement({
 
             <button
               type="submit"
-              disabled={
-                isSubmitting ||
-                !profil?.matricule
-              }
+              disabled={isSubmitting}
               className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isSubmitting ? (

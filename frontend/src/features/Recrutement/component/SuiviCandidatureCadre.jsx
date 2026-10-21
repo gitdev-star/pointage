@@ -905,7 +905,7 @@ const candidatModifie =
       }
       onClick={() =>
         onComplete?.({
-          etape: 3,
+          etape: 2,
 
           suiviCandidatures: {
             candidats,

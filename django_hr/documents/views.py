@@ -610,11 +610,6 @@ def civ_abbrev(emp):
 def build_essai_non_concluant(emp, extra):
     """Lettre de rupture pour essai non concluant."""
 
-    print("========== ESSAI NON CONCLUANT ==========")
-    print("EMPLOYEE :", emp.id, emp.first_name, emp.last_name)
-    print("EXTRA RECU :", extra)
-    print("=========================================")
-
     date_fin_raw = extra.get("date_fin") if extra else None
 
     if not date_fin_raw:
@@ -622,24 +617,36 @@ def build_essai_non_concluant(emp, extra):
 
     date_fin = fmt_date(date_fin_raw)
 
+    date_fin_obj = datetime.strptime(str(date_fin_raw)[:10], "%Y-%m-%d").date()
+    date_veille = fmt_date(date_fin_obj - timedelta(days=1))
+
     name = f"{emp.last_name} {emp.first_name}"
     fonction = emp.job_title.name if emp.job_title else "—"
     matricule = emp.employee_id or "—"
 
-    print("NOM :", name)
-    print("MATRICULE :", matricule)
-    print("FONCTION :", fonction)
-    print("DATE :", date_fin)
-
     return fill_template(
         os.path.join(TEMPLATES_DIR, "essai_non_concluant.docx"),
         {
+            # Ancienne version du modèle (texte en dur)
             "M. RANDRIANOTAHINA Tiavina Milison Rova": f"{civ_abbrev(emp)} {name}",
             "Mle 006418": f"Mle {matricule}",
             "Machiniste": fonction,
         },
-        mergefields={"date_fin_en_lettre": date_fin},
+        # Version actuelle du modèle (champs de fusion Word) :
+        # chaque champ du document doit recevoir sa valeur,
+        # sinon il est remplacé par un texte vide.
+        mergefields={
+            "Nom": emp.last_name or "—",
+            "prenom": emp.first_name or "—",
+            "Prenom": emp.first_name or "—",
+            "Prénom": emp.first_name or "—",
+            "Matricule": matricule,
+            "Fonction": fonction,
+            "date_fin_en_lettre": date_fin,
+            "date_veille_en_lettre": date_veille,
+        },
     )
+
 
 BUILDERS = {
     "attestation"     : (build_attestation,      "Attestation_emploi"),

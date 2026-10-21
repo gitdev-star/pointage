@@ -10,7 +10,6 @@ import EtapeCreationOffre from "./CreationOffre";
 import EtapePublicationOffre from "./PubOffre";
 import EtapeSuiviCandidatures from "./SuiviCandidat";
 import EtapeFicheTransparence from "./FicheTransparence";
-import EtapeRetourRH from "./RetourRH";
 import EtapeEmbauche from "./Embauche";
 import EtapePreparationEmbaucheCadre from "./EtapePreparationEmbaucheCadre";
 import SuiviCandidatCadre from "./SuiviCandidatureCadre";
@@ -21,11 +20,13 @@ import {
   ArrowLeft,
   BriefcaseBusiness,
   Check,
+  CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Circle,
+  ClipboardList,
   FileCheck2,
-  FileText,
   Loader2,
   Megaphone,
   PauseCircle,
@@ -53,41 +54,27 @@ function nomCandidatDepuisEmbauche(embauche) {
 const ETAPES_OUVRIER = [
   {
     id: 1,
-    titre: "Création de l'offre",
+    titre: "Création et publication de l'offre",
     description:
-      "Créer une offre ou sélectionner une offre existante.",
-    icon: FileText,
-  },
-  {
-    id: 2,
-    titre: "Publication de l'offre",
-    description:
-      "Enregistrer les canaux et les dates de publication.",
+      "Créer ou sélectionner l'offre, puis enregistrer sa publication.",
     icon: Megaphone,
   },
   {
-    id: 3,
+    id: 2,
     titre: "Fiche de transparence",
     description:
       "Numériser et déposer la fiche de transparence.",
     icon: ScanLine,
   },
   {
-    id: 4,
-    titre: "Suivi des candidatures",
+    id: 3,
+    titre: "Candidats favorables",
     description:
-      "Ajouter les candidats et dÃ©poser les fiches de test.",
+      "Ajouter les candidats, cocher les fiches de test et, si besoin, générer la liste des dossiers à fournir.",
     icon: Users,
   },
   {
-    id: 5,
-    titre: "Retour RH",
-    description:
-      "Remettre et suivre la liste des dossiers à fournir.",
-    icon: FileCheck2,
-  },
-  {
-    id: 6,
+    id: 4,
     titre: "Embauche et clôture",
     description:
       "Confirmer l'embauche et clôturer le recrutement.",
@@ -98,34 +85,27 @@ const ETAPES_OUVRIER = [
 const ETAPES_CADRE = [
   {
     id: 1,
-    titre: "Création de l'offre",
+    titre: "Création et publication de l'offre",
     description:
-      "Créer une offre ou sélectionner une offre existante.",
-    icon: FileText,
-  },
-  {
-    id: 2,
-    titre: "Publication de l'offre",
-    description:
-      "Enregistrer les canaux et les dates de publication.",
+      "Créer ou sélectionner l'offre, puis enregistrer sa publication.",
     icon: Megaphone,
   },
   {
-    id: 3,
+    id: 2,
     titre: "Candidatures et entretiens",
     description:
       "Ajouter les candidats, réaliser les entretiens et compléter les comptes rendus.",
     icon: Users,
   },
   {
-    id: 4,
+    id: 3,
     titre: "Préparation de l'embauche",
     description:
       "Suivre les préparations IT, Comptabilité et RH.",
     icon: FileCheck2,
   },
   {
-    id: 5,
+    id: 4,
     titre: "Embauche et onboarding",
     description:
       "Confirmer l'embauche et terminer l'intégration.",
@@ -153,7 +133,7 @@ function obtenirTypesContrats(demande) {
     ["CDI", demande.nombre_cdi],
     ["CDD", demande.nombre_cdd],
     ["Stage", demande.nombre_stage],
-    ["IntÃ©rim", demande.nombre_interim],
+    ["Intérim", demande.nombre_interim],
     ["Consultant", demande.nombre_consultant],
     ["Autre", demande.nombre_autre],
   ];
@@ -189,9 +169,9 @@ function normaliserProcessus(data) {
     poste:
       demande.poste_nom ||
       demande.designation_poste ||
-      "Poste non renseignÃ©",
+      "Poste non renseigné",
     departement:
-      demande.departement_nom || "DÃ©partement non renseignÃ©",
+      demande.departement_nom || "Département non renseigné",
     nombreARecruter: obtenirNombreTotal(demande),
     typeContrat: obtenirTypesContrats(demande),
     designationTaches: demande.designation_taches || "",
@@ -226,6 +206,199 @@ function normaliserProcessus(data) {
           "OUVRIER"
       ).toUpperCase(),
   };
+}
+
+function formaterDateDemande(valeur, avecHeure = false) {
+  if (!valeur) return "";
+
+  const date = new Date(
+    String(valeur).length === 10
+      ? `${valeur}T00:00:00`
+      : valeur
+  );
+
+  if (Number.isNaN(date.getTime())) {
+    return String(valeur);
+  }
+
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    ...(avecHeure
+      ? { hour: "2-digit", minute: "2-digit" }
+      : {}),
+  }).format(date);
+}
+
+function InfoDemande({ label, valeur, large = false }) {
+  return (
+    <div className={large ? "sm:col-span-2" : ""}>
+      <p className="text-xs font-medium uppercase text-slate-500">
+        {label}
+      </p>
+
+      <p className="mt-1 whitespace-pre-line text-sm text-slate-800">
+        {valeur || valeur === 0 ? valeur : "-"}
+      </p>
+    </div>
+  );
+}
+
+function BlocDemande({ titre, children }) {
+  return (
+    <div className="rounded-lg border border-slate-200 p-4">
+      <h3 className="mb-3 text-sm font-semibold text-slate-900">
+        {titre}
+      </h3>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// Toutes les informations saisies dans la demande de
+// recrutement, consultables depuis le processus.
+function DetailsDemande({ demande }) {
+  const [ouvert, setOuvert] = useState(false);
+
+  if (!demande || !demande.id) {
+    return null;
+  }
+
+  const contrats = [
+    Number(demande.nombre_cdi || 0) > 0
+      ? `CDI : ${demande.nombre_cdi}`
+      : null,
+    Number(demande.nombre_cdd || 0) > 0
+      ? `CDD : ${demande.nombre_cdd}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <div className="mb-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <button
+        type="button"
+        onClick={() => setOuvert((valeur) => !valeur)}
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50"
+      >
+        <span className="flex items-center gap-2 font-semibold text-slate-900">
+          <ClipboardList size={18} className="text-blue-600" />
+          Détails de la demande {demande.reference}
+        </span>
+
+        <ChevronDown
+          size={18}
+          className={`text-slate-500 transition ${
+            ouvert ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+
+      {ouvert && (
+        <div className="grid gap-4 border-t border-slate-200 p-4 lg:grid-cols-2">
+          <BlocDemande titre="Demandeur">
+            <InfoDemande label="Nom et prénom" valeur={demande.nom_demandeur} />
+            <InfoDemande label="Matricule" valeur={demande.matricule_demandeur} />
+            <InfoDemande label="Poste" valeur={demande.poste_demandeur} />
+            <InfoDemande label="Département" valeur={demande.departement_demandeur} />
+            <InfoDemande
+              label="Date de la demande"
+              valeur={formaterDateDemande(demande.date_creation)}
+            />
+          </BlocDemande>
+
+          <BlocDemande titre="Besoin">
+            <InfoDemande
+              label="Type de recrutement"
+              valeur={
+                demande.type_recrutement === "CADRE"
+                  ? "Cadre"
+                  : "Ouvrier"
+              }
+            />
+            <InfoDemande label="Site" valeur={demande.factory_nom} />
+            <InfoDemande label="Département concerné" valeur={demande.departement_nom} />
+            <InfoDemande label="Poste à recruter" valeur={demande.poste_nom} />
+            <InfoDemande
+              label="Nombre à recruter"
+              valeur={
+                contrats
+                  ? `${demande.nombre_total ?? ""} (${contrats})`
+                  : demande.nombre_total
+              }
+            />
+            <InfoDemande
+              label="Date prévue du recrutement"
+              valeur={formaterDateDemande(demande.date_prevue_recrutement)}
+            />
+            <InfoDemande label="Motif" valeur={demande.motif_libelle} />
+            {demande.motif_remplacement && (
+              <InfoDemande
+                label="Motif du remplacement"
+                valeur={demande.motif_remplacement_libelle}
+              />
+            )}
+            <InfoDemande label="Remarque" valeur={demande.remarque} large />
+            <InfoDemande
+              label="Désignation des tâches"
+              valeur={demande.designation_taches}
+              large
+            />
+          </BlocDemande>
+
+          <BlocDemande titre="Profil recherché">
+            <InfoDemande label="Profil et diplôme" valeur={demande.profil_diplome} large />
+            <InfoDemande
+              label="Expérience professionnelle"
+              valeur={demande.experience_professionnelle}
+              large
+            />
+            <InfoDemande
+              label="Compétences techniques"
+              valeur={demande.competences_techniques}
+              large
+            />
+            <InfoDemande label="Savoir-faire" valeur={demande.savoir_faire} large />
+            <InfoDemande label="Savoir-être" valeur={demande.savoir_etre} large />
+          </BlocDemande>
+
+          <BlocDemande titre="Validations">
+            <InfoDemande
+              label="Validée par le directeur"
+              valeur={demande.validateur_directeur_nom}
+            />
+            <InfoDemande
+              label="Date de validation"
+              valeur={formaterDateDemande(demande.date_decision, true)}
+            />
+            <InfoDemande
+              label="Commentaire du directeur"
+              valeur={demande.motif_decision}
+              large
+            />
+            <InfoDemande
+              label="Approuvée par le DRH"
+              valeur={demande.approbateur_drh_nom}
+            />
+            <InfoDemande
+              label="Date d'approbation"
+              valeur={formaterDateDemande(demande.date_approbation_drh, true)}
+            />
+            <InfoDemande
+              label="Commentaire du DRH"
+              valeur={demande.commentaire_drh}
+              large
+            />
+          </BlocDemande>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function StepStatus({
@@ -292,6 +465,10 @@ export default function DetailProcessusRecrutement() {
     useState(false);
   const [messageDesistement, setMessageDesistement] =
     useState("");
+
+  // Fenêtre affichée quand le processus vient d'être terminé.
+  const [dialogueCloture, setDialogueCloture] =
+    useState(null);
   const [formulaireDesistement, setFormulaireDesistement] =
     useState({
       dateDesistement: dateDuJour(),
@@ -310,6 +487,42 @@ export default function DetailProcessusRecrutement() {
     candidatCompteRendu,
     setCandidatCompteRendu,
   ] = useState(null);
+
+  // Recharge seulement les embauches et désistements (section
+  // « Suivi après embauche »), sans changer d'étape.
+  const rechargerSuiviEmbauches = useCallback(async () => {
+    if (!id) return;
+
+    try {
+      const [resultatEmbauches, resultatDesistements] =
+        await Promise.all([
+          recrutementApi.obtenirEmbauches({
+            candidat__processus: id,
+          }),
+          recrutementApi.obtenirDesistements({
+            embauche__candidat__processus: id,
+          }),
+        ]);
+
+      setEmbauches(
+        (resultatEmbauches.embauches || []).filter(
+          (embauche) =>
+            Boolean(
+              embauche.confirmee ||
+                embauche.date_confirmation
+            )
+        )
+      );
+      setDesistements(
+        resultatDesistements.desistements || []
+      );
+    } catch (error) {
+      console.error(
+        "Erreur de rechargement du suivi après embauche :",
+        error
+      );
+    }
+  }, [id]);
 
   const chargerProcessus = useCallback(async () => {
     if (!id) {
@@ -382,7 +595,7 @@ export default function DetailProcessusRecrutement() {
       console.error("Erreur de chargement du processus :", error);
       setErreur(
         error.response?.status === 404
-          ? "Ce processus de recrutement nâ€™existe pas."
+          ? "Ce processus de recrutement n'existe pas."
           : error.response?.data?.detail ||
               "Impossible de charger le processus de recrutement."
       );
@@ -434,7 +647,7 @@ export default function DetailProcessusRecrutement() {
         formulaireDesistement.dateDesistement
     ) {
       setErreur(
-        "La date de reprise ne peut pas prÃ©cÃ©der la date du dÃ©sistement."
+        "La date de reprise ne peut pas précéder la date du désistement."
       );
       return;
     }
@@ -541,6 +754,13 @@ export default function DetailProcessusRecrutement() {
 
       if (numeroEtape < etapesProcessus.length) {
         setSelectedStep(numeroEtape + 1);
+      } else {
+        await rechargerSuiviEmbauches();
+
+        setDialogueCloture({
+          nombreEmbauches:
+            donnees?.embauche?.nombreEmbauche ?? null,
+        });
       }
     } catch (error) {
       console.error("Erreur de validation de l' étape :", error);
@@ -620,29 +840,6 @@ export default function DetailProcessusRecrutement() {
       </div>
     );
   }
-
-  const candidatsDuSuivi =
-  donneesEtapes[4]
-    ?.suiviCandidatures
-    ?.candidats ||
-  processus.candidats ||
-  [];
-
-const candidatsRetenus =
-  donneesEtapes[4]
-    ?.suiviCandidatures
-    ?.candidatsRetenus ||
-  candidatsDuSuivi.filter(
-    (candidat) =>
-      candidat.statut === "RECU" ||
-      candidat.statut === "EMBAUCHE" ||
-      candidat.retenu === true ||
-      Boolean(
-        candidat.fiche_test ||
-        candidat.fiche_test_url ||
-        candidat.ficheTest
-      )
-  );
 
   return (
     <div className="min-h-screen min-w-0 overflow-x-hidden bg-slate-50 px-2 py-3 sm:px-3 sm:py-4 lg:px-4">
@@ -754,13 +951,17 @@ const candidatsRetenus =
           </div>
         </div>
 
+        <DetailsDemande
+          demande={processus.demande_detail}
+        />
+
         {messageDesistement && (
           <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
             {messageDesistement}
           </div>
         )}
 
-        {(["CLOTURE", "TERMINE"].includes(processus.statut) ||
+        {(["CLOTURE", "TERMINE", "RELANCE_DESISTEMENT"].includes(processus.statut) ||
           desistements.length > 0) &&
           embauches.length > 0 && (
             <section className="mb-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -817,7 +1018,11 @@ const candidatsRetenus =
                               <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
                                 Désistement enregistré
                               </span>
-                            ) : processus.statut === "TERMINE" ? (
+                            ) : [
+                                "CLOTURE",
+                                "TERMINE",
+                                "RELANCE_DESISTEMENT",
+                              ].includes(processus.statut) ? (
                               <button
                                 type="button"
                                 onClick={() => ouvrirDesistement(embauche)}
@@ -840,7 +1045,7 @@ const candidatsRetenus =
           )}
 
         <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
-          {/* Liste verticale des Ã©tapes */}
+          {/* Liste verticale des étapes */}
           <aside className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-200 px-3 py-3 sm:px-4">
               <h2 className="font-semibold text-slate-900">
@@ -932,7 +1137,7 @@ const candidatsRetenus =
             </div>
           </aside>
 
-          {/* Contenu de lâ€™Ã©tape */}
+          {/* Contenu de l'étape */}
           <div className="min-w-0 max-w-full">
             <div className="min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-200 bg-white px-2 py-4 shadow-sm sm:px-3 lg:px-4">
               <div className="mb-4 px-1">
@@ -951,38 +1156,50 @@ const candidatsRetenus =
 
 
 
-{/* Ã‰tapes communes */}
+{/* Étapes communes */}
 {selectedStep === 1 && (
-  <EtapeCreationOffre
-    recrutement={processus}
-    onComplete={({ etape, offre }) =>
-      terminerEtape(etape, {
-        offre,
-      })
-    }
-  />
+  <div className="space-y-8">
+    <EtapeCreationOffre
+      recrutement={processus}
+      onComplete={({ offre }) =>
+        setDonneesEtapes((previous) => ({
+          ...previous,
+          1: {
+            ...previous[1],
+            offre,
+          },
+        }))
+      }
+    />
+
+    <div className="border-t border-slate-200 pt-6">
+      <EtapePublicationOffre
+        key={
+          (donneesEtapes[1]?.offre ||
+            processus.offre)?.id ||
+          "sans-offre"
+        }
+        recrutement={processus}
+        offre={
+          donneesEtapes[1]?.offre ||
+          processus.offre
+        }
+        onComplete={({ publications }) =>
+          terminerEtape(1, {
+            offre:
+              donneesEtapes[1]?.offre ||
+              processus.offre,
+            publications,
+          })
+        }
+      />
+    </div>
+  </div>
 )}
 
-{selectedStep === 2 && (
-  <EtapePublicationOffre
-    recrutement={processus}
-    offre={
-      donneesEtapes[1]?.offre
-    }
-    onComplete={({
-      etape,
-      publications,
-    }) =>
-      terminerEtape(etape, {
-        publications,
-      })
-    }
-  />
-)}
-
-{/* Ã‰tape 3 du parcours ouvrier */}
+{/* Étape 3 du parcours ouvrier */}
 {!estCadre &&
-  selectedStep === 3 && (
+  selectedStep === 2 && (
     <EtapeFicheTransparence
       recrutement={processus}
       onComplete={(resultat) =>
@@ -997,9 +1214,9 @@ const candidatsRetenus =
     />
   )}
 
-{/* Ã‰tape 3 du parcours cadre */}
+{/* Étape 3 du parcours cadre */}
 {estCadre &&
-  selectedStep === 3 && (
+  selectedStep === 2 && (
     <SuiviCandidatCadre
       key={
         processus.candidats
@@ -1029,16 +1246,16 @@ const candidatsRetenus =
   )}
 
 {!estCadre &&
-  selectedStep === 4 && (
+  selectedStep === 3 && (
     <EtapeSuiviCandidatures
       recrutement={{
         ...processus,
-        numeroEtape: 4,
+        numeroEtape: 3,
         publications:
-          donneesEtapes[2]
+          donneesEtapes[1]
             ?.publications || [],
         candidats:
-          donneesEtapes[4]
+          donneesEtapes[3]
             ?.suiviCandidatures
             ?.candidats ||
           processus.candidats ||
@@ -1056,36 +1273,11 @@ const candidatsRetenus =
   )}
 
 {!estCadre &&
-  selectedStep === 5 && (
-    <EtapeRetourRH
-      recrutement={processus}
-      selection={{
-        candidatsRetenus:
-          candidatsRetenus.map(
-            (candidat) => ({
-              candidat,
-            })
-          ),
-      }}
-      onComplete={({
-        etape,
-        retourRH,
-      }) =>
-        terminerEtape(etape, {
-          retourRH,
-        })
-      }
-    />
-  )}
-
-{!estCadre &&
-  selectedStep === 6 && (
+  selectedStep === 4 && (
     <EtapeEmbauche
       recrutement={processus}
-      retourRH={
-        donneesEtapes[5]
-          ?.retourRH
-      }
+      retourRH={null}
+      onEmbaucheConfirmee={rechargerSuiviEmbauches}
       onComplete={({
         etape,
         embauche,
@@ -1097,9 +1289,9 @@ const candidatsRetenus =
     />
   )}
 
-{/* Ã‰tapes 4 et 5 du parcours cadre */}
+{/* Étapes 4 et 5 du parcours cadre */}
 {estCadre &&
-  selectedStep === 4 && (
+  selectedStep === 3 && (
     <EtapePreparationEmbaucheCadre
       recrutement={processus}
       onComplete={() =>
@@ -1109,10 +1301,11 @@ const candidatsRetenus =
   )}
 
 {estCadre &&
-  selectedStep === 5 && (
+  selectedStep === 4 && (
     <EtapeEmbauche
       recrutement={processus}
       retourRH={null}
+      onEmbaucheConfirmee={rechargerSuiviEmbauches}
       onComplete={({
         etape,
         embauche,
@@ -1341,6 +1534,61 @@ const candidatsRetenus =
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {dialogueCloture && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="titre-cloture"
+        >
+          <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-2xl">
+            <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100">
+              <CheckCircle2 size={48} className="text-emerald-600" />
+            </div>
+
+            <h2 id="titre-cloture" className="text-xl font-bold text-slate-900">
+              Processus de recrutement terminé
+            </h2>
+
+            <p className="mt-3 text-sm text-slate-600">
+              {processus?.reference && (
+                <span className="font-semibold text-slate-800">
+                  {processus.reference}
+                </span>
+              )}
+              {processus?.reference && " — "}
+              Le recrutement est clôturé
+              {dialogueCloture.nombreEmbauches !== null &&
+                ` avec ${dialogueCloture.nombreEmbauches} embauche(s) confirmée(s)`}
+              .
+            </p>
+
+            <p className="mt-2 text-xs text-slate-500">
+              Un éventuel désistement pourra être signalé dans « Suivi après embauche ».
+            </p>
+
+            <div className="mt-7 flex flex-col-reverse gap-2 sm:flex-row sm:justify-center">
+              <button
+                type="button"
+                onClick={() => setDialogueCloture(null)}
+                className="rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Rester sur ce processus
+              </button>
+
+              <button
+                type="button"
+                autoFocus
+                onClick={() => navigate("/hr/recrutement/processus")}
+                className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
+              >
+                Retour à la liste des processus
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

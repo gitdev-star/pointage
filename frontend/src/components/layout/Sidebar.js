@@ -35,11 +35,11 @@ const RECRUTEMENT_ITEMS = [
     label: "Processus de recrutement",
     permission: "recruitment_read",
   },
-  {
-    to: "/hr/recrutement/comptes-rendus",
-    label: "Comptes rendus",
-    permission: "recruitment_read",
-  },
+  // {
+  //   to: "/hr/recrutement/comptes-rendus",
+  //   label: "Comptes rendus",
+  //   permission: "recruitment_read",
+  // },
 ];
 
 export default function Sidebar({ isOpen, onClose }) {

@@ -462,29 +462,25 @@ class ProcessusRecrutement(models.Model):
         )
 
     ETAPES_OUVRIER = {
-        1: "Création de l’offre",
-        2: "Publication de l’offre",
-        3: "Fiche de transparence",
-        4: "Suivi des candidatures",
-        5: "Retour RH",
-        6: "Embauche",
+        1: "Création et publication de l’offre",
+        2: "Fiche de transparence",
+        3: "Candidats favorables",
+        4: "Embauche",
     }
 
     ETAPES_CADRE = {
-        1: "Création de l’offre",
+        1: "Création et publication de l’offre",
 
-        2: "Publication de l’offre",
-
-        3: (
+        2: (
             "Suivi des candidatures, "
             "entretiens et comptes rendus"
         ),
 
-        4: (
+        3: (
             "Préparation de l’embauche"
         ),
 
-        5: (
+        4: (
             "Embauche, onboarding "
             "et clôture"
         ),
@@ -1107,12 +1103,20 @@ class Candidat(models.Model):
     )
 
     # Utilisée seulement pour les ouvriers.
+    # Ancien téléversement de la fiche, conservé
+    # pour l'historique.
     fiche_test = models.FileField(
         upload_to=(
             "recrutement/fiches-test/"
         ),
         null=True,
         blank=True,
+    )
+
+    # Case à cocher de l'étape 3 (ouvriers) :
+    # le candidat a bien remis sa fiche de test.
+    fiche_test_recue = models.BooleanField(
+        default=False
     )
 
     statut = models.CharField(
@@ -1185,7 +1189,10 @@ class Candidat(models.Model):
 
         if (
             self.est_cadre
-            and self.fiche_test
+            and (
+                self.fiche_test
+                or self.fiche_test_recue
+            )
         ):
             erreurs["fiche_test"] = (
                 "La fiche de test ne concerne "
@@ -1269,7 +1276,7 @@ class Candidat(models.Model):
         ):
             self.statut = (
                 self.Statut.RECU
-                if self.fiche_test
+                if self.fiche_test_recue
                 else self.Statut.NON_RECU
             )
 
@@ -2820,23 +2827,7 @@ class Embauche(models.Model):
                     "n’a pas été retenu."
                 )
 
-            try:
-                retour_rh = (
-                    self.candidat
-                    .retour_rh
-                )
-            except RetourRHCandidat.DoesNotExist:
-                erreurs["candidat"] = (
-                    "Le Retour RH du candidat "
-                    "n’a pas encore été enregistré."
-                )
-            else:
-                if not retour_rh.liste_remise:
-                    erreurs["candidat"] = (
-                        "La liste des documents "
-                        "n’a pas encore été remise "
-                        "au candidat."
-                    )
+            # La liste des dossiers à fournir est facultative.
 
         if erreurs:
             raise ValidationError(erreurs)

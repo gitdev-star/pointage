@@ -448,11 +448,21 @@ const exportToExcel = async () => {
 
     if (allData.length === 0) { alert('Aucune donnée à exporter.'); return; }
 
-    const headers = ['User ID', 'Nom', 'Date', 'Arrivée', 'Départ', 'Heure sup.', 'Pointages'];
+        // Jour de la semaine (lundi, mardi...) à partir d'une date "AAAA-MM-JJ".
+    // La date est construite en heure locale pour ne pas glisser d'un jour.
+    const jourSemaine = (valeur) => {
+      const m = String(valeur || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (!m) return '—';
+      const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+      return d.toLocaleDateString('fr-FR', { weekday: 'long' });
+    };
+
+    const headers = ['User ID', 'Nom', 'Date', 'Jour', 'Arrivée', 'Départ', 'Heure sup.', 'Pointages'];
     const csvData = allData.map(r => [
       formatEmployeeId(r.user_id) ? `="${formatEmployeeId(r.user_id)}"` : '—',
       getEmployeeName(r.user_id) || `ID:${r.user_id}`,
       r.attendance_date || r.date,
+      jourSemaine(r.attendance_date || r.date),
       r.arrival ? new Date(r.arrival).toLocaleTimeString('fr-FR') : '—',
       r.departure ? new Date(r.departure).toLocaleTimeString('fr-FR') : '—',
       fmtOvertimeMinutes(computeOvertimeMinutes(r)),

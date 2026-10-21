@@ -756,15 +756,6 @@ export default function EtapeCreationOffre({
       )}
 
       <div className="flex flex-wrap justify-end gap-3">
-        <button
-          type="button"
-          disabled={isSubmitting || chargement}
-          onClick={() => onComplete?.({ etape: 1, offre: null })}
-          className="rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          Passer cette étape
-        </button>
-
         {mode && (
           <button
             type="submit"
@@ -799,8 +790,8 @@ export default function EtapeCreationOffre({
             {isSubmitting
               ? "Enregistrement..."
               : mode === "NOUVELLE"
-                ? "Téléverser et continuer"
-                : "Sélectionner et continuer"}
+                ? "Téléverser l’offre"
+                : "Sélectionner l’offre"}
           </button>
         )}
       </div>

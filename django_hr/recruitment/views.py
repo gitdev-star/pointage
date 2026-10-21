@@ -2,18 +2,6 @@ from io import BytesIO
 
 from rest_framework.viewsets import ModelViewSet
 
-from datetime import datetime
-
-from django.db.models import (
-    Count,
-    F,
-    IntegerField,
-    Sum,
-    Value,
-)
-from django.db.models.functions import Coalesce, ExtractMonth
-from django.utils.timezone import make_aware
-
 from .emails import (
     notifier_decision_demande,
     notifier_nouvelle_demande,
@@ -91,10 +79,11 @@ from .models import (
 
 from .permissions import (
     PermissionRecrutement,
+    PermissionDemandeRecrutement,
     PermissionDirecteurRecrutement,
     PermissionDRHRecrutement,
     PermissionProprietaireDemande,
-    PermissionDemandeRecrutement,
+    filtrer_perimetre_recrutement,
 )
 
 from .serializers import (
@@ -111,7 +100,20 @@ from .serializers import (
     CompteRenduEntretienCadreSerializer,
     TachePreparationEmbaucheSerializer,
     creer_employe_depuis_embauche,
+    DOCUMENTS_RH_PAR_DEFAUT,
 )
+
+from datetime import datetime
+
+from django.db.models import (
+    Count,
+    F,
+    IntegerField,
+    Sum,
+    Value,
+)
+from django.db.models.functions import Coalesce, ExtractMonth
+from django.utils.timezone import make_aware
 
 
 class ViewSetRecrutementBase(
@@ -212,6 +214,13 @@ class DemandeRecrutementViewSet(
         "-date_creation",
     ]
 
+    def get_queryset(self):
+        # Un manager ne voit que les demandes de son périmètre.
+        return filtrer_perimetre_recrutement(
+            self.request,
+            super().get_queryset(),
+        )
+
     @action(
     detail=False,
     methods=["get"],
@@ -281,11 +290,11 @@ class DemandeRecrutementViewSet(
                 )
             )
 
-        statuts_refuses = [
-            DemandeRecrutement.Statut.BROUILLON,
-            DemandeRecrutement.Statut.REFUSEE,
-            DemandeRecrutement.Statut.REFUSEE_DIRECTEUR,
-            DemandeRecrutement.Statut.REFUSEE_DRH,
+        # Seules les demandes approuvées par le DRH
+        # sont comptées.
+        statuts_valides = [
+            DemandeRecrutement.Statut.VALIDEE,
+            DemandeRecrutement.Statut.TERMINEE,
         ]
 
         demandes = (
@@ -293,9 +302,7 @@ class DemandeRecrutementViewSet(
             .filter(
                 date_creation__gte=debut,
                 date_creation__lt=fin,
-            )
-            .exclude(
-                statut__in=statuts_refuses,
+                statut__in=statuts_valides,
             )
         )
 
@@ -310,7 +317,10 @@ class DemandeRecrutementViewSet(
 
         demandes_par_departement = {
             item["departement_id"]: {
-                "departement": item["departement__name"],
+                "departement": (
+                    f"{item['departement__factory__name']}"
+                    f" / {item['departement__name']}"
+                ),
                 "demandes": item["demandes"] or 0,
             }
             for item in (
@@ -318,6 +328,7 @@ class DemandeRecrutementViewSet(
                 .values(
                     "departement_id",
                     "departement__name",
+                    "departement__factory__name",
                 )
                 .annotate(
                     demandes=Coalesce(
@@ -333,23 +344,35 @@ class DemandeRecrutementViewSet(
             )
         }
 
-        recrutes_par_departement = {
-            item[
-                "candidat__processus__demande__departement_id"
-            ]: item["recrutes"]
-            for item in (
-                embauches
-                .values(
-                    (
-                        "candidat__processus__demande__"
-                        "departement_id"
-                    )
-                )
-                .annotate(
-                    recrutes=Count("id")
-                )
+        prefixe = "candidat__processus__demande__departement"
+
+        recrutes_par_departement = {}
+        noms_departements_recrutes = {}
+
+        for item in (
+            embauches
+            .values(
+                f"{prefixe}_id",
+                f"{prefixe}__name",
+                f"{prefixe}__factory__name",
             )
-        }
+            .annotate(
+                recrutes=Count("id")
+            )
+        ):
+            departement_id = item[f"{prefixe}_id"]
+
+            recrutes_par_departement[
+                departement_id
+            ] = item["recrutes"]
+
+            if item[f"{prefixe}__name"]:
+                noms_departements_recrutes[
+                    departement_id
+                ] = (
+                    f"{item[f'{prefixe}__factory__name']}"
+                    f" / {item[f'{prefixe}__name']}"
+                )
 
         ids_departements = set(
             demandes_par_departement
@@ -379,7 +402,10 @@ class DemandeRecrutementViewSet(
                 {
                     "departement": demande_info.get(
                         "departement",
-                        "Département non renseigné",
+                        noms_departements_recrutes.get(
+                            departement_id,
+                            "Département non renseigné",
+                        ),
                     ),
                     "demandes": nombre_demande,
                     "recrutes": nombre_recrute,
@@ -447,7 +473,10 @@ class DemandeRecrutementViewSet(
                 "mois": mois,
                 "departements": departements,
                 "indicateurs": {
-                    "total_demandes": sum(
+                    # Besoins exprimés : nombre de demandes.
+                    "total_demandes": demandes.count(),
+                    # Personnes à recruter : total CDI + CDD.
+                    "total_personnes": sum(
                         item["demandes"]
                         for item in departements
                     ),
@@ -496,6 +525,17 @@ class DemandeRecrutementViewSet(
                 PermissionDRHRecrutement()
             ]
 
+        # Le tableau de bord et l'action liée au
+        # processus restent soumis à la permission
+        # générale du module Recrutement.
+        if self.action in [
+            "tableau_de_bord",
+            "changer_statut_processus_indisponible",
+        ]:
+            return [
+                PermissionRecrutement()
+            ]
+
         if self.action in [
             "update",
             "partial_update",
@@ -506,6 +546,8 @@ class DemandeRecrutementViewSet(
                 PermissionProprietaireDemande(),
             ]
 
+        # Créer, lister, consulter, mes-demandes :
+        # permission « Demandes de recrutement ».
         return [
             PermissionDemandeRecrutement()
         ]
@@ -577,7 +619,7 @@ class DemandeRecrutementViewSet(
             return Response(
                 {
                     "detail": (
-                        "Cette demande nÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢est plus en "
+                        "Cette demande n'est plus en "
                         "attente du directeur."
                     )
                 },
@@ -643,7 +685,7 @@ class DemandeRecrutementViewSet(
         return Response(
             {
                 "message": (
-                    "La demande a ÃƒÆ’Ã‚Â©tÃƒÆ’Ã‚Â© validÃƒÆ’Ã‚Â©e par "
+                    "La demande a été validée par "
                     "le directeur et transmise au DRH."
                 ),
                 "processus_cree": False,
@@ -725,8 +767,8 @@ class DemandeRecrutementViewSet(
             return Response(
                 {
                     "detail": (
-                        "Cette demande a dÃƒÆ’Ã‚Â©jÃƒÆ’  "
-                        "ÃƒÆ’Ã‚Â©tÃƒÆ’Ã‚Â© traitÃƒÆ’Ã‚Â©e."
+                        "Cette demande a déjà "
+                        "été traitée."
                     )
                 },
                 status=status.HTTP_409_CONFLICT,
@@ -794,7 +836,7 @@ class DemandeRecrutementViewSet(
         return Response(
             {
                 "message": (
-                    "La demande a ÃƒÆ’Ã‚Â©tÃƒÆ’Ã‚Â© refusÃƒÆ’Ã‚Â©e."
+                    "La demande a été refusée."
                 ),
                 "demande": serializer.data,
             }
@@ -825,8 +867,8 @@ class DemandeRecrutementViewSet(
             return Response(
                 {
                     "detail": (
-                        "Cette demande nÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢est pas en "
-                        "attente de lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢approbation du DRH."
+                        "Cette demande n'est pas en "
+                        "attente de l'approbation du DRH."
                     )
                 },
                 status=status.HTTP_409_CONFLICT,
@@ -899,7 +941,7 @@ class DemandeRecrutementViewSet(
         return Response(
             {
                 "message": (
-                    "La demande a ÃƒÆ’Ã‚Â©tÃƒÆ’Ã‚Â© approuvÃƒÆ’Ã‚Â©e par le "
+                    "La demande a été approuvée par le "
                     "DRH et le processus est disponible."
                 ),
                 "processus_cree": cree,
@@ -939,8 +981,8 @@ class DemandeRecrutementViewSet(
             return Response(
                 {
                     "detail": (
-                        "Cette demande nÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢est pas en "
-                        "attente de lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢approbation du DRH."
+                        "Cette demande n'est pas en "
+                        "attente de l'approbation du DRH."
                     )
                 },
                 status=status.HTTP_409_CONFLICT,
@@ -1007,7 +1049,7 @@ class DemandeRecrutementViewSet(
 
         return Response(
             {
-                "message": "La demande a ÃƒÆ’Ã‚Â©tÃƒÆ’Ã‚Â© refusÃƒÆ’Ã‚Â©e par le DRH.",
+                "message": "La demande a été refusée par le DRH.",
                 "demande": self.get_serializer(demande).data,
             },
             status=status.HTTP_200_OK,
@@ -1073,6 +1115,14 @@ class ProcessusRecrutementViewSet(
         "-date_creation",
     ]
 
+    def get_queryset(self):
+        # Un manager ne voit que les recrutements de son périmètre.
+        return filtrer_perimetre_recrutement(
+            self.request,
+            super().get_queryset(),
+            prefixe="demande__",
+        )
+
     def verifier_etape(
         self,
         processus,
@@ -1087,48 +1137,9 @@ class ProcessusRecrutementViewSet(
             .TypeRecrutement.CADRE
         )
 
-        # ÃƒÆ’Ã¢â‚¬Â°tape 1 commune :
-        # crÃƒÆ’Ã‚Â©ation ou sÃƒÆ’Ã‚Â©lection de lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢offre.
-        # La création et la publication de l'offre sont facultatives.
-        if numero_etape in (1, 2):
-            return None
-
+        # Etape 1 commune : création et publication
+        # de l'offre (facultatives).
         if numero_etape == 1:
-            if not processus.offre_id:
-                return (
-                    "SÃƒÆ’Ã‚Â©lectionnez ou tÃƒÆ’Ã‚Â©lÃƒÆ’Ã‚Â©versez "
-                    "une offre avant de terminer "
-                    "lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã‚Â©tape 1."
-                )
-
-            if not processus.offre.active:
-                return (
-                    "LÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢offre sÃƒÆ’Ã‚Â©lectionnÃƒÆ’Ã‚Â©e "
-                    "nÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢est plus active."
-                )
-
-            if not processus.offre.fichier:
-                return (
-                    "Le fichier de lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢offre "
-                    "est introuvable."
-                )
-
-            return None
-
-        # ÃƒÆ’Ã¢â‚¬Â°tape 2 commune :
-        # publication de lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢offre.
-        if numero_etape == 2:
-            if not (
-                processus
-                .publications
-                .exists()
-            ):
-                return (
-                    "Ajoutez au moins une "
-                    "publication avant de "
-                    "terminer lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã‚Â©tape 2."
-                )
-
             return None
 
         if est_cadre:
@@ -1147,10 +1158,10 @@ class ProcessusRecrutementViewSet(
         processus,
         numero_etape,
     ):
-        # ÃƒÆ’Ã¢â‚¬Â°tape 3 :
+        # Etape 2 :
         # candidatures, entretiens
         # et comptes rendus.
-        if numero_etape == 3:
+        if numero_etape == 2:
             candidats = (
                 processus.candidats.exclude(
                     statut__in=[
@@ -1223,11 +1234,11 @@ class ProcessusRecrutementViewSet(
 
             return None
 
-        # ÃƒÆ’Ã¢â‚¬Â°tape 4 :
-        # prÃƒÆ’Ã‚Â©paration de lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢embauche.
-        # ÃƒÆ’Ã¢â‚¬Â°tape 4 :
-# prÃƒÆ’Ã‚Â©paration automatique de lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢embauche.
-        if numero_etape == 4:
+        # Etape 3 :
+        # préparation de l'embauche.
+        # Etape 3 :
+# préparation automatique de l'embauche.
+        if numero_etape == 3:
             candidats_retenus = (
                 processus
                 .candidats
@@ -1259,8 +1270,8 @@ class ProcessusRecrutementViewSet(
                 ):
                     return (
                         "Toutes les demandes de "
-                        "prÃƒÆ’Ã‚Â©paration nÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ont pas ÃƒÆ’Ã‚Â©tÃƒÆ’Ã‚Â© "
-                        "crÃƒÆ’Ã‚Â©ÃƒÆ’Ã‚Â©es pour "
+                        "préparation n'ont pas été "
+                        "créées pour "
                         f"{candidat.nom_complet}."
                     )
 
@@ -1275,16 +1286,16 @@ class ProcessusRecrutementViewSet(
                 if notification_non_envoyee:
                     return (
                         "La notification du service "
-                        f"Ãƒâ€šÃ‚Â« {notification_non_envoyee.get_service_display()} Ãƒâ€šÃ‚Â» "
-                        "nÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢a pas encore ÃƒÆ’Ã‚Â©tÃƒÆ’Ã‚Â© envoyÃƒÆ’Ã‚Â©e pour "
+                        f"« {notification_non_envoyee.get_service_display()} » "
+                        "n’a pas encore été envoyée pour "
                         f"{candidat.nom_complet}."
                     )
 
             return None
 
-        # ÃƒÆ’Ã¢â‚¬Â°tape 5 :
-        # embauche, onboarding et clÃƒÆ’Ã‚Â´ture.
-        if numero_etape == 5:
+        # Etape 4 :
+        # embauche, onboarding et clôture.
+        if numero_etape == 4:
             nombre_embauches = (
                 processus
                 .candidats
@@ -1299,23 +1310,23 @@ class ProcessusRecrutementViewSet(
             if nombre_embauches == 0:
                 return (
                     "Au moins une embauche doit "
-                    "ÃƒÆ’Ã‚Âªtre confirmÃƒÆ’Ã‚Â©e avant de "
-                    "clÃƒÆ’Ã‚Â´turer le recrutement."
+                    "être confirmée avant de "
+                    "clôturer le recrutement."
                 )
 
             if not processus.peut_etre_cloture:
                 return (
-                    "La checklist dÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢embauche et dÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢onboarding doit ÃƒÆ’Ã‚Âªtre "
-                    "complÃƒÆ’Ã‚Â¨te pour chaque candidat cadre retenu. "
-                    "Le RI et le Code sociÃƒÆ’Ã‚Â©tÃƒÆ’Ã‚Â© doivent ÃƒÆ’Ã‚Â©galement avoir "
-                    "ÃƒÆ’Ã‚Â©tÃƒÆ’Ã‚Â© envoyÃƒÆ’Ã‚Â©s par e-mail lorsque le candidat possÃƒÆ’Ã‚Â¨de "
+                    "La checklist d'embauche et d'onboarding doit être "
+                    "complète pour chaque candidat cadre retenu. "
+                    "Le RI et le Code société doivent également avoir "
+                    "été envoyés par e-mail lorsque le candidat possède "
                     "une adresse e-mail."
                 )
 
             return None
 
         return (
-            "Cette ÃƒÆ’Ã‚Â©tape nÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢existe pas dans "
+            "Cette étape n'existe pas dans "
             "le parcours de recrutement "
             "des cadres."
         )
@@ -1325,9 +1336,9 @@ class ProcessusRecrutementViewSet(
         processus,
         numero_etape,
     ):
-        # ÃƒÆ’Ã¢â‚¬Â°tape 3 :
+        # Etape 2 :
         # fiche de transparence.
-        if numero_etape == 3:
+        if numero_etape == 2:
             if not (
                 processus
                 .fiches_transparence
@@ -1340,9 +1351,9 @@ class ProcessusRecrutementViewSet(
 
             return None
 
-        # ÃƒÆ’Ã¢â‚¬Â°tape 4 :
+        # Etape 3 :
         # suivi des candidatures.
-        if numero_etape == 4:
+        if numero_etape == 3:
             if not (
                 processus
                 .liste_candidats_confirmee
@@ -1369,66 +1380,13 @@ class ProcessusRecrutementViewSet(
                     "avoir une fiche de test."
                 )
 
-            # LÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢e-mail au ChargÃƒÆ’Ã‚Â© RH du site
-            # sera dÃƒÆ’Ã‚Â©clenchÃƒÆ’Ã‚Â© automatiquement
-            # au moment de terminer cette ÃƒÆ’Ã‚Â©tape.
-
+            # La liste des dossiers à fournir est facultative :
+            # elle n'empêche pas de passer à l'étape suivante.
             return None
 
-        # ÃƒÆ’Ã¢â‚¬Â°tape 5 :
-        # Retour RH.
-        if numero_etape == 5:
-            candidats_retenus = (
-                processus
-                .candidats
-                .filter(
-                    statut=(
-                        Candidat.Statut.RECU
-                    )
-                )
-            )
-
-            if not candidats_retenus.exists():
-                return (
-                    "Aucun candidat reÃƒÆ’Ã‚Â§u "
-                    "nÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢est disponible."
-                )
-
-            retour_absent = (
-                candidats_retenus
-                .filter(
-                    retour_rh__isnull=True
-                )
-                .first()
-            )
-
-            if retour_absent:
-                return (
-                    "Le Retour RH est absent "
-                    "pour "
-                    f"{retour_absent.nom_complet}."
-                )
-
-            retour_incomplet = (
-                candidats_retenus
-                .filter(
-                    retour_rh__liste_remise=False
-                )
-                .first()
-            )
-
-            if retour_incomplet:
-                return (
-                    "Le Retour RH doit ÃƒÆ’Ã‚Âªtre "
-                    "validÃƒÆ’Ã‚Â© pour "
-                    f"{retour_incomplet.nom_complet}."
-                )
-
-            return None
-
-        # ÃƒÆ’Ã¢â‚¬Â°tape 6 :
-        # embauche et clÃƒÆ’Ã‚Â´ture.
-        if numero_etape == 6:
+        # Etape 4 :
+        # embauche et clôture.
+        if numero_etape == 4:
             nombre_embauches = (
                 processus
                 .candidats
@@ -1443,14 +1401,14 @@ class ProcessusRecrutementViewSet(
             if nombre_embauches == 0:
                 return (
                     "Au moins une embauche doit "
-                    "ÃƒÆ’Ã‚Âªtre confirmÃƒÆ’Ã‚Â©e avant de "
-                    "clÃƒÆ’Ã‚Â´turer le recrutement."
+                    "être confirmée avant de "
+                    "clôturer le recrutement."
                 )
 
             return None
 
         return (
-            "Cette ÃƒÆ’Ã‚Â©tape nÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢existe pas dans "
+            "Cette étape n'existe pas dans "
             "le parcours de recrutement "
             "des ouvriers."
         )
@@ -1486,8 +1444,8 @@ class ProcessusRecrutementViewSet(
             return Response(
                 {
                     "numero_etape": (
-                        "Indiquez un numÃƒÆ’Ã‚Â©ro "
-                        "dÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã‚Â©tape valide."
+                        "Indiquez un numéro "
+                        "d'étape valide."
                     )
                 },
                 status=(
@@ -1539,7 +1497,7 @@ class ProcessusRecrutementViewSet(
                     return Response(
                         {
                             "detail": (
-                                "Le profil RH de lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢utilisateur connectÃƒÆ’Ã‚Â© "
+                                "Le profil RH de l'utilisateur connecté "
                                 "est introuvable."
                             )
                         },
@@ -1582,7 +1540,7 @@ class ProcessusRecrutementViewSet(
                 )
 
                 # Recherche d'une reprise qui n'a
-                # pas encore ÃƒÆ’Ã‚Â©tÃƒÆ’Ã‚Â© clÃƒÆ’Ã‚Â´turÃƒÆ’Ã‚Â©e.
+                # pas encore été clôturée.
                 desistements_en_reprise = (
                     DesistementEmbauche.objects
                     .filter(
@@ -1610,9 +1568,9 @@ class ProcessusRecrutementViewSet(
                     ]
                 )
 
-                # Si le processus avait ÃƒÆ’Ã‚Â©tÃƒÆ’Ã‚Â© repris aprÃƒÆ’Ã‚Â¨s
-                # un dÃƒÆ’Ã‚Â©sistement, on conserve la trace
-                # de sa nouvelle clÃƒÆ’Ã‚Â´ture.
+                # Si le processus avait été repris après
+                # un désistement, on conserve la trace
+                # de sa nouvelle clôture.
                 desistements_en_reprise.update(
                     date_nouvelle_cloture=(
                         nouvelle_date_cloture
@@ -1642,8 +1600,8 @@ class ProcessusRecrutementViewSet(
         return Response(
             {
                 "message": (
-                    f"LÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã‚Â©tape {numero_etape} "
-                    "a ÃƒÆ’Ã‚Â©tÃƒÆ’Ã‚Â© terminÃƒÆ’Ã‚Â©e."
+                    f"L'étape {numero_etape} "
+                    "a été terminée."
                 ),
                 "processus": serializer.data,
             },
@@ -1700,7 +1658,7 @@ class ProcessusRecrutementViewSet(
         request,
         pk=None,
     ):
-        """GÃƒÆ’Ã‚Â©nÃƒÆ’Ã‚Â©ration facultative du fichier Excel de suivi."""
+        """Génération facultative du fichier Excel de suivi."""
         processus = self.get_object()
         workbook = Workbook()
         feuille = workbook.active
@@ -1708,17 +1666,17 @@ class ProcessusRecrutementViewSet(
 
         feuille.append(
             [
-                "NÃƒâ€šÃ‚Â°",
-                "RÃƒÆ’Ã‚Â©fÃƒÆ’Ã‚Â©rence",
+                "N°",
+                "Référence",
                 "Poste",
                 "Nom",
-                "PrÃƒÆ’Ã‚Â©nom",
-                "TÃƒÆ’Ã‚Â©lÃƒÆ’Ã‚Â©phone",
+                "Prénom",
+                "Téléphone",
                 "E-mail",
                 "Date de candidature",
                 "Source",
                 "Fiche de test",
-                "RÃƒÆ’Ã‚Â©sultat",
+                "Résultat",
             ]
         )
 
@@ -1738,9 +1696,9 @@ class ProcessusRecrutementViewSet(
                     candidat.date_candidature.isoformat(),
                     candidat.source,
                     (
-                        candidat.fiche_test.name
-                        if candidat.fiche_test
-                        else ""
+                        "Oui"
+                        if candidat.fiche_test_recue
+                        else "Non"
                     ),
                     candidat.get_statut_display(),
                 ]
@@ -1761,6 +1719,148 @@ class ProcessusRecrutementViewSet(
             f'attachment; filename="{nom_fichier}"'
         )
         return reponse
+
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="generer-liste-dossiers",
+    )
+    @transaction.atomic
+    def generer_liste_dossiers(
+        self,
+        request,
+        pk=None,
+    ):
+        """
+        Étape 3 des ouvriers : génère en une seule fois la
+        liste des dossiers à fournir pour tous les candidats
+        reçus. Remplace l'ancienne étape "Retour RH" : un
+        RetourRHCandidat est créé (ou complété) pour chaque
+        candidat, afin que l'étape Embauche dispose de la
+        liste des pièces à vérifier.
+        """
+        processus = self.get_object()
+
+        if (
+            processus.demande.type_recrutement
+            ==
+            DemandeRecrutement
+            .TypeRecrutement.CADRE
+        ):
+            return Response(
+                {
+                    "detail": (
+                        "La liste des dossiers concerne "
+                        "uniquement les ouvriers."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if (
+            processus.statut
+            == ProcessusRecrutement.Statut.CLOTURE
+        ):
+            return Response(
+                {
+                    "detail": (
+                        "Ce processus de "
+                        "recrutement est terminé."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        candidats_recus = list(
+            processus.candidats.filter(
+                statut=Candidat.Statut.RECU
+            )
+        )
+
+        if not candidats_recus:
+            return Response(
+                {
+                    "detail": (
+                        "Cochez la fiche de test d'au "
+                        "moins un candidat avant de "
+                        "générer la liste."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        profil = get_hr_profile(request)
+
+        responsable_rh = (
+            (
+                getattr(profil, "nom_complet", "")
+                or getattr(profil, "username", "")
+            )
+            if profil
+            else ""
+        ) or "RH"
+
+        for candidat in candidats_recus:
+            retour_rh = (
+                RetourRHCandidat.objects
+                .filter(candidat=candidat)
+                .first()
+            )
+
+            if retour_rh is None:
+                retour_rh = RetourRHCandidat(
+                    candidat=candidat,
+                    responsable_rh=responsable_rh,
+                )
+
+            retour_rh.date_remise_liste = (
+                timezone.localdate()
+            )
+            retour_rh.liste_imprimee = True
+            retour_rh.liste_remise = True
+            retour_rh.save()
+
+            if not retour_rh.documents.exists():
+                DocumentCandidat.objects.bulk_create(
+                    [
+                        DocumentCandidat(
+                            retour_rh=retour_rh,
+                            libelle=libelle,
+                        )
+                        for libelle in (
+                            DOCUMENTS_RH_PAR_DEFAUT
+                        )
+                    ]
+                )
+
+        log_action(
+            request,
+            processus,
+            "UPDATE",
+            {
+                "liste_dossiers_generee": [
+                    candidat.nom_complet
+                    for candidat in candidats_recus
+                ],
+            },
+        )
+
+        return Response(
+            {
+                "message": (
+                    "La liste des dossiers à fournir "
+                    f"a été générée pour "
+                    f"{len(candidats_recus)} candidat(s)."
+                ),
+                "documents": DOCUMENTS_RH_PAR_DEFAUT,
+                "candidats": [
+                    candidat.nom_complet
+                    for candidat in candidats_recus
+                ],
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class OffreRecrutementViewSet(
@@ -2023,7 +2123,7 @@ class CandidatViewSet(
                 {
                     "processus": (
                         "Ce processus de "
-                        "recrutement est terminÃƒÆ’Ã‚Â©."
+                        "recrutement est terminé."
                     )
                 }
             )
@@ -2038,19 +2138,22 @@ class CandidatViewSet(
         )
 
         etape_attendue = (
-            3 if est_cadre else 4
+            2 if est_cadre else 3
         )
 
+        # Tant que le recrutement n'est pas clôturé,
+        # on peut revenir à l'étape de suivi des
+        # candidatures pour ajouter des candidats.
         if (
             processus.etape_actuelle
-            != etape_attendue
+            < etape_attendue
         ):
             raise drf_serializers.ValidationError(
                 {
                     "processus": (
                         "Les candidats peuvent "
-                        "ÃƒÆ’Ã‚Âªtre ajoutÃƒÆ’Ã‚Â©s uniquement "
-                        f"pendant lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã‚Â©tape "
+                        "être ajoutés à partir "
+                        f"de l'étape "
                         f"{etape_attendue}."
                     )
                 }
@@ -2112,18 +2215,21 @@ class CandidatViewSet(
             raise drf_serializers.ValidationError(
                 {
                     "detail": (
-                        "Ce processus est terminÃƒÆ’Ã‚Â©."
+                        "Ce processus est terminé."
                     )
                 }
             )
 
-        if processus.etape_actuelle != 3:
+        # Tant que le recrutement n'est pas clôturé,
+        # on peut revenir à l'étape 2 pour gérer
+        # les entretiens des candidats cadres.
+        if processus.etape_actuelle < 2:
             raise drf_serializers.ValidationError(
                 {
                     "detail": (
                         "Les entretiens cadres "
-                        "sont disponibles uniquement "
-                        "pendant lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã‚Â©tape 3."
+                        "sont disponibles à partir "
+                        "de l'étape 2."
                     )
                 }
             )
@@ -2157,8 +2263,8 @@ class CandidatViewSet(
             raise drf_serializers.ValidationError(
                 {
                     "detail": (
-                        "LÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢entretien ne peut "
-                        "plus ÃƒÆ’Ã‚Âªtre planifiÃƒÆ’Ã‚Â© pour "
+                        "L'entretien ne peut "
+                        "plus être planifié pour "
                         "ce candidat."
                     )
                 }
@@ -2193,8 +2299,8 @@ class CandidatViewSet(
             raise drf_serializers.ValidationError(
                 {
                     "date_entretien_prevue": (
-                        "La date prÃƒÆ’Ã‚Â©vue doit "
-                        "ÃƒÆ’Ã‚Âªtre dans le futur."
+                        "La date prévue doit "
+                        "être dans le futur."
                     )
                 }
             )
@@ -2239,8 +2345,8 @@ class CandidatViewSet(
         return Response(
             {
                 "message": (
-                    "LÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢entretien a ÃƒÆ’Ã‚Â©tÃƒÆ’Ã‚Â© "
-                    "planifiÃƒÆ’Ã‚Â©."
+                    "L'entretien a été "
+                    "planifié."
                 ),
                 "candidat": serializer.data,
             },
@@ -2274,8 +2380,8 @@ class CandidatViewSet(
             raise drf_serializers.ValidationError(
                 {
                     "detail": (
-                        "LÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢entretien doit dÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢abord "
-                        "ÃƒÆ’Ã‚Âªtre planifiÃƒÆ’Ã‚Â©."
+                        "L'entretien doit d'abord "
+                        "être planifié."
                     )
                 }
             )
@@ -2327,8 +2433,8 @@ class CandidatViewSet(
                         "date_entretien"
                         "_realisee"
                     ): (
-                        "La date de rÃƒÆ’Ã‚Â©alisation "
-                        "ne peut pas ÃƒÆ’Ã‚Âªtre dans "
+                        "La date de réalisation "
+                        "ne peut pas être dans "
                         "le futur."
                     )
                 }
@@ -2395,10 +2501,10 @@ class CandidatViewSet(
         return Response(
             {
                 "message": (
-                    "LÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢entretien est marquÃƒÆ’Ã‚Â© "
-                    "comme rÃƒÆ’Ã‚Â©alisÃƒÆ’Ã‚Â©. Le compte "
-                    "rendu peut maintenant ÃƒÆ’Ã‚Âªtre "
-                    "rÃƒÆ’Ã‚Â©digÃƒÆ’Ã‚Â©."
+                    "L'entretien est marqué "
+                    "comme réalisé. Le compte "
+                    "rendu peut maintenant être "
+                    "rédigé."
                 ),
                 "candidat": serializer.data,
             },
@@ -2450,7 +2556,7 @@ class CandidatViewSet(
             {
                 "message": (
                     "La fiche de test "
-                    "a ÃƒÆ’Ã‚Â©tÃƒÆ’Ã‚Â© supprimÃƒÆ’Ã‚Â©e."
+                    "a été supprimée."
                 ),
                 "candidat": serializer.data,
             },
@@ -2552,8 +2658,8 @@ class CompteRenduEntretienCadreViewSet(
             raise ValidationError(
                 {
                     "candidat": (
-                        "LÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢entretien doit ÃƒÆ’Ã‚Âªtre "
-                        "terminÃƒÆ’Ã‚Â© avant de rÃƒÆ’Ã‚Â©diger "
+                        "L'entretien doit être "
+                        "terminé avant de rédiger "
                         "le compte rendu."
                     )
                 }
@@ -2598,9 +2704,9 @@ class CompteRenduEntretienCadreViewSet(
             raise ValidationError(
                 {
                     "detail": (
-                        "Un compte rendu dÃƒÆ’Ã‚Â©jÃƒÆ’  "
-                        "envoyÃƒÆ’Ã‚Â© ne peut plus "
-                        "ÃƒÆ’Ã‚Âªtre modifiÃƒÆ’Ã‚Â©."
+                        "Un compte rendu déjà  "
+                        "envoyé ne peut plus "
+                        "être modifié."
                     )
                 }
             )
@@ -2626,8 +2732,8 @@ class CompteRenduEntretienCadreViewSet(
             raise ValidationError(
                 {
                     "detail": (
-                        "Un compte rendu envoyÃƒÆ’Ã‚Â© "
-                        "ne peut pas ÃƒÆ’Ã‚Âªtre supprimÃƒÆ’Ã‚Â©."
+                        "Un compte rendu envoyé "
+                        "ne peut pas être supprimé."
                     )
                 }
             )
@@ -2755,8 +2861,8 @@ class CompteRenduEntretienCadreViewSet(
                 return Response(
                     {
                         "message": (
-                            "Le compte rendu a dÃƒÆ’Ã‚Â©jÃƒÆ’  "
-                            "ÃƒÆ’Ã‚Â©tÃƒÆ’Ã‚Â© envoyÃƒÆ’Ã‚Â© au DRH."
+                            "Le compte rendu a déjà  "
+                            "été envoyé au DRH."
                         ),
                         "compte_rendu": (
                             serializer.data
@@ -2773,7 +2879,7 @@ class CompteRenduEntretienCadreViewSet(
                 raise ValidationError(
                     {
                         "detail": (
-                            "Ce candidat nÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢est pas "
+                            "Ce candidat n'est pas "
                             "un candidat cadre."
                         )
                     }
@@ -2792,8 +2898,8 @@ class CompteRenduEntretienCadreViewSet(
                     {
                         "detail": (
                             "Le compte rendu ne peut "
-                            "pas ÃƒÆ’Ã‚Âªtre validÃƒÆ’Ã‚Â© dans "
-                            "lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã‚Â©tat actuel du candidat."
+                            "pas être validé dans "
+                            "l'état actuel du candidat."
                         )
                     }
                 )
@@ -2817,7 +2923,7 @@ class CompteRenduEntretienCadreViewSet(
                 raise ValidationError(
                     {
                         "decision_finale": (
-                            "SÃƒÆ’Ã‚Â©lectionnez Retenu "
+                            "Sélectionnez Retenu "
                             "ou Non retenu."
                         )
                     }
@@ -2878,8 +2984,8 @@ class CompteRenduEntretienCadreViewSet(
                 raise ValidationError(
                     {
                         "email": (
-                            "Le compte rendu nÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢a pas "
-                            "pu ÃƒÆ’Ã‚Âªtre envoyÃƒÆ’Ã‚Â© au DRH : "
+                            "Le compte rendu n'a pas "
+                            "pu être envoyé au DRH : "
                             f"{str(error)}"
                         )
                     }
@@ -2965,8 +3071,8 @@ class CompteRenduEntretienCadreViewSet(
         return Response(
             {
                 "message": (
-                    "Le compte rendu a ÃƒÆ’Ã‚Â©tÃƒÆ’Ã‚Â© "
-                    "validÃƒÆ’Ã‚Â© et envoyÃƒÆ’Ã‚Â© au DRH."
+                    "Le compte rendu a été "
+                    "validé et envoyé au DRH."
                 ),
                 "candidat_retenu": (
                     decision
@@ -3063,8 +3169,8 @@ class TachePreparationEmbaucheViewSet(
         pk=None,
     ):
         """
-        Renvoie l'e-mail pour toutes les tÃƒÆ’Ã‚Â¢ches
-        du mÃƒÆ’Ã‚Âªme service et du mÃƒÆ’Ã‚Âªme candidat.
+        Renvoie l'e-mail pour toutes les tâches
+        du même service et du même candidat.
         """
         tache = self.get_object()
         candidat = tache.candidat
@@ -3073,7 +3179,7 @@ class TachePreparationEmbaucheViewSet(
             raise ValidationError(
                 {
                     "detail": (
-                        "Les notifications de prÃƒÆ’Ã‚Â©paration "
+                        "Les notifications de préparation "
                         "concernent uniquement les candidats cadres."
                     )
                 }
@@ -3092,7 +3198,7 @@ class TachePreparationEmbaucheViewSet(
             raise ValidationError(
                 {
                     "detail": (
-                        "Aucune tÃƒÆ’Ã‚Â¢che nÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢est disponible "
+                        "Aucune tâche n'est disponible "
                         "pour ce service."
                     )
                 }
@@ -3102,7 +3208,7 @@ class TachePreparationEmbaucheViewSet(
             "envoye": False,
             "destinataires": [],
             "erreur": (
-                "Aucun rÃƒÆ’Ã‚Â©sultat dÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢envoi disponible."
+                "Aucun résultat d'envoi disponible."
             ),
         }
 
@@ -3143,11 +3249,11 @@ class TachePreparationEmbaucheViewSet(
         )
 
         message = (
-            "La notification a ÃƒÆ’Ã‚Â©tÃƒÆ’Ã‚Â© renvoyÃƒÆ’Ã‚Â©e avec succÃƒÆ’Ã‚Â¨s."
+            "La notification a été renvoyée avec succès."
             if envoi_reussi
             else (
                 resultat_service.get("erreur")
-                or "La notification nÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢a pas pu ÃƒÆ’Ã‚Âªtre envoyÃƒÆ’Ã‚Â©e."
+                or "La notification n'a pas pu être envoyée."
             )
         )
 
@@ -3211,8 +3317,8 @@ class DocumentCandidatViewSet(
         "recu",
     ]
 
-    # Les documents sont crÃƒÆ’Ã‚Â©ÃƒÆ’Ã‚Â©s automatiquement
-    # lors de la crÃƒÆ’Ã‚Â©ation du Retour RH.
+    # Les documents sont créés automatiquement
+    # lors de la création du Retour RH.
     http_method_names = [
         "get",
         "post",
@@ -3307,74 +3413,13 @@ class EmbaucheViewSet(ModelViewSet):
             raise ValidationError(
                 {
                     "detail": (
-                        "Une embauche confirmÃƒÆ’Ã‚Â©e "
-                        "ne peut pas ÃƒÆ’Ã‚Âªtre supprimÃƒÆ’Ã‚Â©e."
+                        "Une embauche confirmée "
+                        "ne peut pas être supprimée."
                     )
                 }
             )
 
         instance.delete()
-
-    def verifier_documents(self, embauche):
-        try:
-            retour_rh = (
-                embauche
-                .candidat
-                .retour_rh
-            )
-        except Exception:
-            raise ValidationError(
-                {
-                    "detail": (
-                        "Le Retour RH du candidat "
-                        "est introuvable."
-                    )
-                }
-            )
-
-        if not retour_rh.liste_remise:
-            raise ValidationError(
-                {
-                    "detail": (
-                        "La liste des documents "
-                        "nÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢a pas ÃƒÆ’Ã‚Â©tÃƒÆ’Ã‚Â© remise au candidat."
-                    )
-                }
-            )
-
-        documents = retour_rh.documents.all()
-
-        if not documents.exists():
-            raise ValidationError(
-                {
-                    "detail": (
-                        "Aucune piÃƒÆ’Ã‚Â¨ce obligatoire "
-                        "nÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢est enregistrÃƒÆ’Ã‚Â©e pour ce candidat."
-                    )
-                }
-            )
-
-        documents_sans_remarque = [
-            document.libelle
-            for document in documents
-            if (
-                not document.recu
-                and not (document.remarque or "").strip()
-            )
-        ]
-
-        if documents_sans_remarque:
-            raise ValidationError(
-                {
-                    "documents": (
-                        "Une remarque est obligatoire pour "
-                        "chaque piÃ¨ce non reÃ§ue : "
-                        + ", ".join(
-                            documents_sans_remarque
-                        )
-                    )
-                }
-            )
 
     def verifier_informations_embauche(
         self,
@@ -3384,48 +3429,40 @@ class EmbaucheViewSet(ModelViewSet):
 
         est_cadre = embauche.est_cadre
 
-        if not embauche.verificateur.strip():
-            erreurs["verificateur"] = (
-                "Le nom du vÃƒÆ’Ã‚Â©rificateur "
-                "est obligatoire."
-            )
-
-        if not embauche.date_verification:
-            erreurs["date_verification"] = (
-                "La date de vÃƒÆ’Ã‚Â©rification "
-                "est obligatoire."
-            )
+        # La date de vérification et le vérificateur ne sont plus
+        # saisis à l'écran : ils sont remplis automatiquement
+        # (date du jour, utilisateur connecté) et restent facultatifs.
 
         if not embauche.date_debut_contrat:
             erreurs["date_debut_contrat"] = (
-                "La date de dÃƒÆ’Ã‚Â©but du contrat "
+                "La date de début du contrat "
                 "est obligatoire."
             )
 
         if est_cadre:
             if not embauche.dossier_embauche_complet:
                 erreurs["dossier_embauche_complet"] = (
-                    "Le dossier dÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢embauche doit ÃƒÆ’Ã‚Âªtre complet."
+                    "Le dossier d'embauche doit être complet."
                 )
 
             if not embauche.contrat_travail_signe:
                 erreurs["contrat_travail_signe"] = (
-                    "Le contrat de travail signÃƒÆ’Ã‚Â© doit ÃƒÆ’Ã‚Âªtre confirmÃƒÆ’Ã‚Â©."
+                    "Le contrat de travail signé doit être confirmé."
                 )
 
-            # La journÃƒÆ’Ã‚Â©e d'intÃƒÆ’Ã‚Â©gration et la communication des deux
-            # documents sont vÃƒÆ’Ã‚Â©rifiÃƒÆ’Ã‚Â©es lors de la clÃƒÆ’Ã‚Â´ture finale.
-            # L'e-mail envoyÃƒÆ’Ã‚Â© aprÃƒÆ’Ã‚Â¨s confirmation marque automatiquement
-            # le RI et le Code sociÃƒÆ’Ã‚Â©tÃƒÆ’Ã‚Â© comme communiquÃƒÆ’Ã‚Â©s.
+            # La journée d'intégration et la communication des deux
+            # documents sont vérifiées lors de la clôture finale.
+            # L'e-mail envoyé après confirmation marque automatiquement
+            # le RI et le Code société comme communiqués.
         else:
             if not embauche.signe_candidat:
                 erreurs["signe_candidat"] = (
-                    "La signature du candidat doit ÃƒÆ’Ã‚Âªtre confirmÃƒÆ’Ã‚Â©e."
+                    "La signature du candidat doit être confirmée."
                 )
 
             if not embauche.signe_employeur:
                 erreurs["signe_employeur"] = (
-                    "La signature de lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢employeur doit ÃƒÆ’Ã‚Âªtre confirmÃƒÆ’Ã‚Â©e."
+                    "La signature de l'employeur doit être confirmée."
                 )
 
         if erreurs:
@@ -3452,7 +3489,7 @@ class EmbaucheViewSet(ModelViewSet):
             quota = demande.nombre_cdd
 
         # On compte uniquement les personnes
-        # toujours rÃƒÆ’Ã‚Â©ellement embauchÃƒÆ’Ã‚Â©es.
+        # toujours réellement embauchées.
         embauches_actives = (
             Embauche.objects
             .filter(
@@ -3508,9 +3545,9 @@ class EmbaucheViewSet(ModelViewSet):
                 == DemandeRecrutement.TypeRecrutement.CADRE
             )
 
-            # Une embauche dÃƒÆ’Ã‚Â©jÃƒÆ’  confirmÃƒÆ’Ã‚Â©e n'est pas recrÃƒÆ’Ã‚Â©ÃƒÆ’Ã‚Â©e. Pour un
+            # Une embauche déjà  confirmée n'est pas recréée. Pour un
             # cadre, l'action permet toutefois de retenter un e-mail
-            # qui aurait ÃƒÆ’Ã‚Â©chouÃƒÆ’Ã‚Â© lors de la premiÃƒÆ’Ã‚Â¨re confirmation.
+            # qui aurait échoué lors de la première confirmation.
             deja_confirmee = bool(embauche.date_confirmation)
 
             if not deja_confirmee:
@@ -3520,7 +3557,7 @@ class EmbaucheViewSet(ModelViewSet):
                         Candidat.Statut.EMBAUCHE,
                     ]
                     message_statut = (
-                        "Seul un candidat cadre retenu peut ÃƒÆ’Ã‚Âªtre embauchÃƒÆ’Ã‚Â©."
+                        "Seul un candidat cadre retenu peut être embauché."
                     )
                 else:
                     statuts_autorises = [
@@ -3528,17 +3565,14 @@ class EmbaucheViewSet(ModelViewSet):
                         Candidat.Statut.EMBAUCHE,
                     ]
                     message_statut = (
-                        "Seul un candidat ouvrier reÃƒÆ’Ã‚Â§u peut ÃƒÆ’Ã‚Âªtre embauchÃƒÆ’Ã‚Â©."
+                        "Seul un candidat ouvrier reçu peut être embauché."
                     )
 
                 if embauche.candidat.statut not in statuts_autorises:
                     raise ValidationError({"detail": message_statut})
 
-                # Le Retour RH et les piÃƒÆ’Ã‚Â¨ces dÃƒÆ’Ã‚Â©taillÃƒÆ’Ã‚Â©es concernent
-                # uniquement le parcours ouvrier.
-                if not est_cadre:
-                    self.verifier_documents(embauche)
-
+                # La liste des dossiers à fournir est facultative :
+                # elle n'est plus exigée pour confirmer l'embauche.
                 self.verifier_informations_embauche(embauche)
                 self.verifier_quota_contrat(embauche)
 
@@ -3569,16 +3603,16 @@ class EmbaucheViewSet(ModelViewSet):
                 embauche
             )
 
-            # Recharge les champs de traÃƒÆ’Ã‚Â§abilitÃƒÆ’Ã‚Â© modifiÃƒÆ’Ã‚Â©s par le
-            # service d'e-mail avant de construire la rÃƒÆ’Ã‚Â©ponse.
+            # Recharge les champs de traçabilité modifiés par le
+            # service d'e-mail avant de construire la réponse.
             embauche.refresh_from_db()
 
             if not resultat_email.get("envoye"):
                 return Response(
                     {
                         "detail": (
-                            "LÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢embauche a ÃƒÆ’Ã‚Â©tÃƒÆ’Ã‚Â© confirmÃƒÆ’Ã‚Â©e, mais lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢envoi du "
-                            "RI et du Code sociÃƒÆ’Ã‚Â©tÃƒÆ’Ã‚Â© a ÃƒÆ’Ã‚Â©chouÃƒÆ’Ã‚Â©."
+                            "L'embauche a été confirmée, mais l'envoi du "
+                            "RI et du Code société a échoué."
                         ),
                         "email": resultat_email,
                         "embauche": self.get_serializer(embauche).data,
@@ -3712,9 +3746,9 @@ class DesistementEmbaucheViewSet(
         )
 
         with transaction.atomic():
-            # Verrouillage afin d'ÃƒÆ’Ã‚Â©viter que deux
-            # dÃƒÆ’Ã‚Â©sistements soient enregistrÃƒÆ’Ã‚Â©s
-            # simultanÃƒÆ’Ã‚Â©ment pour la mÃƒÆ’Ã‚Âªme embauche.
+            # Verrouillage afin d'éviter que deux
+            # désistements soient enregistrés
+            # simultanément pour la même embauche.
             embauche_verrouillee = (
                 Embauche.objects
                 .select_for_update()
@@ -3732,8 +3766,8 @@ class DesistementEmbaucheViewSet(
             if not embauche_verrouillee.confirmee:
                 raise ValidationError({
                     "embauche": (
-                        "Cette embauche nÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢a pas "
-                        "encore ÃƒÆ’Ã‚Â©tÃƒÆ’Ã‚Â© confirmÃƒÆ’Ã‚Â©e."
+                        "Cette embauche n'a pas "
+                        "encore été confirmée."
                     )
                 })
 
@@ -3748,9 +3782,9 @@ class DesistementEmbaucheViewSet(
             ):
                 raise ValidationError({
                     "embauche": (
-                        "Le dÃƒÆ’Ã‚Â©sistement de cette "
-                        "personne a dÃƒÆ’Ã‚Â©jÃƒÆ’  ÃƒÆ’Ã‚Â©tÃƒÆ’Ã‚Â© "
-                        "enregistrÃƒÆ’Ã‚Â©."
+                        "Le désistement de cette "
+                        "personne a déjà  été "
+                        "enregistré."
                     )
                 })
 
@@ -3767,7 +3801,7 @@ class DesistementEmbaucheViewSet(
             )
 
             # Le candidat reste dans l'historique, mais ne doit plus
-            # ÃƒÆ’Ã‚Âªtre comptÃƒÆ’Ã‚Â© parmi les reÃƒÆ’Ã‚Â§us ou les embauchÃƒÆ’Ã‚Â©s actifs.
+            # être compté parmi les reçus ou les embauchés actifs.
             Candidat.objects.filter(
                 pk=embauche_verrouillee.candidat_id
             ).update(
@@ -3778,10 +3812,10 @@ class DesistementEmbaucheViewSet(
             embauche_verrouillee.candidat.refresh_from_db()
 
             if desistement.relancer_recrutement:
-                # Dans les deux parcours, la reprise commence ÃƒÆ’ 
-                # l'ÃƒÆ’Ã‚Â©tape 3 : candidatures et entretiens pour les
+                # Dans les deux parcours, la reprise commence à
+                # l'étape 2 : candidatures et entretiens pour les
                 # cadres, fiche de transparence pour les ouvriers.
-                etape_reprise = 3
+                etape_reprise = 2
 
                 processus.statut = (
                     ProcessusRecrutement.Statut.RELANCE_DESISTEMENT
@@ -3794,7 +3828,7 @@ class DesistementEmbaucheViewSet(
                 ]
 
                 # La date_cloture existante est volontairement
-                # conservÃƒÆ’Ã‚Â©e : elle reprÃƒÆ’Ã‚Â©sente la premiÃƒÆ’Ã‚Â¨re clÃƒÆ’Ã‚Â´ture.
+                # conservée : elle représente la première clôture.
                 processus.save(
                     update_fields=[
                         "statut",
@@ -3851,8 +3885,8 @@ class DesistementEmbaucheViewSet(
         return Response(
             {
                 "message": (
-                    "Le dÃƒÆ’Ã‚Â©sistement a ÃƒÆ’Ã‚Â©tÃƒÆ’Ã‚Â© "
-                    "enregistrÃƒÆ’Ã‚Â©."
+                    "Le désistement a été "
+                    "enregistré."
                 ),
 
                 "desistement": (

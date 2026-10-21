@@ -5,8 +5,6 @@ import React, {
 
 import {
   CheckCircle2,
-  FileText,
-  FileUp,
   Link as LinkIcon,
   Loader2,
   Megaphone,
@@ -25,16 +23,6 @@ const CANAUX_PUBLICATION = [
   "Autre",
 ];
 
-const EXTENSIONS_PREUVE = [
-  "pdf",
-  "png",
-  "jpg",
-  "jpeg",
-];
-
-const TAILLE_MAXIMALE =
-  10 * 1024 * 1024;
-
 function dateDuJour() {
   const date = new Date();
 
@@ -49,30 +37,6 @@ function dateDuJour() {
   ).padStart(2, "0");
 
   return `${annee}-${mois}-${jour}`;
-}
-
-function extensionFichier(nom) {
-  return (
-    nom
-      ?.split(".")
-      .pop()
-      ?.toLowerCase() || ""
-  );
-}
-
-function formatTaille(taille) {
-  if (!taille) return "0 Ko";
-
-  if (taille < 1024 * 1024) {
-    return `${Math.ceil(
-      taille / 1024
-    )} Ko`;
-  }
-
-  return `${(
-    taille /
-    (1024 * 1024)
-  ).toFixed(1)} Mo`;
 }
 
 function nomOffre(offre) {
@@ -103,6 +67,14 @@ export default function EtapePublicationOffre({
       return publications[0] || null;
     }, [recrutement]);
 
+  // Étape 1 déjà terminée (éventuellement sans offre ni publication) :
+  // on l'indique simplement au lieu d'afficher une erreur.
+  const etapeTerminee = (
+    recrutement?.etapesTerminees ||
+    recrutement?.etapes_terminees ||
+    []
+  ).map(Number).includes(1);
+
   const [
     canal,
     setCanal,
@@ -117,15 +89,6 @@ export default function EtapePublicationOffre({
     publicationExistante
       ?.date_publication ||
       dateDuJour()
-  );
-
-  const [
-    dateLimiteCandidature,
-    setDateLimiteCandidature,
-  ] = useState(
-    publicationExistante
-      ?.date_limite_candidature ||
-      ""
   );
 
   const [
@@ -145,9 +108,6 @@ export default function EtapePublicationOffre({
       ?.commentaire ||
       ""
   );
-
-  const [preuve, setPreuve] =
-    useState(null);
 
   const [
     isSubmitting,
@@ -170,50 +130,6 @@ export default function EtapePublicationOffre({
     setMessage("");
   };
 
-  const selectionnerPreuve = (
-    fichier
-  ) => {
-    setErreur("");
-    setMessage("");
-
-    if (!fichier) {
-      setPreuve(null);
-      return;
-    }
-
-    const extension =
-      extensionFichier(fichier.name);
-
-    if (
-      !EXTENSIONS_PREUVE.includes(
-        extension
-      )
-    ) {
-      setPreuve(null);
-
-      setErreur(
-        "Formats autorisés pour la preuve : PDF, PNG, JPG ou JPEG."
-      );
-
-      return;
-    }
-
-    if (
-      fichier.size >
-      TAILLE_MAXIMALE
-    ) {
-      setPreuve(null);
-
-      setErreur(
-        "La preuve ne doit pas dépasser 10 Mo."
-      );
-
-      return;
-    }
-
-    setPreuve(fichier);
-  };
-
   const handleSubmit = async (
     event
   ) => {
@@ -221,14 +137,6 @@ export default function EtapePublicationOffre({
 
     setErreur("");
     setMessage("");
-
-    if (!offre) {
-      setErreur(
-        "Aucune offre n’est associée. Revenez à l’étape 1."
-      );
-
-      return;
-    }
 
     if (!canal) {
       setErreur(
@@ -241,39 +149,6 @@ export default function EtapePublicationOffre({
     if (!datePublication) {
       setErreur(
         "Renseignez la date de publication."
-      );
-
-      return;
-    }
-
-    if (!dateLimiteCandidature) {
-      setErreur(
-        "Renseignez la date limite de candidature."
-      );
-
-      return;
-    }
-
-    if (
-      datePublication >
-      dateLimiteCandidature
-    ) {
-      setErreur(
-        "La date limite doit être postérieure ou égale à la date de publication."
-      );
-
-      return;
-    }
-
-    if (
-      recrutement
-        ?.datePrevueRecrutement &&
-      dateLimiteCandidature >=
-        recrutement
-          .datePrevueRecrutement
-    ) {
-      setErreur(
-        "La date limite doit être antérieure à la date prévue du recrutement."
       );
 
       return;
@@ -296,15 +171,11 @@ export default function EtapePublicationOffre({
 
             datePublication,
 
-            dateLimiteCandidature,
-
             lienOuReference:
               lienOuReference.trim(),
 
             commentaire:
               commentaire.trim(),
-
-            preuve,
           });
 
       setMessage(
@@ -314,7 +185,7 @@ export default function EtapePublicationOffre({
       );
 
       onComplete?.({
-        etape: 2,
+        etape: 1,
         publications: [
           publication,
         ],
@@ -360,10 +231,16 @@ export default function EtapePublicationOffre({
             </p>
           </div>
         </div>
+      ) : etapeTerminee ? (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+          Cette étape a été terminée sans offre associée.
+          {!publicationExistante &&
+            " Aucune publication n’a été enregistrée."}
+        </div>
       ) : (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          Aucune offre n’est associée.
-          Revenez à l’étape 1.
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+          Aucune offre n’est associée. La publication peut quand même
+          être enregistrée.
         </div>
       )}
 
@@ -472,44 +349,6 @@ export default function EtapePublicationOffre({
 
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700">
-              Date limite de candidature
-              <span className="ml-1 text-red-500">
-                *
-              </span>
-            </label>
-
-            <input
-              type="date"
-              value={
-                dateLimiteCandidature
-              }
-              min={datePublication}
-              max={
-                recrutement
-                  ?.datePrevueRecrutement ||
-                undefined
-              }
-              onChange={(event) =>
-                modifierChamp(
-                  setDateLimiteCandidature,
-                  event.target.value
-                )
-              }
-              required
-              className="
-                w-full rounded-lg
-                border border-slate-300
-                bg-white px-3.5 py-2.5
-                text-sm outline-none
-                focus:border-blue-500
-                focus:ring-2
-                focus:ring-blue-100
-              "
-            />
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">
               Lien ou référence
             </label>
 
@@ -547,74 +386,6 @@ export default function EtapePublicationOffre({
 
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700">
-              Preuve de publication
-            </label>
-
-            <label
-              className="
-                flex cursor-pointer
-                items-center gap-3
-                rounded-lg border
-                border-dashed
-                border-slate-300 p-3
-                transition
-                hover:bg-slate-50
-              "
-            >
-              <FileUp
-                size={20}
-                className="shrink-0 text-blue-600"
-              />
-
-              <span className="min-w-0 truncate text-sm text-slate-600">
-                {preuve
-                  ? preuve.name
-                  : publicationExistante
-                        ?.preuve
-                    ? "Preuve déjà enregistrée"
-                    : "Ajouter une preuve"}
-              </span>
-
-              <input
-                type="file"
-                accept=".pdf,.png,.jpg,.jpeg"
-                onChange={(event) => {
-                  selectionnerPreuve(
-                    event.target
-                      .files?.[0] ||
-                      null
-                  );
-
-                  event.target.value =
-                    "";
-                }}
-                className="hidden"
-              />
-            </label>
-
-            {preuve && (
-              <div className="mt-2 flex items-center justify-between text-xs">
-                <span className="text-slate-500">
-                  {formatTaille(
-                    preuve.size
-                  )}
-                </span>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setPreuve(null)
-                  }
-                  className="font-semibold text-red-600"
-                >
-                  Retirer
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">
               Commentaire
             </label>
 
@@ -647,20 +418,18 @@ export default function EtapePublicationOffre({
         <button
           type="button"
           disabled={isSubmitting}
-          onClick={() => onComplete?.({ etape: 2, publications: [] })}
+          onClick={() => onComplete?.({ etape: 1, publications: [] })}
           className="rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Passer cette étape
+          Terminer sans publication
         </button>
 
         <button
           type="submit"
           disabled={
             isSubmitting ||
-            !offre ||
             !canal ||
-            !datePublication ||
-            !dateLimiteCandidature
+            !datePublication
           }
           className="
             inline-flex items-center
@@ -685,8 +454,8 @@ export default function EtapePublicationOffre({
           {isSubmitting
             ? "Enregistrement..."
             : publicationExistante
-              ? "Mettre à jour et continuer"
-              : "Enregistrer et continuer"}
+              ? "Mettre à jour et terminer l’étape"
+              : "Enregistrer et terminer l’étape"}
         </button>
       </div>
     </form>

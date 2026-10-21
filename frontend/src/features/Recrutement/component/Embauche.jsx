@@ -12,6 +12,7 @@ import {
   FileCheck2,
   Loader2,
   Save,
+  Search,
   UserCheck,
   Users,
 } from "lucide-react";
@@ -35,6 +36,15 @@ function obtenirNomCandidat(candidat) {
   ]
     .filter(Boolean)
     .join(" ");
+}
+
+// Texte sans accents ni majuscules, pour la recherche par nom.
+function normaliserTexte(texte) {
+  return (texte || "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .trim();
 }
 
 function obtenirDemande(recrutement) {
@@ -206,6 +216,7 @@ function creerEmbauche({
 export default function EtapeEmbauche({
   recrutement,
   onComplete,
+  onEmbaucheConfirmee,
 }) {
   const processusId =
     recrutement?.id ||
@@ -222,8 +233,8 @@ export default function EtapeEmbauche({
         "OUVRIER"
     ).toUpperCase() === "CADRE";
 
-  const numeroEtapeEmbauche =
-    estCadre ? 5 : 6;
+  // Ouvriers et cadres : l'embauche est l'étape 4.
+  const numeroEtapeEmbauche = 4;
 
   const [candidats, setCandidats] =
     useState([]);
@@ -248,6 +259,18 @@ export default function EtapeEmbauche({
     useState("");
 
   const [message, setMessage] =
+    useState("");
+
+  const [confirmationGroupee, setConfirmationGroupee] =
+    useState(false);
+
+  // Ouvriers : date d'embauche commune, indépendante des dates
+  // modifiées ligne par ligne (exceptions).
+  const [dateCommune, setDateCommune] =
+    useState("");
+
+  // Ouvriers : recherche d'un candidat par nom dans le récapitulatif.
+  const [recherche, setRecherche] =
     useState("");
 
   useEffect(() => {
@@ -386,6 +409,27 @@ export default function EtapeEmbauche({
             {}
           );
 
+        // Ouvriers : par défaut, une même date d'embauche pour
+        // tous les candidats encore à confirmer.
+        if (!estCadre) {
+          const aConfirmer = Object.values(embauchesParCandidat)
+            .filter((embauche) => !embauche.confirmee);
+
+          const dateCommune = aConfirmer.find(
+            (embauche) => embauche.dateDebutContrat
+          )?.dateDebutContrat;
+
+          if (dateCommune) {
+            aConfirmer.forEach((embauche) => {
+              if (!embauche.dateDebutContrat) {
+                embauche.dateDebutContrat = dateCommune;
+              }
+            });
+          }
+
+          setDateCommune(dateCommune || "");
+        }
+
         setCandidats(candidatsAPI);
 
         setEmbauches(
@@ -432,6 +476,37 @@ export default function EtapeEmbauche({
     setMessage("");
   };
 
+  const resteAConfirmer = candidats.some(
+    (candidat) =>
+      embauches[candidat.id] &&
+      !embauches[candidat.id].confirmee
+  );
+
+  // Change la date commune : les candidats qui suivaient l'ancienne
+  // date commune (ou sans date) passent à la nouvelle ; ceux dont la
+  // date a été modifiée à la main (exception) la gardent.
+  const modifierDateCommune = (valeur) => {
+    const ancienne = dateCommune;
+
+    setDateCommune(valeur);
+
+    setEmbauches((previous) =>
+      Object.fromEntries(
+        Object.entries(previous).map(([id, embauche]) => [
+          id,
+          !embauche.confirmee &&
+          (!embauche.dateDebutContrat ||
+            embauche.dateDebutContrat === ancienne)
+            ? { ...embauche, dateDebutContrat: valeur }
+            : embauche,
+        ])
+      )
+    );
+
+    setErreur("");
+    setMessage("");
+  };
+
   const modifierContratSigne = (
     candidatId,
     valeur
@@ -443,38 +518,6 @@ export default function EtapeEmbauche({
         ...previous[candidatId],
         signeCandidat: valeur,
         signeEmployeur: valeur,
-      },
-    }));
-
-    setErreur("");
-    setMessage("");
-  };
-
-  const modifierDocument = (
-    candidatId,
-    documentId,
-    champ,
-    valeur
-  ) => {
-    setEmbauches((previous) => ({
-      ...previous,
-
-      [candidatId]: {
-        ...previous[candidatId],
-
-        documents:
-          previous[
-            candidatId
-          ].documents.map(
-            (document) =>
-              document.id ===
-              documentId
-                ? {
-                    ...document,
-                    [champ]: valeur,
-                  }
-                : document
-          ),
       },
     }));
 
@@ -503,17 +546,6 @@ export default function EtapeEmbauche({
       ),
     };
   }, [candidats.length, embauches]);
-
-  const colonnesDocuments = useMemo(() => {
-    const libelles = candidats.flatMap(
-      (candidat) =>
-        (embauches[candidat.id]?.documents || [])
-          .map((document) => document.libelle)
-          .filter(Boolean)
-    );
-
-    return [...new Set(libelles)];
-  }, [candidats, embauches]);
 
   const toutesLesEmbauchesConfirmees =
     candidats.length > 0 &&
@@ -549,28 +581,8 @@ export default function EtapeEmbauche({
       return false;
     }
 
-    if (
-      !embauche
-        .dateVerification
-    ) {
-      setErreur(
-        `La date de vérification de ${nom} est obligatoire.`
-      );
-
-      return false;
-    }
-
-    if (
-      !embauche
-        .verificateur
-        .trim()
-    ) {
-      setErreur(
-        `Le vérificateur du dossier de ${nom} est obligatoire.`
-      );
-
-      return false;
-    }
+    // La date de vérification et le vérificateur ne sont plus
+    // saisis : ils sont remplis automatiquement.
 
     if (
       !embauche.typeContrat
@@ -593,45 +605,17 @@ export default function EtapeEmbauche({
       return false;
     }
 
-    if (!estCadre) {
-      if (
-        embauche.documents.length ===
-        0
-      ) {
-        setErreur(
-          `Aucune pièce obligatoire n'est disponible pour ${nom}.`
-        );
-
-        return false;
-      }
-
-      const documentSansRemarque =
-        embauche.documents.find(
-          (document) =>
-            !document.recu &&
-            !document.remarque.trim()
-        );
-
-      if (documentSansRemarque) {
-        setErreur(
-          `Ajoutez une remarque pour la pièce Â« ${documentSansRemarque.libelle} Â» non reçue de ${nom}.`
-        );
-
-        return false;
-      }
-    }
-
     if (estCadre) {
       if (!embauche.dossierEmbaucheComplet) {
         setErreur(
-          `Le dossier d'embauche de ${nom} doit Ãªtre complet.`
+          `Le dossier d'embauche de ${nom} doit être complet.`
         );
         return false;
       }
 
       if (!embauche.contratTravailSigne) {
         setErreur(
-          `Le contrat de travail de ${nom} doit Ãªtre signé.`
+          `Le contrat de travail de ${nom} doit être signé.`
         );
         return false;
       }
@@ -641,7 +625,7 @@ export default function EtapeEmbauche({
         !embauche.signeEmployeur
       ) {
         setErreur(
-          `Le contrat de ${nom} doit Ãªtre signé.`
+          `Le contrat de ${nom} doit être signé.`
         );
         return false;
       }
@@ -650,39 +634,17 @@ export default function EtapeEmbauche({
     return true;
   };
 
-  const enregistrerDocuments =
-    async (embauche) => {
-      if (estCadre) {
-        return [];
-      }
-
-      return Promise.all(
-        embauche.documents.map(
-          (document) =>
-            recrutementApi
-              .modifierDocumentCandidat(
-                document.id,
-                {
-                  recu:
-                    document.recu,
-
-                  remarque:
-                    document.remarque,
-                }
-              )
-        )
-      );
-    };
-
+  // « rapport » (facultatif) reçoit le motif d'échec, pour le bilan
+  // de la confirmation groupée des ouvriers.
   const confirmerEmbaucheCandidat =
-    async (candidat) => {
+    async (candidat, rapport = null) => {
       setErreur("");
       setMessage("");
 
       if (
         !verifierEmbauche(candidat)
       ) {
-        return;
+        return false;
       }
 
       const embauche =
@@ -693,10 +655,6 @@ export default function EtapeEmbauche({
       );
 
       try {
-        await enregistrerDocuments(
-          embauche
-        );
-
         const embaucheEnregistree =
           await recrutementApi
             .enregistrerEmbauche({
@@ -823,17 +781,131 @@ export default function EtapeEmbauche({
             candidat
           )} a été confirmée.`
         );
+
+        // Met à jour « Suivi après embauche » sur la page du processus.
+        onEmbaucheConfirmee?.();
+
+        return true;
       } catch (error) {
         console.error(error);
 
-        setErreur(
+        const motif =
           recrutementApi
-            .extraireErreur(error)
-        );
+            .extraireErreur(error);
+
+        if (rapport) {
+          rapport.erreur = motif;
+        }
+
+        setErreur(motif);
+
+        return false;
       } finally {
         setCandidatEnCours(null);
       }
     };
+
+  // Ouvriers : ce qu'il manque sur une ligne avant de pouvoir la confirmer.
+  const elementsManquants = (candidat) => {
+    const embauche = embauches[candidat.id] || {};
+    const manquants = [];
+
+    if (!embauche.typeContrat) manquants.push("contrat");
+    if (!embauche.dateDebutContrat) manquants.push("date d'embauche");
+    if (!(embauche.signeCandidat && embauche.signeEmployeur)) {
+      manquants.push("contrat signé");
+    }
+
+    return manquants;
+  };
+
+  // Ouvriers : la ligne est-elle prête à être confirmée ?
+  // (contrat choisi, date d'embauche et contrat signé)
+  const ligneComplete = (candidat) =>
+    Boolean(embauches[candidat.id]) &&
+    elementsManquants(candidat).length === 0;
+
+  // Ouvriers : le candidat correspond-il à la recherche par nom ?
+  const correspondRecherche = (candidat) => {
+    const texte = normaliserTexte(recherche);
+
+    if (!texte) {
+      return true;
+    }
+
+    return normaliserTexte(
+      `${obtenirNomCandidat(candidat)} ${candidat.nom || ""} ${candidat.prenom || ""}`
+    ).includes(texte);
+  };
+
+  // Ouvriers : confirme les lignes complètes (parmi celles affichées)
+  // et passe les lignes incomplètes, sans attendre les autres candidats.
+  const confirmerToutesLesEmbauches = async () => {
+    const restants = candidats.filter(
+      (candidat) =>
+        embauches[candidat.id] &&
+        !embauches[candidat.id].confirmee &&
+        correspondRecherche(candidat)
+    );
+
+    const completes = restants.filter(ligneComplete);
+    const incompletes = restants.filter(
+      (candidat) => !ligneComplete(candidat)
+    );
+
+    if (completes.length === 0) {
+      setMessage("");
+      setErreur(
+        "Aucune ligne complète à confirmer : choisissez le contrat, " +
+          "la date d'embauche et cochez « Contrat signé »."
+      );
+      return;
+    }
+
+    setConfirmationGroupee(true);
+
+    const confirmes = [];
+    const echecs = [];
+
+    try {
+      for (const candidat of completes) {
+        const rapport = {};
+        // eslint-disable-next-line no-await-in-loop
+        const ok = await confirmerEmbaucheCandidat(candidat, rapport);
+
+        if (ok) {
+          confirmes.push(obtenirNomCandidat(candidat));
+        } else {
+          echecs.push(
+            `${obtenirNomCandidat(candidat)}` +
+              (rapport.erreur ? ` (${rapport.erreur})` : "")
+          );
+        }
+      }
+    } finally {
+      setConfirmationGroupee(false);
+    }
+
+    const bilan = [
+      `${confirmes.length} embauche(s) confirmée(s).`,
+    ];
+
+    if (incompletes.length > 0) {
+      bilan.push(
+        `${incompletes.length} candidat(s) à compléter : ` +
+          incompletes.map(obtenirNomCandidat).join(", ") +
+          "."
+      );
+    }
+
+    setMessage(bilan.join(" "));
+
+    setErreur(
+      echecs.length > 0
+        ? `Confirmation impossible pour : ${echecs.join(" ; ")}.`
+        : ""
+    );
+  };
 
   const telechargerFichePoste = async (
     candidat
@@ -958,8 +1030,8 @@ export default function EtapeEmbauche({
       ) {
         setErreur(
           estCadre
-            ? "Toutes les checklists d'onboarding doivent Ãªtre complètes avant la clÃ´ture."
-            : "Toutes les embauches doivent Ãªtre confirmées avant la clÃ´ture."
+            ? "Toutes les checklists d'onboarding doivent être complètes avant la clôture."
+            : "Toutes les embauches doivent être confirmées avant la clôture."
         );
 
         return;
@@ -1090,7 +1162,7 @@ export default function EtapeEmbauche({
                 {demande.reference ||
                   recrutement?.reference ||
                   "-"}{" "}
-                Â·{" "}
+                ·{" "}
                 {obtenirPoste(
                   recrutement
                 )}
@@ -1145,7 +1217,7 @@ export default function EtapeEmbauche({
               Checklist d'embauche et d'onboarding des cadres
             </h3>
             <p className="mt-1 text-xs text-slate-500">
-              Une ligne correspond Ã  un candidat. Le RI et le Code société
+              Une ligne correspond à  un candidat. Le RI et le Code société
               sont validés automatiquement après leur envoi par e-mail.
             </p>
             <p className="mt-1 text-[11px] font-medium text-blue-600 lg:hidden">
@@ -1210,7 +1282,7 @@ export default function EtapeEmbauche({
                         >
                           {embauche.confirmee
                             ? "Embauche confirmée"
-                            : "Ã€ confirmer"}
+                            : "A confirmer"}
                         </span>
                       </td>
 
@@ -1277,13 +1349,13 @@ export default function EtapeEmbauche({
 
                       <td className="px-2 py-3 text-center text-xs">
                         <span className={embauche.reglementInterieurCommunique ? "text-emerald-600" : "text-slate-400"}>
-                          {embauche.reglementInterieurCommunique ? "âœ“ Communiqué" : "- En attente"}
+                          {embauche.reglementInterieurCommunique ? "✓ Communiqué" : "- En attente"}
                         </span>
                       </td>
 
                       <td className="px-2 py-3 text-center text-xs">
                         <span className={embauche.codeSocieteCommunique ? "text-emerald-600" : "text-slate-400"}>
-                          {embauche.codeSocieteCommunique ? "âœ“ Communiqué" : "- En attente"}
+                          {embauche.codeSocieteCommunique ? "✓ Communiqué" : "- En attente"}
                         </span>
                       </td>
 
@@ -1333,7 +1405,7 @@ export default function EtapeEmbauche({
 
                             {embauche.checklistOnboardingComplete && (
                               <p className="flex items-center justify-center gap-1 text-xs font-semibold text-emerald-700">
-                                <CheckCircle2 size={14} /> PrÃªt Ã  clÃ´turer
+                                <CheckCircle2 size={14} /> Prêt à  clôturer
                               </p>
                             )}
 
@@ -1363,48 +1435,80 @@ export default function EtapeEmbauche({
       {!estCadre && candidats.length > 0 && (
         <section className="w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-200 px-4 py-3">
-            <h3 className="font-semibold text-slate-900">
-              Documents Ã  fournir par candidat
+            <h3 className="flex items-center gap-2 font-semibold text-slate-900">
+              <FileCheck2 size={18} className="text-blue-600" />
+              Récapitulatif des dossiers d'embauche
             </h3>
 
             <p className="mt-1 text-xs text-slate-500">
-              Une pièce peut rester non reçue, mais une remarque devient alors obligatoire.
-            </p>
-
-            <p className="mt-1 text-[11px] font-medium text-blue-600 lg:hidden">
-              Faites défiler horizontalement pour voir toutes les pièces.
+              Une ligne par candidat. Indiquez dans « Remarques » les documents manquants ou les anomalies éventuelles.
             </p>
           </div>
 
+          {/* Date commune et recherche */}
+          <div className="grid gap-4 border-b border-slate-200 bg-slate-50 px-4 py-4 md:grid-cols-2">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                Rechercher un candidat
+              </label>
+              <div className="relative">
+                <Search
+                  size={16}
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+                <input
+                  type="search"
+                  value={recherche}
+                  onChange={(event) => setRecherche(event.target.value)}
+                  placeholder="Nom ou prénom…"
+                  className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-9 pr-3.5 text-sm outline-none focus:border-blue-500"
+                />
+              </div>
+              {recherche.trim() && (
+                <p className="mt-1 text-[11px] text-slate-500">
+                  {candidats.filter(correspondRecherche).length} candidat(s) affiché(s) sur {candidats.length}.
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                Date d'embauche commune
+                <span className="ml-1 text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                value={dateCommune}
+                disabled={!resteAConfirmer}
+                onChange={(event) =>
+                  modifierDateCommune(event.target.value)
+                }
+                className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 disabled:bg-slate-100"
+              />
+              <p className="mt-1 text-[11px] text-slate-500">
+                Appliquée à tous les candidats. Une date changée sur une ligne (exception) est conservée.
+              </p>
+            </div>
+          </div>
+
           <div
-            className="block w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain pb-1"
+            className="block max-h-[60vh] w-full min-w-0 max-w-full overflow-auto overscroll-contain pb-1"
             tabIndex={0}
             role="region"
-            aria-label="Tableau des documents des candidats ouvriers"
+            aria-label="Récapitulatif des dossiers d'embauche"
           >
-            <table
-              className="w-full border-collapse text-xs"
-              style={{
-                minWidth: `${Math.max(
-                  900,
-                  210 + colonnesDocuments.length * 190
-                )}px`,
-              }}
-            >
-              <thead className="bg-slate-100">
-                <tr className="text-left font-semibold uppercase tracking-wide text-slate-600">
-                  <th className="sticky left-0 z-20 min-w-[210px] border-r border-slate-200 bg-slate-100 px-3 py-3">
+            <table className="w-full min-w-[1050px] border-collapse text-sm">
+              {/* En-tête figé en haut pendant le défilement vertical. */}
+              <thead className="sticky top-0 z-30 bg-slate-100 shadow-[0_1px_0_0_#e2e8f0]">
+                <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  <th className="sticky left-0 z-20 min-w-[200px] border-r border-slate-200 bg-slate-100 px-3 py-3">
                     Candidat
                   </th>
-
-                  {colonnesDocuments.map((libelle) => (
-                    <th
-                      key={libelle}
-                      className="min-w-[190px] border-r border-slate-200 px-3 py-3 text-center"
-                    >
-                      {libelle}
-                    </th>
-                  ))}
+                  <th className="min-w-[110px] px-3 py-3">Contrat</th>
+                  <th className="min-w-[150px] px-3 py-3">Date d'embauche</th>
+                  <th className="min-w-[100px] px-3 py-3 text-center">Contrat signé</th>
+                  <th className="min-w-[240px] px-3 py-3">Remarques</th>
+                  <th className="min-w-[180px] px-3 py-3">Action</th>
                 </tr>
               </thead>
 
@@ -1412,627 +1516,181 @@ export default function EtapeEmbauche({
                 {candidats.map((candidat) => {
                   const embauche = embauches[candidat.id];
 
-                  if (!embauche) return null;
+                  if (!embauche || !correspondRecherche(candidat)) return null;
 
-                  const traitement =
-                    candidatEnCours === candidat.id;
+                  const traitement = candidatEnCours === candidat.id;
+                  const verrouille = embauche.confirmee || traitement;
 
                   return (
-                    <tr key={candidat.id} className="align-top hover:bg-slate-50">
-                      <td className="sticky left-0 z-10 border-r border-slate-200 bg-white px-3 py-3">
-                        <p className="font-semibold text-slate-900">
-                          {obtenirNomCandidat(candidat)}
-                        </p>
-
-                        <p className="mt-1 text-[11px] text-slate-500">
-                          {candidat.email || "Aucun e-mail"}
-                        </p>
-                      </td>
-
-                      {colonnesDocuments.map((libelle) => {
-                        const document = embauche.documents.find(
-                          (item) => item.libelle === libelle
-                        );
-
-                        if (!document) {
-                          return (
-                            <td
-                              key={libelle}
-                              className="border-r border-slate-200 px-3 py-3 text-center text-slate-400"
-                            >
-                              -
-                            </td>
-                          );
-                        }
-
-                        const remarqueObligatoire =
-                          !document.recu;
-
-                        return (
-                          <td
-                            key={document.id}
-                            className="border-r border-slate-200 px-3 py-3"
+                    <React.Fragment key={candidat.id}>
+                      <tr className={`align-top ${embauche.confirmee ? "bg-emerald-50/40" : "hover:bg-slate-50"}`}>
+                        <td className="sticky left-0 z-10 border-r border-slate-200 bg-white px-3 py-3">
+                          <p className="font-semibold text-slate-900">
+                            {obtenirNomCandidat(candidat)}
+                          </p>
+                          <p className="mt-1 text-[11px] text-slate-500">
+                            {[candidat.telephone, candidat.email].filter(Boolean).join(" · ") || "Aucun contact"}
+                          </p>
+                          <span
+                            className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                              embauche.confirmee
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-amber-100 text-amber-700"
+                            }`}
                           >
-                            <label className="flex items-center justify-center gap-2 font-medium text-slate-700">
-                              <input
-                                type="checkbox"
-                                checked={document.recu}
-                                disabled={embauche.confirmee || traitement}
-                                onChange={(event) =>
-                                  modifierDocument(
-                                    candidat.id,
-                                    document.id,
-                                    "recu",
-                                    event.target.checked
-                                  )
-                                }
-                                className="h-4 w-4 rounded border-slate-300 text-blue-600"
-                              />
+                            {embauche.confirmee ? "Embauché" : "À confirmer"}
+                          </span>
+                        </td>
 
-                              Reçue
-                            </label>
-
-                            {remarqueObligatoire && (
-                              <div className="mt-2">
-                                <input
-                                  value={document.remarque}
-                                  disabled={embauche.confirmee || traitement}
-                                  onChange={(event) =>
-                                    modifierDocument(
-                                      candidat.id,
-                                      document.id,
-                                      "remarque",
-                                      event.target.value
-                                    )
-                                  }
-                                  placeholder="Motif obligatoire..."
-                                  aria-label={`Remarque obligatoire pour ${libelle}`}
-                                  className={`w-full rounded-lg border px-2 py-1.5 text-[11px] outline-none ${
-                                    document.remarque.trim()
-                                      ? "border-slate-300 focus:border-blue-500"
-                                      : "border-red-300 bg-red-50 focus:border-red-500"
-                                  }`}
-                                />
-
-                                {!document.remarque.trim() && (
-                                  <p className="mt-1 text-[10px] font-medium text-red-600">
-                                    Remarque obligatoire
-                                  </p>
-                                )}
-                              </div>
+                        <td className="px-3 py-3">
+                          <select
+                            value={embauche.typeContrat}
+                            disabled={verrouille}
+                            onChange={(event) =>
+                              modifierEmbauche(candidat.id, "typeContrat", event.target.value)
+                            }
+                            className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs disabled:bg-slate-100"
+                          >
+                            <option value="">Choisir</option>
+                            {Number(demande.nombre_cdi ?? recrutement?.nombre_cdi ?? 0) > 0 && (
+                              <option value="CDI">CDI</option>
                             )}
-                          </td>
-                        );
-                      })}
-                    </tr>
+                            {Number(demande.nombre_cdd ?? recrutement?.nombre_cdd ?? 0) > 0 && (
+                              <option value="CDD">CDD</option>
+                            )}
+                          </select>
+                        </td>
+
+                        <td className="px-3 py-3">
+                          <input
+                            type="date"
+                            value={embauche.dateDebutContrat}
+                            disabled={verrouille}
+                            onChange={(event) =>
+                              modifierEmbauche(candidat.id, "dateDebutContrat", event.target.value)
+                            }
+                            className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs disabled:bg-slate-100"
+                          />
+                          {!embauche.confirmee &&
+                            dateCommune &&
+                            embauche.dateDebutContrat &&
+                            embauche.dateDebutContrat !== dateCommune && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  modifierEmbauche(candidat.id, "dateDebutContrat", dateCommune)
+                                }
+                                className="mt-1 text-[10px] font-semibold text-amber-700 hover:underline"
+                                title="Remettre la date d'embauche commune"
+                              >
+                                Exception · remettre la date commune
+                              </button>
+                            )}
+                        </td>
+
+                        <td className="px-3 py-3 text-center">
+                          <input
+                            type="checkbox"
+                            title="Signatures du candidat et de l'employeur vérifiées"
+                            checked={embauche.signeCandidat && embauche.signeEmployeur}
+                            disabled={verrouille}
+                            onChange={(event) =>
+                              modifierContratSigne(candidat.id, event.target.checked)
+                            }
+                            className="h-5 w-5 rounded border-slate-300 text-blue-600"
+                          />
+                        </td>
+
+                        <td className="px-3 py-3">
+                          <textarea
+                            rows={2}
+                            value={embauche.remarqueGenerale}
+                            disabled={traitement}
+                            onChange={(event) =>
+                              modifierEmbauche(candidat.id, "remarqueGenerale", event.target.value)
+                            }
+                            placeholder="Documents manquants, anomalies, régularisations…"
+                            className="w-full resize-none rounded-lg border border-slate-300 px-2 py-1.5 text-xs outline-none focus:border-blue-500 disabled:bg-slate-100"
+                          />
+                        </td>
+
+                        <td className="px-3 py-3">
+                          {!embauche.confirmee ? (
+                            traitement ? (
+                              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600">
+                                <Loader2 size={14} className="animate-spin" />
+                                Confirmation…
+                              </span>
+                            ) : ligneComplete(candidat) ? (
+                              <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700">
+                                <CheckCircle2 size={14} />
+                                Prêt à confirmer
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-start gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
+                                <AlertCircle size={14} className="mt-px shrink-0" />
+                                <span>
+                                  <span className="font-semibold">À compléter :</span>{" "}
+                                  {elementsManquants(candidat).join(", ")}
+                                </span>
+                              </span>
+                            )
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={traitement}
+                              onClick={() => telechargerFichePoste(candidat)}
+                              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-blue-300 bg-white px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+                            >
+                              <Download size={15} />
+                              Fiche de poste
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    </React.Fragment>
                   );
                 })}
               </tbody>
             </table>
           </div>
+
+          {resteAConfirmer && (() => {
+            const nombrePrets = candidats.filter(
+              (candidat) =>
+                embauches[candidat.id] &&
+                !embauches[candidat.id].confirmee &&
+                correspondRecherche(candidat) &&
+                ligneComplete(candidat)
+            ).length;
+
+            return (
+              <div className="flex flex-col items-end gap-1 border-t border-slate-200 px-4 py-3">
+                <button
+                  type="button"
+                  disabled={confirmationGroupee || candidatEnCours !== null || nombrePrets === 0}
+                  onClick={confirmerToutesLesEmbauches}
+                  className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {confirmationGroupee ? <Loader2 size={17} className="animate-spin" /> : <UserCheck size={17} />}
+                  Confirmer l'embauche
+                  {nombrePrets > 0 && ` (${nombrePrets})`}
+                </button>
+                <p className="text-[11px] text-slate-500">
+                  {nombrePrets === 0
+                    ? "Complétez au moins une ligne (contrat, date d'embauche, contrat signé)."
+                    : "Seules les lignes « Prêt à confirmer » seront confirmées ; les autres restent à compléter."}
+                </p>
+              </div>
+            );
+          })()}
         </section>
       )}
 
-      {!estCadre && (
-      <div className="space-y-5">
-        {candidats.map(
-          (candidat) => {
-            const embauche =
-              embauches[candidat.id];
-
-            if (!embauche) {
-              return null;
-            }
-
-            const nom =
-              obtenirNomCandidat(
-                candidat
-              );
-
-            const traitement =
-              candidatEnCours ===
-              candidat.id;
-
-            const nombrePiecesRecues =
-              embauche.documents.filter(
-                (document) =>
-                  document.recu
-              ).length;
-
-            return (
-              <section
-                key={candidat.id}
-                className={`
-                  overflow-hidden rounded-xl
-                  border bg-white
-                  ${
-                    embauche.confirmee
-                      ? "border-emerald-300"
-                      : "border-slate-200"
-                  }
-                `}
-              >
-                <div
-                  className={`
-                    flex flex-col
-                    justify-between gap-4
-                    border-b px-5 py-4
-                    sm:flex-row
-                    sm:items-center
-                    ${
-                      embauche.confirmee
-                        ? "border-emerald-200 bg-emerald-50"
-                        : "border-slate-200 bg-slate-50"
-                    }
-                  `}
-                >
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-semibold text-slate-900">
-                        {nom}
-                      </p>
-
-                      {embauche.confirmee && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                          <CheckCircle2
-                            size={13}
-                          />
-
-                          Embauché
-                        </span>
-                      )}
-                    </div>
-
-                    <p className="mt-1 text-xs text-slate-500">
-                      {candidat.telephone ||
-                        "-"}{" "}
-                      Â·{" "}
-                      {candidat.email ||
-                        "-"}
-                    </p>
-                  </div>
-
-                  {embauche.confirmee && (
-                    <button
-                      type="button"
-                      disabled={traitement}
-                      onClick={() => telechargerFichePoste(candidat)}
-                      className="inline-flex items-center gap-2 rounded-lg border border-blue-300 bg-white px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-50"
-                    >
-                      <Download size={15} />
-                      Télécharger la fiche de poste
-                    </button>
-                  )}
-
-                  {!estCadre && (
-                    <p className="text-sm text-slate-600">
-                      {nombrePiecesRecues}/
-                      {embauche.documents.length}{" "}
-                      pièces reçues
-                    </p>
-                  )}
-                </div>
-
-                <fieldset
-                  disabled={
-                    traitement ||
-                    (!estCadre && embauche.confirmee)
-                  }
-                  className={
-                    !estCadre && embauche.confirmee
-                      ? "opacity-75"
-                      : ""
-                  }
-                >
-                  <div className="border-b border-slate-200 p-5">
-                    <h3 className="mb-5 flex items-center gap-2 font-semibold text-slate-900">
-                      <FileCheck2
-                        size={18}
-                        className="text-blue-600"
-                      />
-
-                      Vérification du dossier
-                    </h3>
-
-                    <div className="mb-5 grid gap-5 md:grid-cols-2">
-                      <div>
-                        <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                          Date de vérification
-                          <span className="ml-1 text-red-500">
-                            *
-                          </span>
-                        </label>
-
-                        <input
-                          type="date"
-                          value={
-                            embauche
-                              .dateVerification
-                          }
-                          onChange={(
-                            event
-                          ) =>
-                            modifierEmbauche(
-                              candidat.id,
-                              "dateVerification",
-                              event.target
-                                .value
-                            )
-                          }
-                          required
-                          className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-blue-500"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                          Vérificateur
-                          <span className="ml-1 text-red-500">
-                            *
-                          </span>
-                        </label>
-
-                        <input
-                          value={
-                            embauche
-                              .verificateur
-                          }
-                          onChange={(
-                            event
-                          ) =>
-                            modifierEmbauche(
-                              candidat.id,
-                              "verificateur",
-                              event.target
-                                .value
-                            )
-                          }
-                          required
-                          className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-blue-500"
-                        />
-                      </div>
-                    </div>
-
-                  </div>
-
-                  <div className="p-5">
-                    <h3 className="mb-5 font-semibold text-slate-900">
-                      Contrat de travail
-                    </h3>
-
-                    <div className="grid gap-5 md:grid-cols-2">
-                      <div>
-                        <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                          Type de contrat
-                          <span className="ml-1 text-red-500">
-                            *
-                          </span>
-                        </label>
-
-                        <select
-                          disabled={embauche.confirmee}
-                          value={
-                            embauche
-                              .typeContrat
-                          }
-                          onChange={(
-                            event
-                          ) =>
-                            modifierEmbauche(
-                              candidat.id,
-                              "typeContrat",
-                              event.target
-                                .value
-                            )
-                          }
-                          required
-                          className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-blue-500"
-                        >
-                          <option value="">
-                            Sélectionner
-                          </option>
-
-                          {Number(
-                            demande.nombre_cdi ??
-                              recrutement
-                                ?.nombre_cdi ??
-                              0
-                          ) > 0 && (
-                            <option value="CDI">
-                              CDI
-                            </option>
-                          )}
-
-                          {Number(
-                            demande.nombre_cdd ??
-                              recrutement
-                                ?.nombre_cdd ??
-                              0
-                          ) > 0 && (
-                            <option value="CDD">
-                              CDD
-                            </option>
-                          )}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                          Date de début
-                          <span className="ml-1 text-red-500">
-                            *
-                          </span>
-                        </label>
-
-                        <input
-                          type="date"
-                          disabled={embauche.confirmee}
-                          value={
-                            embauche
-                              .dateDebutContrat
-                          }
-                          onChange={(
-                            event
-                          ) =>
-                            modifierEmbauche(
-                              candidat.id,
-                              "dateDebutContrat",
-                              event.target
-                                .value
-                            )
-                          }
-                          required
-                          className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-blue-500"
-                        />
-                      </div>
-                    </div>
-
-                    {estCadre ? (
-                      <div className="mt-5 space-y-3">
-                        <h4 className="text-sm font-semibold text-slate-900">
-                          Checklist obligatoire d'embauche et d'onboarding
-                        </h4>
-
-                        <div className="grid gap-3 md:grid-cols-2">
-                          {[
-                            {
-                              champ: "dossierEmbaucheComplet",
-                              label: "Dossier d'embauche complet",
-                              verrouille: embauche.confirmee,
-                            },
-                            {
-                              champ: "contratTravailSigne",
-                              label: "Contrat de travail signé",
-                              verrouille: embauche.confirmee,
-                            },
-                            {
-                              champ: "journeeIntegrationRealisee",
-                              label: "Journée d'intégration réalisée",
-                              verrouille: false,
-                            },
-                          ].map((item) => (
-                            <label
-                              key={item.champ}
-                              className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={Boolean(embauche[item.champ])}
-                                disabled={item.verrouille}
-                                onChange={(event) =>
-                                  modifierEmbauche(
-                                    candidat.id,
-                                    item.champ,
-                                    event.target.checked
-                                  )
-                                }
-                                className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600"
-                              />
-                              <span className="text-sm font-semibold text-slate-800">
-                                {item.label}
-                              </span>
-                            </label>
-                          ))}
-
-                          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                            <p className="text-sm font-semibold text-slate-800">
-                              Règlement intérieur communiqué
-                            </p>
-                            <p className={`mt-1 text-xs ${
-                              embauche.reglementInterieurCommunique
-                                ? "text-emerald-700"
-                                : "text-amber-700"
-                            }`}>
-                              {embauche.reglementInterieurCommunique
-                                ? "Oui - confirmé par le système"
-                                : "En attente de l'envoi automatique"}
-                            </p>
-                          </div>
-
-                          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                            <p className="text-sm font-semibold text-slate-800">
-                              Code société communiqué
-                            </p>
-                            <p className={`mt-1 text-xs ${
-                              embauche.codeSocieteCommunique
-                                ? "text-emerald-700"
-                                : "text-amber-700"
-                            }`}>
-                              {embauche.codeSocieteCommunique
-                                ? "Oui - confirmé par le système"
-                                : "En attente de l'envoi automatique"}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className={`rounded-lg border p-4 text-sm ${
-                          embauche.documentsCadreEmailEnvoyes
-                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                            : "border-amber-200 bg-amber-50 text-amber-700"
-                        }`}>
-                          {embauche.documentsCadreEmailEnvoyes
-                            ? `RI et Code société envoyés le ${new Intl.DateTimeFormat(
-                                "fr-FR",
-                                { dateStyle: "short", timeStyle: "short" }
-                              ).format(new Date(embauche.dateEnvoiDocumentsCadre))}.`
-                            : embauche.erreurEnvoiDocumentsCadre ||
-                              "Les documents seront envoyés automatiquement lors de la confirmation de l'embauche."}
-                        </div>
-
-                        {embauche.confirmee &&
-                          !embauche.documentsCadreEmailEnvoyes && (
-                            <div className="flex justify-end">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  confirmerEmbaucheCandidat(candidat)
-                                }
-                                disabled={traitement}
-                                className="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-50"
-                              >
-                                {traitement && (
-                                  <Loader2
-                                    size={16}
-                                    className="animate-spin"
-                                  />
-                                )}
-                                Réessayer l'envoi du RI et du Code société
-                              </button>
-                            </div>
-                          )}
-                      </div>
-                    ) : (
-                    <div className="mt-5">
-                      <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
-                        <input
-                          type="checkbox"
-                          checked={
-                            embauche.signeCandidat &&
-                            embauche.signeEmployeur
-                          }
-                          onChange={(
-                            event
-                          ) =>
-                            modifierContratSigne(
-                              candidat.id,
-                              event.target
-                                .checked
-                            )
-                          }
-                          className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600"
-                        />
-
-                        <div>
-                          <p className="text-sm font-semibold text-slate-800">
-                            Contrat signé
-                          </p>
-
-                          <p className="mt-1 text-xs text-slate-500">
-                            Les signatures du candidat et de l'employeur ont été vérifiées.
-                          </p>
-                        </div>
-                      </label>
-                    </div>
-                    )}
-
-                    <div className="mt-5">
-                      <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                        Remarque générale
-                      </label>
-
-                      <textarea
-                        value={
-                          embauche
-                            .remarqueGenerale
-                        }
-                        onChange={(
-                          event
-                        ) =>
-                          modifierEmbauche(
-                            candidat.id,
-                            "remarqueGenerale",
-                            event.target
-                              .value
-                          )
-                        }
-                        rows={3}
-                        className="w-full resize-none rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-blue-500"
-                      />
-                    </div>
-
-                    {!embauche.confirmee && (
-                      <div className="mt-6 flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            confirmerEmbaucheCandidat(
-                              candidat
-                            )
-                          }
-                          disabled={
-                            traitement
-                          }
-                          className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
-                        >
-                          {traitement ? (
-                            <Loader2
-                              size={17}
-                              className="animate-spin"
-                            />
-                          ) : (
-                            <UserCheck
-                              size={17}
-                            />
-                          )}
-
-                          Confirmer l'embauche
-                        </button>
-                      </div>
-                    )}
-
-                    {estCadre && embauche.confirmee && (
-                      <div className="mt-6 flex flex-col items-end gap-3">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            enregistrerChecklistCadre(candidat)
-                          }
-                          disabled={traitement}
-                          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-                        >
-                          {traitement ? (
-                            <Loader2
-                              size={17}
-                              className="animate-spin"
-                            />
-                          ) : (
-                            <Save size={17} />
-                          )}
-                          Enregistrer la checklist
-                        </button>
-
-                        {embauche.checklistOnboardingComplete && (
-                          <p className="flex items-center gap-2 text-sm font-medium text-emerald-700">
-                            <CheckCircle2 size={17} />
-                            Checklist complète - prÃªt pour la clÃ´ture
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </fieldset>
-              </section>
-            );
-          }
-        )}
-
-        {candidats.length === 0 && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-10 text-center text-sm text-amber-700">
-            Aucun candidat n'est disponible
-            pour l'embauche.
-          </div>
-        )}
-      </div>
+      {!estCadre && candidats.length === 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-10 text-center text-sm text-amber-700">
+          Aucun candidat n'est disponible pour l'embauche.
+        </div>
       )}
 
       <div className="flex justify-end">
@@ -2054,7 +1712,7 @@ export default function EtapeEmbauche({
           )}
 
           {isSubmitting
-            ? "ClÃ´ture..."
+            ? "Clôture..."
             : "Terminer le processus"}
         </button>
       </div>

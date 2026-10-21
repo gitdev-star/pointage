@@ -242,3 +242,69 @@ class PermissionProprietaireDemande(
             peut_modifier
             and objet.demandeur_id == profil.id
         )
+
+
+def utilisateurs_voir_tout():
+    """
+    Identifiants (séparés par des virgules) qui voient tous les
+    recrutements, sans notifications ni droit de validation :
+    variable RECRUTEMENT_VOIR_TOUT du .env.
+    Solution provisoire : à remplacer par une permission dans le
+    profil RH lors du déploiement du module Transport.
+    """
+    import os
+
+    return {
+        nom.strip().lower()
+        for nom in os.environ.get("RECRUTEMENT_VOIR_TOUT", "").split(",")
+        if nom.strip()
+    }
+
+
+def voit_tous_les_recrutements(profil):
+    """
+    Directeur, responsable du recrutement, valideurs et utilisateurs
+    de RECRUTEMENT_VOIR_TOUT : accès à toutes les demandes de
+    recrutement.
+    """
+    return bool(
+        profil.is_director
+        or profil.is_recruitment_responsible
+        or getattr(profil, "perm_recruitment_validate", False)
+        or (profil.username or "").strip().lower() in utilisateurs_voir_tout()
+    )
+
+
+def filtrer_perimetre_recrutement(request, queryset, prefixe=""):
+    """
+    Limite les recrutements au périmètre de l'utilisateur :
+    les demandes qu'il a créées et celles de son département.
+    « prefixe » : chemin vers la demande (ex : "demande__").
+    """
+    from django.db.models import Q
+
+    if is_service_request(request):
+        return queryset
+
+    profil = get_hr_profile(request)
+
+    if not profil:
+        return queryset.none()
+
+    if voit_tous_les_recrutements(profil):
+        return queryset
+
+    condition = Q(**{f"{prefixe}demandeur": profil})
+
+    departement = profil.department
+
+    if departement:
+        # Le département de la demande est retrouvé par son nom dans
+        # le site : on compare donc le nom et le site.
+        condition |= Q(**{f"{prefixe}departement": departement})
+        condition |= Q(**{
+            f"{prefixe}departement__name__iexact": departement.name,
+            f"{prefixe}departement__factory_id": departement.factory_id,
+        })
+
+    return queryset.filter(condition).distinct()

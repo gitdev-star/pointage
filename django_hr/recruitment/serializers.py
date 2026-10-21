@@ -3,7 +3,7 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from accounts.permissions import get_hr_profile
-from employees.models import Employee
+from employees.models import Department, Employee
 
 from .models import (
     ajouter_jours_ouvres,
@@ -34,9 +34,9 @@ DOCUMENTS_RH_PAR_DEFAUT = [
         "Copie du livret de famille ou actes de naissance "
         "des enfants de moins de 21 ans"
     ),
-    "Photocopies de tous les diplômes",
+    "Photocopies de tous les diplôme",
     "Copies des certificats de travail",
-    "CV et demande d' emploi",
+    "CV et demande d'emploi",
 ]
 
 
@@ -67,7 +67,7 @@ def valider_fichier(
         )
 
         raise serializers.ValidationError(
-            f"Formats autorisés : {extensions}."
+            f"Formats autorisés: {extensions}."
         )
 
     taille_maximale = 10 * 1024 * 1024
@@ -224,6 +224,14 @@ class DemandeRecrutementSerializer(
         read_only=True,
     )
 
+    # Nom choisi dans la liste fixe du formulaire ;
+    # le département est retrouvé ou créé dans le site.
+    departement_choisi = serializers.CharField(
+        write_only=True,
+        required=False,
+        allow_blank=True,
+    )
+
     statut_libelle = serializers.CharField(
         source="get_statut_display",
         read_only=True,
@@ -271,20 +279,13 @@ class DemandeRecrutementSerializer(
             "reference",
             "demandeur",
 
-            # Remplis automatiquement avec
-            # les informations de lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢utilisateur connectÃƒÆ’Ã‚Â©.
-            "matricule_demandeur",
-            "nom_demandeur",
-            "poste_demandeur",
-            "departement_demandeur",
-
             "statut",
             "motif_decision",
             "decide_par",
             "date_decision",
 
             # Ces informations sont exclusivement
-            # renseignÃƒÆ’Ã‚Â©es par l'action d'approbation DRH.
+            # renseignées par l'action d'approbation DRH.
             "approuve_par_drh",
             "date_approbation_drh",
             "commentaire_drh",
@@ -292,6 +293,24 @@ class DemandeRecrutementSerializer(
             "date_creation",
             "date_modification",
         ]
+
+        # Remplis automatiquement depuis la fiche
+        # employé ; saisis manuellement sinon.
+        extra_kwargs = {
+            **{
+                champ: {
+                    "required": False,
+                    "allow_blank": True,
+                }
+                for champ in [
+                    "matricule_demandeur",
+                    "nom_demandeur",
+                    "poste_demandeur",
+                    "departement_demandeur",
+                ]
+            },
+            "departement": {"required": False},
+        }
 
     @staticmethod
     def _nom_profil(profil):
@@ -334,6 +353,49 @@ class DemandeRecrutementSerializer(
 
     def validate(self, donnees):
         instance = self.instance
+
+        nom_departement = (
+            donnees.pop("departement_choisi", "")
+            or ""
+        ).strip()
+
+        if nom_departement:
+            factory_choisie = donnees.get(
+                "factory",
+                getattr(instance, "factory", None),
+            )
+
+            if not factory_choisie:
+                raise serializers.ValidationError(
+                    {"factory": "Sélectionnez un site."}
+                )
+
+            departement_trouve = (
+                Department.objects
+                .filter(
+                    factory=factory_choisie,
+                    name__iexact=nom_departement,
+                )
+                .first()
+            )
+
+            if not departement_trouve:
+                departement_trouve = (
+                    Department.objects.create(
+                        factory=factory_choisie,
+                        name=nom_departement,
+                    )
+                )
+
+            donnees["departement"] = departement_trouve
+
+        if (
+            not donnees.get("departement")
+            and not getattr(instance, "departement_id", None)
+        ):
+            raise serializers.ValidationError(
+                {"departement": "Sélectionnez un département."}
+            )
 
         nombre_cdi = donnees.get(
             "nombre_cdi",
@@ -389,7 +451,7 @@ class DemandeRecrutementSerializer(
             raise serializers.ValidationError(
                 {
                     "motif_remplacement": (
-                        "SÃƒÆ’Ã‚Â©lectionnez le motif "
+                        "Sélectionnez le motif "
                         "du remplacement."
                     )
                 }
@@ -436,8 +498,8 @@ class DemandeRecrutementSerializer(
             raise serializers.ValidationError(
                 {
                     "departement": (
-                        "Ce dÃƒÆ’Ã‚Â©partement nÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢appartient "
-                        "pas au site sÃƒÆ’Ã‚Â©lectionnÃƒÆ’Ã‚Â©."
+                        "Ce département n' appartient "
+                        "pas au site sélectionné"
                     )
                 }
             )
@@ -457,13 +519,29 @@ class DemandeRecrutementSerializer(
                     {
                         "date_prevue_recrutement": (
                             "La date doit respecter "
-                            "un dÃƒÆ’Ã‚Â©lai minimum de "
-                            "5 jours ouvrÃƒÆ’Ã‚Â©s."
+                            "un délai minimum de "
+                            "5 jours ouverts."
                         )
                     }
                 )
 
         return donnees
+
+    def update(self, instance, validated_data):
+        # Les informations du demandeur sont
+        # figées après la création.
+        for champ in [
+            "matricule_demandeur",
+            "nom_demandeur",
+            "poste_demandeur",
+            "departement_demandeur",
+        ]:
+            validated_data.pop(champ, None)
+
+        return super().update(
+            instance,
+            validated_data,
+        )
 
     def obtenir_employe_connecte(
         self,
@@ -482,7 +560,7 @@ class DemandeRecrutementSerializer(
         )
 
         # Recherche prioritaire avec
-        # lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢identifiant dÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢authentification.
+        # l'identifiant d'authentification.
         employe = (
             employes
             .filter(
@@ -493,7 +571,7 @@ class DemandeRecrutementSerializer(
             .first()
         )
 
-        # Recherche avec lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢adresse e-mail AD.
+        # Recherche avec l'adresse e-mail AD.
         if (
             not employe
             and profil.email
@@ -509,7 +587,7 @@ class DemandeRecrutementSerializer(
             )
 
         # Le username peut parfois contenir
-        # directement lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢adresse e-mail.
+        # directement l'adresse e-mail.
         if (
             not employe
             and profil.username
@@ -551,18 +629,6 @@ class DemandeRecrutementSerializer(
                     correspondances.first()
                 )
 
-        if not employe:
-            raise serializers.ValidationError(
-                {
-                    "demandeur": (
-                        "Aucun employÃƒÆ’Ã‚Â© actif ne "
-                        "correspond au compte connectÃƒÆ’Ã‚Â©. "
-                        "VÃƒÆ’Ã‚Â©rifiez lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢adresse e-mail, "
-                        "le statut et auth_user_id."
-                    )
-                }
-            )
-
         return employe
 
     @transaction.atomic
@@ -581,8 +647,8 @@ class DemandeRecrutementSerializer(
             raise serializers.ValidationError(
                 {
                     "demandeur": (
-                        "Le profil de lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢utilisateur "
-                        "connectÃƒÆ’Ã‚Â© est introuvable."
+                        "Le profil de l'utilisateur "
+                        "connecté est introuvable."
                     )
                 }
             )
@@ -593,47 +659,65 @@ class DemandeRecrutementSerializer(
             )
         )
 
-        nom_complet = " ".join(
-            valeur.strip()
-            for valeur in [
-                employe.first_name or "",
-                employe.last_name or "",
-            ]
-            if valeur and valeur.strip()
-        )
+        def saisie(champ):
+            return (
+                validated_data.get(champ) or ""
+            ).strip()
+
+        nom_complet = ""
+        if employe:
+            nom_complet = " ".join(
+                valeur.strip()
+                for valeur in [
+                    employe.first_name or "",
+                    employe.last_name or "",
+                ]
+                if valeur and valeur.strip()
+            )
+
+        non_renseigne = "Non renseigné"
 
         validated_data["demandeur"] = profil
 
-        validated_data[
-            "matricule_demandeur"
-        ] = employe.employee_id
+        # La fiche employé est prioritaire ; les
+        # valeurs saisies complètent les manques.
+        validated_data["matricule_demandeur"] = (
+            (employe.employee_id if employe else "")
+            or saisie("matricule_demandeur")
+            or non_renseigne
+        )
 
-        validated_data[
-            "nom_demandeur"
-        ] = (
+        validated_data["nom_demandeur"] = (
             nom_complet
-            or profil.username
+            or saisie("nom_demandeur")
+            or self._nom_profil(profil)
+            or non_renseigne
         )
 
-        validated_data[
-            "poste_demandeur"
-        ] = (
-            employe.job_title.name
-            if employe.job_title
-            else profil.job_title
-            or "Non renseignÃƒÆ’Ã‚Â©"
+        validated_data["poste_demandeur"] = (
+            (
+                employe.job_title.name
+                if employe and employe.job_title
+                else ""
+            )
+            or saisie("poste_demandeur")
+            or profil.job_title
+            or non_renseigne
         )
 
-        validated_data[
-            "departement_demandeur"
-        ] = (
-            employe.department.name
-            if employe.department
-            else (
+        validated_data["departement_demandeur"] = (
+            (
+                employe.department.name
+                if employe and employe.department
+                else ""
+            )
+            or saisie("departement_demandeur")
+            or (
                 profil.department.name
                 if profil.department
-                else "Non renseignÃƒÆ’Ã‚Â©"
+                else ""
             )
+            or non_renseigne
         )
 
         return super().create(
@@ -917,8 +1001,8 @@ class CompteRenduEntretienCadreSerializer(
             .TypeRecrutement.CADRE
         ):
             raise serializers.ValidationError(
-                "Ce candidat appartient ÃƒÆ’  un "
-                "recrutement dÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ouvriers."
+                "Ce candidat appartient à  un "
+                "recrutement d’ouvriers."
             )
 
         if (
@@ -926,7 +1010,7 @@ class CompteRenduEntretienCadreSerializer(
             == Candidat.Statut.EMBAUCHE
         ):
             raise serializers.ValidationError(
-                "Ce candidat a dÃƒÆ’Ã‚Â©jÃƒÆ’  ÃƒÆ’Ã‚Â©tÃƒÆ’Ã‚Â© embauchÃƒÆ’Ã‚Â©."
+                "Ce candidat a déjà été embauché."
             )
 
         compte_rendu_existant = (
@@ -945,7 +1029,7 @@ class CompteRenduEntretienCadreSerializer(
 
         if compte_rendu_existant.exists():
             raise serializers.ValidationError(
-                "Un compte rendu existe dÃƒÆ’Ã‚Â©jÃƒÆ’  "
+                "Un compte rendu existe déjà "
                 "pour ce candidat."
             )
 
@@ -980,8 +1064,8 @@ class CompteRenduEntretienCadreSerializer(
             raise serializers.ValidationError(
                 {
                     "redacteur_rh": (
-                        "SÃƒÆ’Ã‚Â©lectionnez au moins "
-                        "un rÃƒÆ’Ã‚Â©dacteur : RH, "
+                        "Sélectionnez au moins "
+                        "un rédacteur : RH, "
                         "Manager ou les deux."
                     )
                 }
@@ -1003,8 +1087,8 @@ class CompteRenduEntretienCadreSerializer(
             raise serializers.ValidationError(
                 {
                     "pretention_salariale": (
-                        "La prÃƒÆ’Ã‚Â©tention salariale "
-                        "ne peut pas ÃƒÆ’Ã‚Âªtre nÃƒÆ’Ã‚Â©gative."
+                        "La prétention salariale "
+                        "ne peut pas être négative."
                     )
                 }
             )
@@ -1025,9 +1109,9 @@ class CompteRenduEntretienCadreSerializer(
             raise serializers.ValidationError(
                 {
                     "annees_experience": (
-                        "Le nombre dÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢annÃƒÆ’Ã‚Â©es "
-                        "dÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢expÃƒÆ’Ã‚Â©rience ne peut "
-                        "pas ÃƒÆ’Ã‚Âªtre nÃƒÆ’Ã‚Â©gatif."
+                        "Le nombre d’années "
+                        "d’expérience ne peut "
+                        "pas être négatif."
                     )
                 }
             )
@@ -1057,7 +1141,7 @@ class CompteRenduEntretienCadreSerializer(
             raise serializers.ValidationError(
                 {
                     "precision_disponibilite": (
-                        "PrÃƒÆ’Ã‚Â©cisez la disponibilitÃƒÆ’Ã‚Â© "
+                        "Précisez la disponibilité "
                         "du candidat."
                     )
                 }
@@ -1117,9 +1201,9 @@ class CompteRenduEntretienCadreSerializer(
             raise serializers.ValidationError(
                 {
                     "detail": (
-                        "Un compte rendu dÃƒÆ’Ã‚Â©jÃƒÆ’  "
-                        "envoyÃƒÆ’Ã‚Â© au DRH ne peut "
-                        "plus ÃƒÆ’Ã‚Âªtre modifiÃƒÆ’Ã‚Â©."
+                        "Un compte rendu déjà  "
+                        "envoyé au DRH ne peut "
+                        "plus être modifié."
                     )
                 }
             )
@@ -1239,12 +1323,12 @@ class OffreRecrutementSerializer(
         fichier = attrs.get("fichier")
 
         # Le fichier est obligatoire uniquement
-        # pendant la crÃƒÆ’Ã‚Â©ation d'une nouvelle offre.
+        # pendant la création d'une nouvelle offre.
         if self.instance is None and not fichier:
             raise serializers.ValidationError(
                 {
                     "fichier": (
-                        "Le fichier de lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢offre "
+                        "Le fichier de l'offre "
                         "est obligatoire."
                     )
                 }
@@ -1320,9 +1404,10 @@ class PublicationOffreSerializer(
             "date_publication": {
                 "required": True,
             },
+            # La date limite n'est plus demandée.
             "date_limite_candidature": {
-                "required": True,
-                "allow_null": False,
+                "required": False,
+                "allow_null": True,
             },
             "lien_ou_reference": {
                 "required": False,
@@ -1409,16 +1494,6 @@ class PublicationOffreSerializer(
             )
         )
 
-        if not date_limite:
-            raise serializers.ValidationError(
-                {
-                    "date_limite_candidature": (
-                        "La date limite de "
-                        "candidature est obligatoire."
-                    )
-                }
-            )
-
         if (
             date_publication
             and date_limite
@@ -1428,8 +1503,8 @@ class PublicationOffreSerializer(
             raise serializers.ValidationError(
                 {
                     "date_limite_candidature": (
-                        "La date limite doit ÃƒÆ’Ã‚Âªtre "
-                        "postÃƒÆ’Ã‚Â©rieure ou ÃƒÆ’Ã‚Â©gale ÃƒÆ’  la "
+                        "La date limite doit être "
+                        "postérieure ou égale à  la "
                         "date de publication."
                     )
                 }
@@ -1452,9 +1527,9 @@ class PublicationOffreSerializer(
                     {
                         "date_limite_candidature": (
                             "La date limite de "
-                            "candidature doit ÃƒÆ’Ã‚Âªtre "
-                            "antÃƒÆ’Ã‚Â©rieure ÃƒÆ’  la date "
-                            "prÃƒÆ’Ã‚Â©vue du recrutement."
+                            "candidature doit être "
+                            "antérieure à  la date "
+                            "prévue du recrutement."
                         )
                     }
                 )
@@ -1480,7 +1555,7 @@ class PublicationOffreSerializer(
                     {
                         "processus": (
                             "Une publication existe "
-                            "dÃƒÆ’Ã‚Â©jÃƒÆ’  pour ce processus. "
+                            "déjà  pour ce processus. "
                             "Modifiez la publication "
                             "existante."
                         )
@@ -1609,7 +1684,7 @@ class FicheTransparenceSerializer(
         if date_fiche > timezone.localdate():
             raise serializers.ValidationError(
                 "La date de la fiche ne peut "
-                "pas ÃƒÆ’Ã‚Âªtre dans le futur."
+                "pas être dans le futur."
             )
 
         return date_fiche
@@ -1698,7 +1773,7 @@ class FicheTransparenceSerializer(
                     "original_signe": (
                         "Vous devez confirmer que "
                         "la fiche originale est "
-                        "remplie et signÃƒÆ’Ã‚Â©e."
+                        "remplie et signée."
                     )
                 }
             )
@@ -1815,6 +1890,7 @@ class CandidatSerializer(
 
             "source",
             "fiche_test",
+            "fiche_test_recue",
 
             "statut",
             "statut_libelle",
@@ -2027,7 +2103,7 @@ class CandidatSerializer(
         ):
             raise serializers.ValidationError(
                 "Une fiche de test ne peut "
-                "pas ÃƒÆ’Ã‚Âªtre ajoutÃƒÆ’Ã‚Â©e ÃƒÆ’  un "
+                "pas être ajoutée à  un "
                 "candidat cadre."
             )
 
@@ -2151,7 +2227,7 @@ class RetourRHCandidatSerializer(
             Candidat.Statut.EMBAUCHE,
         ]:
             raise serializers.ValidationError(
-                "Seul un candidat reÃƒÆ’Ã‚Â§u peut "
+                "Seul un candidat reçu peut "
                 "passer au Retour RH."
             )
 
@@ -2326,7 +2402,7 @@ class EmbaucheSerializer(
             ):
                 raise serializers.ValidationError(
                     "Seul un candidat cadre retenu "
-                    "peut ÃƒÆ’Ã‚Âªtre traitÃƒÆ’Ã‚Â© pour lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢embauche."
+                    "peut être traité pour l'embauche."
                 )
 
             # Aucun Retour RH pour les cadres.
@@ -2342,35 +2418,16 @@ class EmbaucheSerializer(
             not in statuts_autorises
         ):
             raise serializers.ValidationError(
-                "Seul un candidat ouvrier reÃƒÆ’Ã‚Â§u "
-                "peut ÃƒÆ’Ã‚Âªtre traitÃƒÆ’Ã‚Â© pour lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢embauche."
+                "Seul un candidat ouvrier reçu "
+                "peut être traité pour l'embauche."
             )
 
-        try:
-            retour_rh = candidat.retour_rh
-        except RetourRHCandidat.DoesNotExist:
-            raise serializers.ValidationError(
-                "Le Retour RH de ce candidat "
-                "nÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢a pas encore ÃƒÆ’Ã‚Â©tÃƒÆ’Ã‚Â© enregistrÃƒÆ’Ã‚Â©."
-            )
-
-        if not retour_rh.liste_remise:
-            raise serializers.ValidationError(
-                "La liste des documents nÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢a pas "
-                "encore ÃƒÆ’Ã‚Â©tÃƒÆ’Ã‚Â© remise ÃƒÆ’  ce candidat."
-            )
-
+        # La liste des dossiers à fournir est facultative.
         return candidat
 
     def validate_verificateur(self, value):
-        value = value.strip()
-
-        if not value:
-            raise serializers.ValidationError(
-                "Le nom du vÃƒÆ’Ã‚Â©rificateur est obligatoire."
-            )
-
-        return value
+        # Facultatif : rempli automatiquement avec l'utilisateur connecté.
+        return (value or "").strip()
 
     def validate(self, attrs):
         candidat = attrs.get(
@@ -2403,7 +2460,7 @@ class EmbaucheSerializer(
                     {
                         "type_contrat": (
                             "Aucun recrutement CDI "
-                            "nÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢est prÃƒÆ’Ã‚Â©vu dans cette demande."
+                            "n'est prévu dans cette demande."
                         )
                     }
                 )
@@ -2417,7 +2474,7 @@ class EmbaucheSerializer(
                     {
                         "type_contrat": (
                             "Aucun recrutement CDD "
-                            "nÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢est prÃƒÆ’Ã‚Â©vu dans cette demande."
+                            "n'est prévu dans cette demande."
                         )
                     }
                 )
@@ -2443,8 +2500,8 @@ class EmbaucheSerializer(
                 raise serializers.ValidationError(
                     {
                         "detail": (
-                            "La checklist dÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢onboarding cadre ne peut "
-                            "pas ÃƒÆ’Ã‚Âªtre modifiÃƒÆ’Ã‚Â©e pour un recrutement ouvrier."
+                            "La checklist d'onboarding cadre ne peut "
+                            "pas être modifiée pour un recrutement ouvrier."
                         )
                     }
                 )
@@ -2585,8 +2642,8 @@ class DesistementEmbaucheSerializer(
     ):
         if not embauche.confirmee:
             raise serializers.ValidationError(
-                "Seule une embauche confirmÃƒÆ’Ã‚Â©e peut "
-                "faire lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢objet dÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢un dÃƒÆ’Ã‚Â©sistement."
+                "Seule une embauche confirmée peut "
+                "faire l'objet d'un désistement."
             )
 
         desistement_existant = (
@@ -2603,8 +2660,8 @@ class DesistementEmbaucheSerializer(
 
         if desistement_existant.exists():
             raise serializers.ValidationError(
-                "Le dÃƒÆ’Ã‚Â©sistement de cette personne "
-                "a dÃƒÆ’Ã‚Â©jÃƒÆ’  ÃƒÆ’Ã‚Â©tÃƒÆ’Ã‚Â© enregistrÃƒÆ’Ã‚Â©."
+                "Le désistement de cette personne "
+                "a déjà  été enregistré."
             )
 
         return embauche
@@ -2615,8 +2672,8 @@ class DesistementEmbaucheSerializer(
     ):
         if valeur > timezone.localdate():
             raise serializers.ValidationError(
-                "La date du dÃƒÆ’Ã‚Â©sistement ne peut "
-                "pas ÃƒÆ’Ã‚Âªtre dans le futur."
+                "La date du désistement ne peut "
+                "pas être dans le futur."
             )
 
         return valeur
