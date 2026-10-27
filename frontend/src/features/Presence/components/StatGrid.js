@@ -62,7 +62,7 @@ function BadgeListModal({ config, attendanceData, onClose }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-gray-500 border-b">
-                <th className="py-2 pr-3">Badge</th>
+                <th className="py-2 pr-3">ID pointeuse</th>
                 <th className="py-2 pr-3">Pointages</th>
                 <th className="py-2 pr-3">Premier</th>
                 <th className="py-2 pr-3">Dernier</th>
@@ -114,7 +114,7 @@ function AbsentListModal({ people, onClose }) {
 
   const exportCsv = () => {
     const esc = (v) => '"' + String(v ?? "").replace(/"/g, '""') + '"';
-    const lines = [["Matricule", "Nom", "Badge", "Site", "Departement", "Section"].map(esc).join(",")];
+    const lines = [["Matricule", "Nom", "ID pointeuse", "Site", "Departement", "Section"].map(esc).join(",")];
     list.forEach((p) =>
       lines.push([p.employee_id, p.name, p.effectiveBadge ?? "", p.factory, p.department, p.section].map(esc).join(","))
     );
@@ -138,7 +138,7 @@ function AbsentListModal({ people, onClose }) {
             <h3 className="text-lg font-semibold text-gray-800">Actifs sans pointage ({people.length})</h3>
             <p className="text-sm text-gray-500 mt-1">
               Employés ACTIVE sans aucun pointage aujourd'hui : congés, repos, autre équipe, ou pas encore pointé.
-              Ceux sans numéro de badge ne peuvent jamais apparaître comme présents.
+              Ceux sans ID pointeuse ne peuvent jamais apparaître comme présents.
             </p>
           </div>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100" aria-label="Fermer">
@@ -150,7 +150,7 @@ function AbsentListModal({ people, onClose }) {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Rechercher nom, matricule, badge, département, section"
+            placeholder="Rechercher nom, matricule, ID pointeuse, département, section"
             className="flex-1 border rounded-lg px-3 py-1.5 text-sm"
           />
           <select value={site} onChange={(e) => setSite(e.target.value)} className="border rounded-lg px-2 py-1.5 text-sm">
@@ -167,7 +167,7 @@ function AbsentListModal({ people, onClose }) {
               <tr className="text-left text-gray-500 border-b">
                 <th className="py-2 pr-3">Matricule</th>
                 <th className="py-2 pr-3">Nom</th>
-                <th className="py-2 pr-3">Badge</th>
+                <th className="py-2 pr-3">ID pointeuse</th>
                 <th className="py-2 pr-3">Site</th>
                 <th className="py-2 pr-3">Département</th>
                 <th className="py-2">Section</th>
@@ -178,7 +178,7 @@ function AbsentListModal({ people, onClose }) {
                 <tr key={p.employee_id} className="border-b last:border-0">
                   <td className="py-2 pr-3">{p.employee_id}</td>
                   <td className="py-2 pr-3 font-medium text-gray-800">{p.name || "—"}</td>
-                  <td className="py-2 pr-3">{p.effectiveBadge ?? "Sans badge"}</td>
+                  <td className="py-2 pr-3">{p.effectiveBadge ?? "Sans ID pointeuse"}</td>
                   <td className="py-2 pr-3">{p.factory || "—"}</td>
                   <td className="py-2 pr-3">{p.department || "—"}</td>
                   <td className="py-2">{p.section || "—"}</td>
@@ -240,18 +240,18 @@ export default function StatsGrid({
         onClick: classified.inactiveIds?.length
           ? () => setModal({
               title: "Pointés non actifs",
-              description: "Badges dont l'employé n'est pas ACTIVE dans RH (parti, inactif). Vérifiez le statut ou retirez le badge des pointeuses.",
+              description: "ID pointeuse dont l'employé n'est pas ACTIVE dans RH (parti, inactif). Vérifiez le statut ou supprimez l'utilisateur des pointeuses.",
               ids: classified.inactiveIds,
             })
           : null,
       },
       {
         title: "Pointés hors liste RH", value: classified.unknown,
-        sub: "badge inconnu dans RH", percent: null, icon: HelpCircle, color: "yellow",
+        sub: "ID pointeuse inconnu dans RH", percent: null, icon: HelpCircle, color: "yellow",
         onClick: classified.unknownIds?.length
           ? () => setModal({
               title: "Pointés hors liste RH",
-              description: "Badges qui ont pointé sans fiche RH. Plusieurs pointages sur des appareils d'usine : employé à créer. Un seul pointage : badge de test ou visiteur.",
+              description: "ID pointeuse ayant pointé sans fiche RH. Plusieurs pointages sur des appareils d'usine : employé à créer. Un seul pointage : utilisateur de test ou visiteur.",
               ids: classified.unknownIds,
             })
           : null,
