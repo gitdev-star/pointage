@@ -8,6 +8,8 @@ import os
 import re
 import requests
 from rest_framework import viewsets, filters, status
+from rest_framework.decorators import action as badge_action
+from rest_framework.response import Response as BadgeResponse
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.exceptions import MethodNotAllowed
 from rest_framework.response import Response
@@ -462,6 +464,44 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         )
     )
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    @badge_action(detail=False, methods=["get"], url_path="badge-map")
+    def badge_map(self, request):
+        """Read-only. Splits punch IDs into ACTIVE / ACTIVE matched by matricule / not active."""
+        active, active_fallback, inactive = set(), set(), set()
+        active_total = 0
+        rows = Employee.objects.values_list("employee_id", "device_user_id", "status")
+        for emp_id, dev_id, st in rows.iterator():
+            is_active = (st == "ACTIVE")
+            if is_active:
+                active_total += 1
+            if dev_id is not None:
+                (active if is_active else inactive).add(dev_id)
+            elif is_active:
+                s = str(emp_id or "").strip()
+                if s.isdigit():
+                    active_fallback.add(int(s))
+        active_fallback -= active
+        inactive -= (active | active_fallback)
+        people = [
+            {
+                "employee_id": emp_id,
+                "badge": dev_id,
+                "name": f"{(last or '').strip()} {(first or '').strip()}".strip(),
+                "factory": fac,
+                "department": dep,
+            }
+            for emp_id, dev_id, last, first, fac, dep in Employee.objects.filter(status="ACTIVE")
+            .values_list("employee_id", "device_user_id", "last_name", "first_name",
+                         "factory__name", "department__name").iterator()
+        ]
+        return BadgeResponse({
+            "active_total": active_total,
+            "active": sorted(active),
+            "active_fallback": sorted(active_fallback),
+            "inactive": sorted(inactive),
+            "active_people": people,
+        })
+
     filterset_fields = ["factory", "department", "status", "contract_type"]
     search_fields = ["first_name", "last_name", "employee_id", "email", "job_title__name", "cin", "cnaps", "matricule_paie"]
     ordering_fields = ["last_name", "hire_date", "employee_id"]

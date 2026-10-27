@@ -508,6 +508,8 @@ class KpiResponse(BaseModel):
     presents: int
     late: int
     late_threshold: str
+    present_ids: List[int] = []
+    late_ids: List[int] = []
 
 
 @router.get("/kpi", response_model=KpiResponse)
@@ -536,6 +538,7 @@ async def get_daily_kpi(
     default_rules = _default_rules()
 
     late = 0
+    late_ids = []
     for row in rows:
         rules = schedules.get(row.user_id, default_rules)
         standard_start = rules.standard_start.replace(tzinfo=None) if rules.standard_start.tzinfo else rules.standard_start
@@ -543,12 +546,15 @@ async def get_daily_kpi(
         first_punch = row.first_punch.astimezone(MADAGASCAR_TZ).replace(tzinfo=None) if row.first_punch and row.first_punch.tzinfo else row.first_punch
         if first_punch >= threshold:
             late += 1
+            late_ids.append(row.user_id)
 
     return KpiResponse(
         date=kpi_date,
         presents=presents,
         late=late,
         late_threshold="Standard : 07:36 (variable selon horaire personnalisé)",
+        present_ids=[row.user_id for row in rows],
+        late_ids=late_ids,
     )
 # --------------------------------------------------
 # LATE TODAY — list of employees late today (same logic as /kpi)

@@ -61,6 +61,8 @@ import React from "react";
 import useAttendanceData from "../hook/usePresence";
 import DashboardHeader from "../components/PresenceHeader";
 import StatsGrid from "../components/StatGrid";
+import useBadgeMap from "../hook/useBadgeMap";
+import { classifyPresence } from "../utils/classifyPresence";
 import PresenceCharts from "../components/PresenceChart";
 import LateByFactoryChart from "../components/LateByFactoryChart";
 import useLateByFactory from "../hook/useLateByFactory";
@@ -73,6 +75,8 @@ export default function PresenceDashboard() {
   const today = new Date().toISOString().split("T")[0];
   const { data: factoryData, loading: factoryLoading } = useLateByFactory(state.employeeMap, today);
 
+  const badgeMap = useBadgeMap();
+  const classified = classifyPresence(state.kpi, badgeMap);
   const absentCount = state.totalActive != null && state.kpi?.presents != null
     ? Math.max(0, state.totalActive - state.kpi.presents)
     : 0;
@@ -104,7 +108,7 @@ console.log("CALCUL ABSENCE", {
         onRefresh={actions.fetchAttendance}
         onExport={handleExport}
       />
-      <StatsGrid
+      <StatsGrid classified={classified} attendanceData={state.attendanceData}
         stats={state.stats}
         totalRecords={state.attendanceData.length}
         kpi={state.kpi}
