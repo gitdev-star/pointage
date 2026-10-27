@@ -294,3 +294,4 @@ class CantineListItem(models.Model):
 
     def __str__(self):
         return f"{self.nom} {self.prenom} ({self.matricule})"
+from . import org_sync_signals  # noqa: F401,E402
