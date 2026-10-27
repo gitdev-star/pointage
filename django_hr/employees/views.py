@@ -792,6 +792,14 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 errors += 1
                 continue
 
+            # Default the badge number to the employee_id when it is numeric and free
+            if payload["device_user_id"] is None:
+                raw_emp = str(payload["employee_id"]).strip()
+                if raw_emp.isdigit() and len(raw_emp) <= 9:
+                    cand = int(raw_emp)
+                    if cand not in existing_device_ids and cand not in seen_device_ids:
+                        payload["device_user_id"] = cand
+
             if payload["employee_id"] in existing_ids:
                 results.append({"row": row_num, "employee_id": employee_id, "status": "skipped", "detail": "Employee with this ID already exists."})
                 skipped += 1

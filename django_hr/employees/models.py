@@ -141,6 +141,17 @@ class Employee(models.Model):
     def __str__(self):
         return f"{self.employee_id} - {self.last_name} {self.first_name}"
 
+    def save(self, *args, **kwargs):
+        # On creation only: default the badge number to the employee_id
+        # when it is numeric and not already used by another employee.
+        if self._state.adding and self.device_user_id is None:
+            raw = str(self.employee_id or "").strip()
+            if raw.isdigit() and len(raw) <= 9:
+                cand = int(raw)
+                if not Employee.objects.filter(device_user_id=cand).exists():
+                    self.device_user_id = cand
+        super().save(*args, **kwargs)
+
     @property
     def full_name(self):
         return f"{self.first_name} {self.last_name}"
