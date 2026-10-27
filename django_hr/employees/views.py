@@ -489,10 +489,11 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 "name": f"{(last or '').strip()} {(first or '').strip()}".strip(),
                 "factory": fac,
                 "department": dep,
+                "section": sec,
             }
-            for emp_id, dev_id, last, first, fac, dep in Employee.objects.filter(status="ACTIVE")
+            for emp_id, dev_id, last, first, fac, dep, sec in Employee.objects.filter(status="ACTIVE")
             .values_list("employee_id", "device_user_id", "last_name", "first_name",
-                         "factory__name", "department__name").iterator()
+                         "factory__name", "department__name", "section__name").iterator()
         ]
         return BadgeResponse({
             "active_total": active_total,

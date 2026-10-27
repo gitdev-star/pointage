@@ -108,15 +108,15 @@ function AbsentListModal({ people, onClose }) {
     return people.filter(
       (p) =>
         (!site || p.factory === site) &&
-        (!t || `${p.name} ${p.employee_id} ${p.effectiveBadge ?? ""} ${p.department ?? ""}`.toLowerCase().includes(t))
+        (!t || `${p.name} ${p.employee_id} ${p.effectiveBadge ?? ""} ${p.department ?? ""} ${p.section ?? ""}`.toLowerCase().includes(t))
     );
   }, [people, q, site]);
 
   const exportCsv = () => {
     const esc = (v) => '"' + String(v ?? "").replace(/"/g, '""') + '"';
-    const lines = [["Matricule", "Nom", "Badge", "Site", "Departement"].map(esc).join(",")];
+    const lines = [["Matricule", "Nom", "Badge", "Site", "Departement", "Section"].map(esc).join(",")];
     list.forEach((p) =>
-      lines.push([p.employee_id, p.name, p.effectiveBadge ?? "", p.factory, p.department].map(esc).join(","))
+      lines.push([p.employee_id, p.name, p.effectiveBadge ?? "", p.factory, p.department, p.section].map(esc).join(","))
     );
     const blob = new Blob(["\ufeff" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -130,7 +130,7 @@ function AbsentListModal({ people, onClose }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
       <div
-        className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[85vh] flex flex-col"
+        className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[85vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between p-5 border-b">
@@ -150,7 +150,7 @@ function AbsentListModal({ people, onClose }) {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Rechercher nom, matricule, badge, département"
+            placeholder="Rechercher nom, matricule, badge, département, section"
             className="flex-1 border rounded-lg px-3 py-1.5 text-sm"
           />
           <select value={site} onChange={(e) => setSite(e.target.value)} className="border rounded-lg px-2 py-1.5 text-sm">
@@ -169,7 +169,8 @@ function AbsentListModal({ people, onClose }) {
                 <th className="py-2 pr-3">Nom</th>
                 <th className="py-2 pr-3">Badge</th>
                 <th className="py-2 pr-3">Site</th>
-                <th className="py-2">Département</th>
+                <th className="py-2 pr-3">Département</th>
+                <th className="py-2">Section</th>
               </tr>
             </thead>
             <tbody>
@@ -179,7 +180,8 @@ function AbsentListModal({ people, onClose }) {
                   <td className="py-2 pr-3 font-medium text-gray-800">{p.name || "—"}</td>
                   <td className="py-2 pr-3">{p.effectiveBadge ?? "Sans badge"}</td>
                   <td className="py-2 pr-3">{p.factory || "—"}</td>
-                  <td className="py-2">{p.department || "—"}</td>
+                  <td className="py-2 pr-3">{p.department || "—"}</td>
+                  <td className="py-2">{p.section || "—"}</td>
                 </tr>
               ))}
             </tbody>
