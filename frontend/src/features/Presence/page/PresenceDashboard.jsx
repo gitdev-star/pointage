@@ -43,10 +43,10 @@
 //       />
 
 //       <PresenceCharts
-//         kpi={state.kpi}
-//         totalActive={state.totalActive}
+//         kpi={chartKpi}
+//         totalActive={chartTotal}
 //         attendanceData={state.attendanceData}
-//         absentCount={absentCount} 
+//         absentCount={chartAbsent ?? absentCount} 
 //       />
 //     </div>
 //   );
@@ -77,6 +77,11 @@ export default function PresenceDashboard() {
 
   const badgeMap = useBadgeMap();
   const classified = classifyPresence(state.kpi, badgeMap);
+  const chartKpi = classified
+    ? { ...state.kpi, presents: classified.presentActive, late: classified.lateActive }
+    : state.kpi;
+  const chartTotal = classified ? classified.totalActive : state.totalActive;
+  const chartAbsent = classified ? Math.max(0, classified.totalActive - classified.presentActive) : null;
   const absentCount = state.totalActive != null && state.kpi?.presents != null
     ? Math.max(0, state.totalActive - state.kpi.presents)
     : 0;

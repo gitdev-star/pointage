@@ -15,7 +15,7 @@ const DONUT_COLORS = {
 
 function DonutChart({ kpi, totalActive, absentCount }) {
     const retards  = kpi?.late ?? 0;
-  const presents = kpi.presents ?? 0;
+  const presents = Math.max(0, (kpi?.presents ?? 0) - retards);
   const absents  = absentCount ?? 0;
 
   const total = presents + retards + absents; // ← total réel du donut
