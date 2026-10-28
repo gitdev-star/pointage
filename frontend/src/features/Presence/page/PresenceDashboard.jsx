@@ -43,10 +43,10 @@
 //       />
 
 //       <PresenceCharts
-//         kpi={chartKpi}
-//         totalActive={chartTotal}
+//         kpi={state.kpi}
+//         totalActive={state.totalActive}
 //         attendanceData={state.attendanceData}
-//         absentCount={chartAbsent ?? absentCount} 
+//         absentCount={absentCount} 
 //       />
 //     </div>
 //   );
@@ -122,10 +122,10 @@ console.log("CALCUL ABSENCE", {
       />
 
       <PresenceCharts
-        kpi={state.kpi}
-        totalActive={state.totalActive}
+        kpi={chartKpi}
+        totalActive={chartTotal}
         attendanceData={state.attendanceData}
-        absentCount={absentCount}
+        absentCount={chartAbsent ?? absentCount}
       />
 
       <LateByFactoryChart data={factoryData} loading={factoryLoading} />
