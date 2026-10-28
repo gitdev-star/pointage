@@ -259,10 +259,7 @@ export default function StatsGrid({
     );
     // Data-quality card: only shown when there is something to fix
     if (classified.viaMatricule > 0) {
-      kpiCards.push({
-        title: "Actifs reconnus par matricule", value: classified.viaMatricule,
-        sub: "device_user_id vide dans RH", percent: null, icon: UserCheck, color: "blue",
-      });
+      kpiCards.push();
     }
   }
 
