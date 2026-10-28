@@ -1,9 +1,17 @@
 import React from "react";
 import {
   Paper, Table, TableBody, TableCell, TableContainer,
-  TableHead, TableRow, Checkbox, CircularProgress, TablePagination
+  TableHead, Chip, TableRow, Checkbox, CircularProgress, TablePagination
 } from "@mui/material";
 import { formatDateFR } from "../../../utils/dateUtils";
+// Libellé et couleur du statut de l'employé.
+const STATUTS = {
+  ACTIVE:     { label: "Actif",    color: "success" },
+  ON_LEAVE:   { label: "En congé", color: "warning" },
+  INACTIVE:   { label: "Inactif",  color: "default" },
+  TERMINATED: { label: "Parti",    color: "error" },
+};
+
 
 export default function EmployeeDocumentTable({
   employees,
@@ -77,7 +85,15 @@ export default function EmployeeDocumentTable({
                   <TableCell>{emp.job_title_name || emp.job_title || "—"}</TableCell>
                   <TableCell>{formatDateFR(emp.hire_date)}</TableCell>
                   <TableCell>{emp.department_name || "—"}</TableCell>
-                  <TableCell>{emp.status}</TableCell>
+                  <TableCell>
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      label={STATUTS[emp.status]?.label || emp.status || "—"}
+                      color={STATUTS[emp.status]?.color || "default"}
+                    />
+                  </TableCell>
+
                 </TableRow>
               ))
             )}

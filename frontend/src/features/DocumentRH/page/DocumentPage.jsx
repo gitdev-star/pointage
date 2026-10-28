@@ -75,7 +75,6 @@ const fetchEmployees = async () => {
       params: {
         page: page + 1,
         page_size: rowsPerPage,
-        status: "ACTIVE",
         search: search || undefined,
         contract_type: cddType ? "CDD" : undefined,
         ref_month: cddType ? refMonth : undefined,
