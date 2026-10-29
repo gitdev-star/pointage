@@ -33,6 +33,7 @@ from app.models.attendance import Attendance
 from app.services.analysis_service import (
     _analyze_day,
     get_schedule_for_employee,
+    heures_effectuees,
     ScheduleRules,
 )
 
@@ -69,6 +70,8 @@ class LateDay:
     day_name:     str
     arrival:      Optional[str]   # "HH:MM" or None
     minutes_late: int             # minutes after schedule work_start
+    departure:    Optional[str] = None    # "HH:MM" or None
+    hours_done:   Optional[float] = None  # sortie − max(arrivée, début d'horaire)
 
 
 @dataclass
@@ -331,6 +334,8 @@ async def compute_late_report(
                     day_name     = day_rec.day_name,
                     arrival      = _hhmm(day_rec.arrival),
                     minutes_late = _minutes_late(day_rec.arrival, rules),
+                    departure    = _hhmm(day_rec.departure),
+                    hours_done   = heures_effectuees(day_rec.arrival, day_rec.departure, rules),
                 ))
 
         if len(late_days_out) < min_late:

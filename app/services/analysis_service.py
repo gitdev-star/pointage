@@ -354,6 +354,19 @@ def _analyze_day(row, rules: ScheduleRules) -> DayRecord:
 
 
 
+def heures_effectuees(arrival: Optional[datetime], departure: Optional[datetime],
+                      rules: ScheduleRules) -> Optional[float]:
+    """
+    Heures effectuées = sortie − arrivée, le décompte partant au plus tôt du
+    début d'horaire (07:30 par défaut) même si l'employé arrive avant.
+    Sans plafond ni déduction de pause — utilisé par les rapports HS et retards.
+    """
+    if not arrival or not departure:
+        return None
+    debut = max(arrival, datetime.combine(arrival.date(), rules.standard_start))
+    if departure <= debut:
+        return 0.0
+    return round((departure - debut).total_seconds() / 3600.0, 2)
 
 _bulk_import_broken = False  # remember failure across calls in this process
 
