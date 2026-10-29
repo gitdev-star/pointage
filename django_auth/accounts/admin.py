@@ -147,11 +147,20 @@ class EntraImportView(View):
             messages.warning(request, f"L'utilisateur '{username}' existe déjà.")
             return redirect("/admin/entra-import/")
 
+        entra_user = next((u for u in list_entra_users() if u["username"] == username), None)
+        if not entra_user:
+            messages.error(request, f"'{username}' introuvable dans Entra ID.")
+            return redirect("/admin/entra-import/")
+        if role not in dict(User.ROLE_CHOICES):
+            messages.error(request, "Rôle invalide.")
+            return redirect("/admin/entra-import/")
+
         user = User.objects.create(
-            username=username,
-            email=email,
-            first_name=first_name,
-            last_name=last_name,
+            username=entra_user["username"],
+            email=entra_user["email"],
+            first_name=entra_user["first_name"],
+            last_name=entra_user["last_name"],
+            entra_oid=entra_user.get("oid") or None,
             role=role,
             is_active=True,
         )

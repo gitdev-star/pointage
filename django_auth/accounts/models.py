@@ -10,6 +10,7 @@ class User(AbstractUser):
         ('EMPLOYEE', 'Employee'),
     )
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='EMPLOYEE')
+    entra_oid = models.CharField(max_length=36, null=True, blank=True, unique=True)
 
     def __str__(self):
         return f"{self.username} ({self.role})"
