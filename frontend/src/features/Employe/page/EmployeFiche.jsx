@@ -5,7 +5,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate }                  from "react-router-dom";
 import {
-  Box, Paper, Chip, Avatar, Button, Tabs, Tab,
+  Box, Paper, Chip, Button, Tabs, Tab,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   CircularProgress, Alert, Divider, TablePagination,
 } from "@mui/material";
@@ -15,6 +15,8 @@ import DownloadIcon from "@mui/icons-material/Download";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 
 import hrClient from "../../../api/hrClient";
+import { useHRAuth } from "../../../contexts/HRAuthContext";
+import EmployeePhotoEditor from "../components/EmployeePhotoEditor";
 import DocumentsRH from "../../../components/hr/DocumentsRH";
 import EmployeeScheduleTab           from "../page/EmployeeScheduleTab";
 import { useEmployeeFilters }        from "../hooks/useEmployeFilter";
@@ -300,6 +302,7 @@ function FicheDetail() {
   const { id }   = useParams();
   const navigate = useNavigate();
 
+  const { can } = useHRAuth();
   const [employee,  setEmployee]  = useState(null);
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState(null);
@@ -454,9 +457,14 @@ function FicheDetail() {
 
       <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
         <div className="flex gap-5 items-start">
-          <Avatar src={employee.photo} sx={{ width: 100, height: 100, fontSize: 36, bgcolor: "primary.main" }}>
-            {employee.first_name?.[0]}{employee.last_name?.[0]}
-          </Avatar>
+          <EmployeePhotoEditor
+            employee={employee}
+            size={100}
+            fontSize={36}
+            canEdit={can("employees_write")}
+            avatarSx={{ bgcolor: "primary.main" }}
+            onUpdated={(photo) => setEmployee((prev) => ({ ...prev, photo }))}
+          />
           <div className="flex-1">
             <div className="flex justify-between items-start">
               <div>

@@ -26,6 +26,7 @@ import {
   buildApiParams, validateEmployeeForm,
 } from "../utils/EmployeUtil";
 import EmployeeModal from "../components/EmployeForm";
+import EmployeePhotoEditor from "../components/EmployeePhotoEditor";
 
 // ─── Styles d'impression ───────────────────────────────────────────────────────
 
@@ -578,13 +579,19 @@ function LastActionCell({ action, at, by }) {
                 ) : employees.map((emp, i) => (
                   <TableRow
                     key={emp.id} hover
-                    sx={{ cursor: "pointer", bgcolor: i % 2 === 0 ? "#fff" : "#fafafa" }}
+                    sx={{ cursor: "pointer", bgcolor: i % 2 === 0 ? "#ffffff" : "#d8d8d8" }}
                     onClick={() => navigate(`/hr/employees/${emp.id}`)}
                   >
                     <TableCell className="no-print">
-                      <Avatar src={emp.photo} sx={{ width: 64, height: 64, fontSize: 22 }}>
-                        {emp.first_name?.[0]}{emp.last_name?.[0]}
-                      </Avatar>
+                      <EmployeePhotoEditor
+                        employee={emp}
+                        size={64}
+                        fontSize={22}
+                        canEdit={can("employees_write")}
+                        onUpdated={(photo) =>
+                          setEmployees((list) => list.map((x) => (x.id === emp.id ? { ...x, photo } : x)))
+                        }
+                      />
                     </TableCell>
                     <TableCell sx={{ fontFamily: "monospace", fontSize: 12, color: "#1565c0" }}>{emp.employee_id}</TableCell>
                     <TableCell sx={{ fontWeight: 600, fontSize: 13 }}>{emp.last_name} {emp.first_name}</TableCell>
