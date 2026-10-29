@@ -48,7 +48,8 @@ def notify_overtime_report(factory, periode_label: str, slug: str, rows: list,
     ])
     for r in sorted(rows, key=lambda r: r["full_name"]):
         employe = [
-            _texte_excel(r["full_name"]), _texte_excel(r["employee_id"]), r.get("department") or "—", r.get("job_title") or "—",
+            _texte_excel(r["full_name"]), _texte_excel(r["employee_id"]),
+            r.get("department") or "—", r.get("job_title") or "—",
             r["overtime_days"], _csv_decimal(r["overtime_hours"]), format_heures(r["overtime_hours"]),
         ]
         for i, d in enumerate(r.get("days") or [{}]):
