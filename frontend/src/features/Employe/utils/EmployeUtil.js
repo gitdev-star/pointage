@@ -96,6 +96,7 @@
       if (!formData.department)          errors.department  = "Requis";
       if (!formData.job_title)           errors.job_title   = "Requis";
       if (!formData.hire_date)           errors.hire_date   = "Requis";
+      if (!formData._id && !formData.compte_bancaire) errors.compte_bancaire = "Requis";
       if (formData.email && !EMAIL_REGEX.test(formData.email))
         errors.email = "Email invalide";
       return errors;

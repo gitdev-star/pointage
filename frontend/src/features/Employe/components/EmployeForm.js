@@ -26,7 +26,7 @@
   import ContactMailOutlinedIcon from "@mui/icons-material/ContactMailOutlined";
   import BusinessOutlinedIcon from "@mui/icons-material/BusinessOutlined";
 
-  import { STATUS_LABELS, SEXE_OPTIONS, CONTRACT_LABELS } from "../constants/Employe.constant";
+  import { STATUS_LABELS, SEXE_OPTIONS, CONTRACT_LABELS, COMPTE_BANCAIRE_LABELS } from "../constants/Employe.constant";
 
   /* ── Helpers ─────────────────────────────────────────── */
 
@@ -587,6 +587,29 @@ function RequiredLabel({ text }) {
             </Select>
           </FormControl>
       </Row>
+
+      {/* Compte bancaire : choisi à l'ajout, modifié ensuite depuis la liste des employés */}
+{modalMode === "add" && (
+  <Row cols="1fr 2fr">
+    <FormControl {...sm} error={!!formErrors.compte_bancaire}>
+      <InputLabel>Compte bancaire</InputLabel>
+      <Select
+        value={formData.compte_bancaire || ""}
+        label={<RequiredLabel text="Compte bancaire" />}
+        onChange={(e) => handleFormChange("compte_bancaire", e.target.value)}
+        sx={inputSx}
+      >
+        {Object.entries(COMPTE_BANCAIRE_LABELS).map(([k, v]) => (
+          <MenuItem key={k} value={k}>{v}</MenuItem>
+        ))}
+      </Select>
+      {formErrors.compte_bancaire && <FormHelperText>{formErrors.compte_bancaire}</FormHelperText>}
+    </FormControl>
+    <Box />
+  </Row>
+)}
+
+
 
 {/* Champs affichés uniquement si l'employé est marqué "Parti" */}
 {formData.status === "TERMINATED" && (

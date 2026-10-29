@@ -11,7 +11,7 @@ from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action as badge_action
 from rest_framework.response import Response as BadgeResponse
 from rest_framework.decorators import action, api_view, permission_classes
-from rest_framework.exceptions import MethodNotAllowed
+from rest_framework.exceptions import MethodNotAllowed, PermissionDenied
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import IsAuthenticated
@@ -448,6 +448,13 @@ class DepartmentViewSet(AuditedModelViewSet):
         return Response(EmployeeListSerializer(emps, many=True).data)
 
 
+def _exiger_perm_compte_bancaire(request):
+    """Seules les personnes autorisées modifient le compte bancaire d'un employé existant."""
+    profile = get_hr_profile(request)
+    if not (profile and profile.has_perm("employees_bank_write")):
+        raise PermissionDenied("Vous n'avez pas le droit de modifier le compte bancaire.")
+
+    
 class EmployeeViewSet(viewsets.ModelViewSet):
     queryset = (
         Employee.objects
@@ -461,6 +468,8 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             "factory__id", "factory__name",
             "department__id", "department__name",
             "classification__id_classification", "classification__classe",
+            "compte_bancaire",
+
         )
     )
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -503,7 +512,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             "active_people": people,
         })
 
-    filterset_fields = ["factory", "department", "status", "contract_type"]
+    filterset_fields = ["factory", "department", "status", "contract_type", "compte_bancaire"]    
     search_fields = ["first_name", "last_name", "employee_id", "email", "job_title__name", "cin", "cnaps", "matricule_paie"]
     ordering_fields = ["last_name", "hire_date", "employee_id"]
     http_method_names = ["get", "post", "put", "patch", "head", "options"]
@@ -688,6 +697,9 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         log_action(self.request, serializer.instance, "CREATE")
 
     def perform_update(self, serializer):
+        new_compte = serializer.validated_data.get("compte_bancaire", serializer.instance.compte_bancaire)
+        if new_compte != serializer.instance.compte_bancaire:
+            _exiger_perm_compte_bancaire(self.request)
         old_status = serializer.instance.status
         old_data = snapshot(serializer.instance)
 
@@ -719,6 +731,30 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         super().perform_destroy(instance)
 
         
+
+    @action(detail=True, methods=["patch"], url_path="compte-bancaire")
+    def compte_bancaire(self, request, pk=None):
+        """
+        Body : { "compte_bancaire": "RIB" | "OUVERTURE" }
+        Modification depuis la colonne « Compte bancaire » de la liste.
+        """
+        _exiger_perm_compte_bancaire(request)
+        valeur = request.data.get("compte_bancaire")
+        if valeur not in Employee.CompteBancaire.values:
+            return Response(
+                {"compte_bancaire": "Valeur attendue : RIB ou OUVERTURE."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        employee = Employee.objects.get(pk=self.get_object().pk)
+        if employee.compte_bancaire != valeur:
+            ancien = employee.compte_bancaire
+            employee.compte_bancaire = valeur
+            employee.save(update_fields=["compte_bancaire", "updated_at"])
+            log_action(request, employee, "UPDATE",
+                       {"compte_bancaire": {"old": ancien, "new": valeur}})
+        return Response({"id": employee.id, "compte_bancaire": employee.compte_bancaire})
+
+
 
     @action(detail=False, methods=["get"], url_path="by-device/(?P<device_user_id>[0-9]+)")
     def by_device(self, request, device_user_id=None):

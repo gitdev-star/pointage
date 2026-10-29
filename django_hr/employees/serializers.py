@@ -84,7 +84,7 @@ class EmployeeListSerializer(serializers.ModelSerializer):
             "department", "department_name",
             "classification", "classification_name",
             "section", "section_name",
-            "status", "device_user_id", "sexe", "contract_type", "hire_date",
+            "status", "device_user_id", "sexe", "contract_type", "hire_date", "compte_bancaire",
             "last_action", "last_action_at", "last_action_by",
         ]
 
@@ -185,6 +185,7 @@ class EmployeeDetailSerializer(serializers.ModelSerializer):
             "matricule_paie", "affectation", "hk_ou_pbi", "n_rh",
             "motif_depart", "salaire",
             "classification", "classification_name",
+            "compte_bancaire",
             "created_at", "updated_at",
         ]
 
@@ -195,6 +196,8 @@ class EmployeeDetailSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"department": "This department does not belong to the selected factory."}
             )
+        if self.instance is None and not data.get("compte_bancaire"):
+            raise serializers.ValidationError({"compte_bancaire": MSG_REQUIRED})
         cin = data.get("cin")
         if cin:
             qs = Employee.objects.filter(cin=cin)

@@ -18,7 +18,7 @@ import { useHRAuth } from "../../contexts/HRAuthContext";
 
 // ── Modules & permissions, mirrored from HRProfile model ──────────────
 const MODULES = [
-  { key: "employees",    label: "Employés",       perms: ["read", "write", "delete"] },
+  { key: "employees",    label: "Employés",       perms: ["read", "write", "delete", "bank_write"] },
   { key: "payroll",      label: "Paie",           perms: ["read", "write", "validate"] },
   { key: "leaves",       label: "Congés",         perms: ["read", "write", "approve"] },
   { key: "reports",      label: "Rapports",       perms: ["read"] },
@@ -55,7 +55,7 @@ const STANDALONE_PERMS = [
   { field: "perm_hr_users_manage", label: "Gestion des utilisateurs RH" },
 ];
 
-const PERM_LABELS = { read: "Lecture", write: "Écriture", delete: "Suppression", validate: "Validation", approve: "Approbation" };
+const PERM_LABELS = { read: "Lecture", write: "Écriture", delete: "Suppression", validate: "Validation", approve: "Approbation", bank_write: "Modifier compte bancaire" };
 
 const buildPermFieldName = (moduleKey, perm) => `perm_${moduleKey}_${perm}`;
 

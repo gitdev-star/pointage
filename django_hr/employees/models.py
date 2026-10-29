@@ -94,6 +94,10 @@ class Employee(models.Model):
         ON_LEAVE   = "ON_LEAVE",   "On Leave"
         TERMINATED = "TERMINATED", "Terminated"
 
+    class CompteBancaire(models.TextChoices):
+        RIB        = "RIB",        "RIB"
+        OUVERTURE  = "OUVERTURE",  "Ouverture"
+
     employee_id      = models.CharField(max_length=100, unique=True)
     first_name       = models.CharField(max_length=255, blank=True, null=True)
     last_name        = models.CharField(max_length=255, blank=True, null=True)
@@ -125,6 +129,7 @@ class Employee(models.Model):
     n_rh             = models.CharField(max_length=100, blank=True, null=True)
     motif_depart     = models.CharField(max_length=500, blank=True, null=True)
     salaire          = models.CharField(max_length=50, blank=True, null=True)
+    compte_bancaire  = models.CharField(max_length=20, choices=CompteBancaire.choices, blank=True, null=True)
     classification   = models.ForeignKey(Classification, on_delete=models.SET_NULL, null=True, blank=True, related_name="employees")
     created_at       = models.DateTimeField(auto_now_add=True, null=True)
     updated_at       = models.DateTimeField(auto_now=True, null=True)

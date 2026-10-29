@@ -26,6 +26,7 @@ class HRProfile(models.Model):
     perm_employees_read    = models.BooleanField(default=False)
     perm_employees_write   = models.BooleanField(default=False)
     perm_employees_delete  = models.BooleanField(default=False)
+    perm_employees_bank_write = models.BooleanField(default=False)
     perm_payroll_read      = models.BooleanField(default=False)
     perm_payroll_write     = models.BooleanField(default=False)
     perm_payroll_validate  = models.BooleanField(default=False)

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate }                              from "react-router-dom";
 import {Typography, Paper, Avatar, Button, Chip, IconButton, Tooltip,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  Select, MenuItem,
   CircularProgress, Alert, TablePagination,
   Dialog, DialogTitle, DialogContent, DialogActions,
 } from "@mui/material";
@@ -20,7 +21,7 @@ import { useExportCSV }            from "../hooks/useExportCSV";
 import { EmployeeFilterBar }       from "../components/EmployeFilterBar";
 import { StatusBadge, ContractBadge } from "../components/EmployeComponent";
 import {
-  EMPTY_EMPLOYEE_FORM, DEFAULT_PAGE_SIZE,
+  EMPTY_EMPLOYEE_FORM, DEFAULT_PAGE_SIZE, COMPTE_BANCAIRE,
 } from "../constants/Employe.constant";
 import {
   buildApiParams, validateEmployeeForm,
@@ -113,6 +114,45 @@ const PRINT_STYLE = `
     }
   }
 `;
+
+// ─── Colonne « Compte bancaire » ───────────────────────────────────────────────
+// Badge pour tous ; liste déroulante pour ceux qui ont employees_bank_write.
+
+function CompteBancaireCell({ emp, canEdit, onChange }) {
+  const s = COMPTE_BANCAIRE[emp.compte_bancaire];
+  if (!canEdit) {
+    if (!s) return <span className="text-gray-400 text-xs">—</span>;
+    return (
+      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${s.tw.bg} ${s.tw.text}`}>
+        {s.label}
+      </span>
+    );
+  }
+  return (
+    // stopPropagation : un clic dans la liste ne doit pas ouvrir la fiche employé
+    <span onClick={(e) => e.stopPropagation()}>
+      <Select
+        size="small" variant="standard" disableUnderline displayEmpty
+        value={emp.compte_bancaire || ""}
+        onChange={(e) => onChange(emp, e.target.value)}
+        renderValue={(v) => {
+          const c = COMPTE_BANCAIRE[v];
+          return c ? (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${c.tw.bg} ${c.tw.text}`}>
+              {c.label}
+            </span>
+          ) : <span className="text-gray-400 text-xs">—</span>;
+        }}
+        sx={{ fontSize: 12 }}
+      >
+        {Object.entries(COMPTE_BANCAIRE).map(([k, v]) => (
+          <MenuItem key={k} value={k} sx={{ fontSize: 13 }}>{v.label}</MenuItem>
+        ))}
+      </Select>
+    </span>
+  );
+}
+
 
 // ─── Composant principal ───────────────────────────────────────────────────────
 
@@ -321,6 +361,8 @@ const handleSave = async () => {
       payload.append("device_user_id", formData.device_user_id);
     if (formData.auth_user_id != null && formData.auth_user_id !== "")
       payload.append("auth_user_id", formData.auth_user_id);
+    if (modalMode === "add" && formData.compte_bancaire)
+      payload.append("compte_bancaire", formData.compte_bancaire);
     if (photoFile) {
       payload.append("photo", photoFile);
     } else if (modalMode === "edit" && !photoPreview) {
@@ -418,6 +460,26 @@ const handleSave = async () => {
   setSaving(false);
 }
 };
+
+  // ─── Compte bancaire (modifié directement dans la liste) ──────────────────────
+
+  const handleCompteBancaire = async (emp, valeur) => {
+    if (!valeur || valeur === emp.compte_bancaire) return;
+    try {
+      await hrClient.patch(`employees/${emp.id}/compte-bancaire/`, { compte_bancaire: valeur });
+      setEmployees((prev) => prev.map((e) => (e.id === emp.id ? { ...e, compte_bancaire: valeur } : e)));
+      setAlert({
+        type: "success",
+        msg: `Compte bancaire de ${emp.last_name} ${emp.first_name || ""} : ${COMPTE_BANCAIRE[valeur].label}.`,
+      });
+    } catch (err) {
+      setAlert({
+        type: "error",
+        msg: err.response?.data?.detail || "Erreur lors de la modification du compte bancaire.",
+      });
+    }
+  };
+
 
   // ─── Delete ───────────────────────────────────────────────────────────────────
 
@@ -557,6 +619,7 @@ function LastActionCell({ action, at, by }) {
                   <TableCell><strong>Usine</strong></TableCell>
                   <TableCell><strong>Contrat</strong></TableCell>
                   <TableCell><strong>Statut</strong></TableCell>
+                  <TableCell><strong>Compte bancaire</strong></TableCell>
                   {(can("employees_write") || can("employees_delete")) && (
                     <TableCell className="no-print"><strong>Actions</strong></TableCell>
                   )}
@@ -600,6 +663,14 @@ function LastActionCell({ action, at, by }) {
                     <TableCell sx={{ fontSize: 12 }}>{emp.factory_name}</TableCell>
                     <TableCell><ContractBadge value={emp.contract_type} /></TableCell>
                     <TableCell><StatusBadge value={emp.status} /></TableCell>
+                    <TableCell>
+                      <CompteBancaireCell
+                        emp={emp}
+                        canEdit={can("employees_bank_write")}
+                        onChange={handleCompteBancaire}
+                      />
+                    </TableCell>
+
                     {(can("employees_write") || can("employees_delete")) && (
                       <TableCell className="no-print">
                         <div className="flex gap-1">

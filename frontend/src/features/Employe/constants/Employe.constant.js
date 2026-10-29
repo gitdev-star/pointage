@@ -23,6 +23,15 @@ export const CONTRACT_TYPES = {
 
 export const CONTRACT_LABELS = Object.fromEntries(Object.entries(CONTRACT_TYPES).map(([k, v]) => [k, v.label]));
 
+// ── Compte bancaire ───────────────────────────────────────────────────────────
+
+export const COMPTE_BANCAIRE = {
+  RIB:       { label: "RIB",       tw: { bg: "bg-green-50", text: "text-green-800" } },
+  OUVERTURE: { label: "Ouverture", tw: { bg: "bg-amber-50", text: "text-amber-800" } },
+};
+
+export const COMPTE_BANCAIRE_LABELS = Object.fromEntries(Object.entries(COMPTE_BANCAIRE).map(([k, v]) => [k, v.label]));
+
 // ── Congés ────────────────────────────────────────────────────────────────────
 
 export const LEAVE_STATUS_CHIP_COLORS = {
@@ -62,6 +71,7 @@ export const EMPTY_EMPLOYEE_FORM = {
   motif_depart: "",
   matricule_paie: "", affectation: "", hk_ou_pbi: "",
   n_rh: "", salaire: "", classification: "",
+  compte_bancaire: "",
   device_user_id: "", auth_user_id: "",
 };
 
