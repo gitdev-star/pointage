@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.database import init_db
 from app.routers import attendance_routes, hr_routes
 from app.routers.late_report import router as late_report_router
+from app.routers.overtime_report import router as overtime_report_router
 from app.routers.devices import router as devices_router
 import sentry_sdk
 from sentry_sdk.integrations.fastapi import FastApiIntegration
@@ -86,6 +87,7 @@ async def log_requests(request, call_next):
 app.include_router(attendance_routes.router, prefix="/attendance")
 app.include_router(hr_routes.router)
 app.include_router(late_report_router)
+app.include_router(overtime_report_router)
 app.include_router(devices_router)
 app.include_router(adms_routes.router)
 app.include_router(device_admin_routes.router)

@@ -728,6 +728,18 @@ MONTH_NAMES_FR = [
     "Juillet", "Aout", "Septembre", "Octobre", "Novembre", "Decembre",
 ]
 
+JOURS_FR = {
+    "Monday": "Lundi", "Tuesday": "Mardi", "Wednesday": "Mercredi", "Thursday": "Jeudi",
+    "Friday": "Vendredi", "Saturday": "Samedi", "Sunday": "Dimanche",
+}
+
+
+def format_heures(heures) -> str:
+    """12.5 → '12h30' ; None → ''."""
+    if heures is None:
+        return ""
+    minutes = int(round(heures * 60))
+    return f"{minutes // 60}h{minutes % 60:02d}"
 
 def notify_monthly_hc_late_report(month: int, year: int, min_late: int, rows: list, recipients: list = None):
     """Monthly late-report summary for HC (managers) employees only.
@@ -752,13 +764,14 @@ def notify_monthly_hc_late_report(month: int, year: int, min_late: int, rows: li
         "Nom", "Matricule", "Departement", "Poste",
         "Nb retards", "Jours presents", "Taux retard (%)",
         "Date", "Jour", "Heure arrivee", "Minutes de retard",
+        "Heure sortie", "Heures effectuees",
     ])
     for r in rows:
         late_days = r.get("late_days") or []
         if not late_days:
             writer.writerow([
                 r["full_name"], r["employee_id"], r.get("department", "—"), r.get("job_title", "—"),
-                r["late_count"], r["total_days_present"], r["late_rate_pct"], "", "", "", "",
+                r["late_count"], r["total_days_present"], r["late_rate_pct"], "", "", "", "", "", "",
             ])
             continue
         for i, ld in enumerate(late_days):
@@ -771,9 +784,11 @@ def notify_monthly_hc_late_report(month: int, year: int, min_late: int, rows: li
                 r["total_days_present"] if i == 0 else "",
                 r["late_rate_pct"]      if i == 0 else "",
                 ld.get("date", ""),
-                ld.get("day_name", ""),
+                JOURS_FR.get(ld.get("day_name", ""), ld.get("day_name", "")),
                 ld.get("arrival") or "—",
                 ld.get("minutes_late", 0),
+                ld.get("departure") or "—",
+                format_heures(ld.get("hours_done")) or "—",
             ])
     csv_content = buf.getvalue()
 

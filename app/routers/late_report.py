@@ -39,6 +39,8 @@ class LateDaySchema(BaseModel):
     day_name:     str
     arrival:      Optional[str]
     minutes_late: int
+    departure:    Optional[str] = None
+    hours_done:   Optional[float] = None
 
     class Config:
         from_attributes = True
@@ -158,6 +160,8 @@ async def get_late_report(
                         day_name     = ld.day_name,
                         arrival      = ld.arrival,
                         minutes_late = ld.minutes_late,
+                        departure    = ld.departure,
+                        hours_done   = ld.hours_done,
                     ) for ld in e.late_days
                 ],
                 total_days_present = e.total_days_present,
