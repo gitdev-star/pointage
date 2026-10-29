@@ -12,7 +12,7 @@ from .ldap_service import list_ldap_users, authenticate_ldap_user
 
 
 from .entra_service import (
-    get_auth_url, acquire_token_by_code,
+    start_auth_flow, acquire_token_by_flow,
     extract_username_from_claims, list_entra_users,
 )
 from django.shortcuts import redirect
@@ -263,7 +263,9 @@ class EntraLoginView(APIView):
 
     def get(self, request):
         try:
-            return redirect(get_auth_url())
+            flow = start_auth_flow()
+            request.session["entra_flow"] = flow
+            return redirect(flow["auth_uri"])
         except RuntimeError as e:
             return Response({"detail": str(e)}, status=500)
 
@@ -291,7 +293,10 @@ class EntraCallbackView(APIView):
         if not code:
             return Response({"detail": "Code manquant."}, status=400)
 
-        claims = acquire_token_by_code(code)
+        flow = request.session.pop("entra_flow", None)
+        if not flow:
+            return Response({"detail": "Session de connexion expirée, recommencez."}, status=400)
+        claims = acquire_token_by_flow(flow, request.GET.dict())
         if not claims:
             return Response({"detail": "Échec authentification Entra ID."}, status=401)
 
@@ -301,9 +306,18 @@ class EntraCallbackView(APIView):
 
         # Same admin-pre-approval model as LDAP: user must
         # already exist locally, imported by an admin.
-        try:
-            user = User.objects.get(username=username)
-        except User.DoesNotExist:
+        oid = claims.get("oid")
+        if not oid:
+            return Response({"detail": "Identifiant Entra ID introuvable."}, status=401)
+        user = User.objects.filter(entra_oid=oid).first()
+        if user is None:
+            # First Entra login of a user imported before entra_oid existed:
+            # link by username, only if that local account isn't linked yet.
+            user = User.objects.filter(username=username, entra_oid__isnull=True).first()
+            if user is not None:
+                user.entra_oid = oid
+                user.save(update_fields=["entra_oid"])
+        if user is None:
             return Response(
                 {"detail": "Accès refusé. Votre compte n'a pas été activé par un administrateur."},
                 status=401
@@ -323,7 +337,7 @@ class EntraCallbackView(APIView):
         # a one-time server-side code the frontend exchanges via POST).
         frontend_url = (
             f"{settings.FRONTEND_URL}/auth/callback"
-            f"?access={refresh.access_token}&refresh={refresh}"
+            f"#access={refresh.access_token}&refresh={refresh}"
         )
         return redirect(frontend_url)
 
@@ -369,6 +383,7 @@ class EntraImportUserView(APIView):
             email=entra_user["email"],
             first_name=entra_user["first_name"],
             last_name=entra_user["last_name"],
+            entra_oid=entra_user.get("oid") or None,
             role=role,
             is_active=True,
         )

@@ -1,4 +1,4 @@
-  import React, { useEffect } from "react";
+  import React, { useEffect, useState } from "react";
   import {
     Dialog,
     DialogTitle,
@@ -18,6 +18,8 @@
   } from "@mui/material";
   import FormHelperText from "@mui/material/FormHelperText";
   import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
+  import CameraAltIcon from "@mui/icons-material/CameraAlt";
+  import WebcamCaptureDialog from "./WebcamCaptureDialog";
   import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
   import BadgeOutlinedIcon from "@mui/icons-material/BadgeOutlined";
   import ContactMailOutlinedIcon from "@mui/icons-material/ContactMailOutlined";
@@ -128,6 +130,14 @@ function RequiredLabel({ text }) {
       setPhotoPreview(null);
     };
 
+    const [cameraOpen, setCameraOpen] = useState(false);
+
+    const handleCameraCapture = (file) => {
+      if (photoPreview?.startsWith("blob:")) URL.revokeObjectURL(photoPreview);
+      setPhotoFile(file);
+      setPhotoPreview(URL.createObjectURL(file));
+    };
+
     const initials = (formData.first_name?.[0] ?? "") + (formData.last_name?.[0] ?? "");
     return (
       <Dialog
@@ -152,6 +162,13 @@ function RequiredLabel({ text }) {
         </DialogTitle>
 
         <DialogContent sx={{ px: 3, pt: 3, pb: 1 }}>
+
+          <WebcamCaptureDialog
+            open={cameraOpen}
+            onClose={() => setCameraOpen(false)}
+            onCapture={handleCameraCapture}
+            fileName={`employee_${formData.employee_id || "new"}.jpg`}
+          />
 
           {/* Photo */}
           <Box
@@ -200,6 +217,15 @@ function RequiredLabel({ text }) {
                 >
                   {photoPreview ? "Changer" : "Ajouter"}
                   <input type="file" hidden accept="image/*" onChange={handlePhotoChange}/>
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => setCameraOpen(true)}
+                  startIcon={<CameraAltIcon sx={{ fontSize: "14px !important" }} />}
+                  sx={{ textTransform: "none", borderRadius: "8px", fontSize: "0.78rem", py: 0.5 }}
+                >
+                  Prendre une photo
                 </Button>
                 {photoPreview && (
                   <IconButton onClick={handleRemovePhoto} color="error" size="small">

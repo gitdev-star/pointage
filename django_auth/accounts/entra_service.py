@@ -102,6 +102,40 @@ def acquire_token_by_code(auth_code):
     return result.get("id_token_claims")
 
 
+def start_auth_flow():
+    """
+    Begin the auth code flow. MSAL generates state, nonce and PKCE.
+    The returned dict must be kept server-side (session) and passed
+    back to acquire_token_by_flow() on the callback.
+    """
+    app = build_msal_app()
+    return app.initiate_auth_code_flow(
+        scopes=["User.Read"],
+        redirect_uri=settings.AZURE_REDIRECT_URI,
+    )
+
+
+def acquire_token_by_flow(flow, auth_response):
+    """
+    Complete the flow. MSAL checks that state and nonce match what
+    start_auth_flow() produced and validates the ID token.
+    Returns the ID token claims dict, or None on failure.
+    """
+    app = build_msal_app()
+    try:
+        result = app.acquire_token_by_auth_code_flow(flow, auth_response)
+    except Exception as e:
+        logger.error(f"Entra ID token exchange error: {e}")
+        return None
+    if "id_token_claims" not in result:
+        logger.error(
+            f"Entra ID token exchange failed: "
+            f"{result.get('error')}: {result.get('error_description')}"
+        )
+        return None
+    return result["id_token_claims"]
+
+
 def extract_username_from_claims(claims):
     """
     Map Entra ID's UPN onto your existing local username scheme.
@@ -183,5 +217,6 @@ def list_entra_users():
             "title": u.get("jobTitle") or "",
             "first_name": u.get("givenName") or "",
             "last_name": u.get("surname") or "",
+            "oid": u.get("id") or "",
         })
     return sorted(users, key=lambda u: u["cn"])
