@@ -2,41 +2,34 @@
 //frontend/src/features/Employe/components/EmployeePhotoEditor.jsx
 //==========================================================
 
-import React, { useRef, useState } from "react";
-import {
-  Avatar, Box, CircularProgress, IconButton, Menu, MenuItem,
-  ListItemIcon, ListItemText, Snackbar, Alert,
-} from "@mui/material";
-import CameraAltIcon      from "@mui/icons-material/CameraAlt";
-import UploadFileIcon     from "@mui/icons-material/UploadFile";
-import DeleteOutlineIcon  from "@mui/icons-material/DeleteOutline";
+import React, { useState } from "react";
+import { Avatar, Box, IconButton } from "@mui/material";
+import CameraAltIcon from "@mui/icons-material/CameraAlt";
 
 import hrClient from "../../../api/hrClient";
-import WebcamCaptureDialog from "./WebcamCaptureDialog";
-
-const MAX_BYTES = 5 * 1024 * 1024; // 5 Mo, same limit as the form
+import PhotoViewerDialog from "./PhotoViewerDialog";
 
 /**
- * Avatar with in-place photo editing (photo only).
+ * Avatar that opens a large viewer on click.
+ * Inside the viewer, users with canEdit can insert / change / delete the photo
+ * (saved immediately, photo field only).
  * Props:
  *  - employee  : { id, employee_id, first_name, last_name, photo }
- *  - size      : avatar size in px
- *  - fontSize  : initials font size
- *  - canEdit   : show the edit badge (permission)
- *  - avatarSx  : extra sx for the Avatar
+ *  - size, fontSize, avatarSx : avatar look
+ *  - canEdit   : permission to edit (employees_write)
  *  - onUpdated : (newPhotoUrl | null) => void
  */
 export default function EmployeePhotoEditor({
   employee, size = 64, fontSize = 22, canEdit = false, avatarSx = {}, onUpdated,
 }) {
-  const fileRef = useRef(null);
-  const [anchor,     setAnchor]     = useState(null);
-  const [cameraOpen, setCameraOpen] = useState(false);
-  const [saving,     setSaving]     = useState(false);
-  const [error,      setError]      = useState(null);
+  const [open,   setOpen]   = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error,  setError]  = useState(null);
 
-  const initials = `${employee.first_name?.[0] ?? ""}${employee.last_name?.[0] ?? ""}`;
-  const badge    = Math.max(32, Math.round(size * 0.42));
+  const initials  = `${employee.first_name?.[0] ?? ""}${employee.last_name?.[0] ?? ""}`;
+  const fullName  = `${employee.last_name ?? ""} ${employee.first_name ?? ""}`.trim();
+  const badge     = Math.max(32, Math.round(size * 0.42));
+  const clickable = canEdit || !!employee.photo;
 
   // file = File to upload, or null to remove the photo
   const savePhoto = async (file) => {
@@ -61,48 +54,34 @@ export default function EmployeePhotoEditor({
     }
   };
 
-  const handleFile = (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = ""; // allows re-selecting the same file
-    if (!file) return;
-    if (!file.type.startsWith("image/")) { setError("Le fichier doit être une image."); return; }
-    if (file.size > MAX_BYTES)           { setError("Image trop lourde (max 5 Mo)."); return; }
-    savePhoto(file);
-  };
-
-  const handleRemove = () => {
-    if (window.confirm("Supprimer la photo de cet employé ?")) savePhoto(null);
-  };
+  const handleClose = () => { setOpen(false); setError(null); };
 
   return (
     // stopPropagation: the list row navigates on click, and React events
-    // from the Menu/Dialog portals would otherwise bubble up to it.
+    // from the viewer's portal would otherwise bubble up to it.
     <Box
       onClick={(e) => e.stopPropagation()}
       sx={{ position: "relative", display: "inline-block", width: size, height: size, flexShrink: 0 }}
     >
       <Avatar
         src={employee.photo || undefined}
-        sx={{ width: size, height: size, fontSize, ...avatarSx }}
+        onClick={clickable ? () => setOpen(true) : undefined}
+        title={canEdit ? "Voir / modifier la photo" : employee.photo ? "Voir la photo" : undefined}
+        sx={{
+          width: size, height: size, fontSize,
+          cursor: clickable ? "pointer" : "default",
+          "&:hover": clickable ? { opacity: 0.85 } : undefined,
+          ...avatarSx,
+        }}
       >
         {initials}
       </Avatar>
 
-      {saving && (
-        <Box sx={{
-          position: "absolute", inset: 0, display: "flex",
-          alignItems: "center", justifyContent: "center",
-          bgcolor: "rgba(255,255,255,0.65)", borderRadius: "50%",
-        }}>
-          <CircularProgress size={Math.round(size / 2.5)} />
-        </Box>
-      )}
-
-      {canEdit && !saving && (
+      {canEdit && (
         <IconButton
           size="small"
-          onClick={(e) => setAnchor(e.currentTarget)}
-          title="Modifier la photo"
+          onClick={() => setOpen(true)}
+          title="Voir / modifier la photo"
           sx={{
             position: "absolute", right: -8, bottom: -8,
             width: badge, height: badge,
@@ -114,37 +93,19 @@ export default function EmployeePhotoEditor({
         </IconButton>
       )}
 
-      <input ref={fileRef} type="file" accept="image/*" hidden onChange={handleFile} />
-
-      <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={() => setAnchor(null)}>
-        <MenuItem onClick={() => { setAnchor(null); fileRef.current?.click(); }}>
-          <ListItemIcon><UploadFileIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>Choisir un fichier</ListItemText>
-        </MenuItem>
-        <MenuItem onClick={() => { setAnchor(null); setCameraOpen(true); }}>
-          <ListItemIcon><CameraAltIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>Prendre une photo</ListItemText>
-        </MenuItem>
-        {employee.photo && (
-          <MenuItem onClick={() => { setAnchor(null); handleRemove(); }} sx={{ color: "error.main" }}>
-            <ListItemIcon><DeleteOutlineIcon fontSize="small" color="error" /></ListItemIcon>
-            <ListItemText>Supprimer la photo</ListItemText>
-          </MenuItem>
-        )}
-      </Menu>
-
-      <WebcamCaptureDialog
-        open={cameraOpen}
-        onClose={() => setCameraOpen(false)}
-        onCapture={(file) => savePhoto(file)}
+      <PhotoViewerDialog
+        open={open}
+        onClose={handleClose}
+        src={employee.photo}
+        title={fullName || "Photo"}
+        initials={initials}
+        canEdit={canEdit}
+        busy={saving}
+        error={error}
+        onFileSelected={savePhoto}
+        onRemove={() => savePhoto(null)}
         fileName={`employee_${employee.employee_id || employee.id}.jpg`}
       />
-
-      <Snackbar open={!!error} autoHideDuration={5000} onClose={() => setError(null)}>
-        <Alert severity="error" onClose={() => setError(null)} sx={{ width: "100%" }}>
-          {error}
-        </Alert>
-      </Snackbar>
     </Box>
   );
 }

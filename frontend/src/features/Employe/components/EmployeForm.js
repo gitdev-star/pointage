@@ -20,6 +20,7 @@
   import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
   import CameraAltIcon from "@mui/icons-material/CameraAlt";
   import WebcamCaptureDialog from "./WebcamCaptureDialog";
+  import PhotoViewerDialog from "./PhotoViewerDialog";
   import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
   import BadgeOutlinedIcon from "@mui/icons-material/BadgeOutlined";
   import ContactMailOutlinedIcon from "@mui/icons-material/ContactMailOutlined";
@@ -131,6 +132,7 @@ function RequiredLabel({ text }) {
     };
 
     const [cameraOpen, setCameraOpen] = useState(false);
+    const [viewerOpen, setViewerOpen] = useState(false);
 
     const handleCameraCapture = (file) => {
       if (photoPreview?.startsWith("blob:")) URL.revokeObjectURL(photoPreview);
@@ -170,6 +172,19 @@ function RequiredLabel({ text }) {
             fileName={`employee_${formData.employee_id || "new"}.jpg`}
           />
 
+          <PhotoViewerDialog
+            open={viewerOpen}
+            onClose={() => setViewerOpen(false)}
+            src={photoPreview}
+            title={`${formData.last_name || ""} ${formData.first_name || ""}`.trim() || "Photo"}
+            initials={initials}
+            canEdit
+            note="La photo sera enregistrée avec l'employé (bouton Enregistrer)."
+            onFileSelected={handleCameraCapture}
+            onRemove={handleRemovePhoto}
+            fileName={`employee_${formData.employee_id || "new"}.jpg`}
+          />
+
           {/* Photo */}
           <Box
             display="flex"
@@ -186,6 +201,9 @@ function RequiredLabel({ text }) {
           >
             <Avatar
               src={photoPreview}
+              onClick={() => setViewerOpen(true)}
+              style={{ cursor: "pointer" }}
+              title="Voir la photo"
               sx={{
                 width: 64,
                 height: 64,
