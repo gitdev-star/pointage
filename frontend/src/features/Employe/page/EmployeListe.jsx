@@ -320,7 +320,12 @@ const handleSave = async () => {
       payload.append("device_user_id", formData.device_user_id);
     if (formData.auth_user_id != null && formData.auth_user_id !== "")
       payload.append("auth_user_id", formData.auth_user_id);
-    if (photoFile) payload.append("photo", photoFile);
+    if (photoFile) {
+      payload.append("photo", photoFile);
+    } else if (modalMode === "edit" && !photoPreview) {
+      // photo removed by the user -> ask the backend to clear it
+      payload.append("photo", "");
+    }
 
     const headers = { "Content-Type": "multipart/form-data" };
 
@@ -543,6 +548,7 @@ function LastActionCell({ action, at, by }) {
             <Table size="small" stickyHeader>
               <TableHead>
                 <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
+                  <TableCell className="no-print"><strong>Photo</strong></TableCell>
                   <TableCell><strong>Matricule</strong></TableCell>
                   <TableCell><strong>Nom</strong></TableCell>
                   <TableCell><strong>Sexe</strong></TableCell>
@@ -575,6 +581,11 @@ function LastActionCell({ action, at, by }) {
                     sx={{ cursor: "pointer", bgcolor: i % 2 === 0 ? "#fff" : "#fafafa" }}
                     onClick={() => navigate(`/hr/employees/${emp.id}`)}
                   >
+                    <TableCell className="no-print">
+                      <Avatar src={emp.photo} sx={{ width: 64, height: 64, fontSize: 22 }}>
+                        {emp.first_name?.[0]}{emp.last_name?.[0]}
+                      </Avatar>
+                    </TableCell>
                     <TableCell sx={{ fontFamily: "monospace", fontSize: 12, color: "#1565c0" }}>{emp.employee_id}</TableCell>
                     <TableCell sx={{ fontWeight: 600, fontSize: 13 }}>{emp.last_name} {emp.first_name}</TableCell>
                     <TableCell sx={{ fontSize: 12 }}>{emp.sexe || "—"}</TableCell>
