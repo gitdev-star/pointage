@@ -66,3 +66,5 @@ config_additions_ENTRA_ID.txt
 test_clocker.py
 *.bak
 *.bak2
+analytics/.venv/
+analytics/.env

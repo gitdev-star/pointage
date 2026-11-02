@@ -12,6 +12,7 @@ import sentry_sdk
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from app.routers import adms_routes
 from app.routers import device_admin_routes
+from app.routers.insights_routes import router as insights_router
 
 
 
@@ -89,6 +90,7 @@ app.include_router(late_report_router)
 app.include_router(devices_router)
 app.include_router(adms_routes.router)
 app.include_router(device_admin_routes.router)
+app.include_router(insights_router)
 
 @app.get("/")
 async def root():
