@@ -102,10 +102,11 @@ def rule_site_volume(cur, d):
         FROM baseline b LEFT JOIN today t USING (net)
         WHERE b.weeks >= 2 AND b.med >= 300
     """, {"d": d})
-    out = []
+    out, ratios = [], {}
     for r in cur.fetchall():
         med, n = float(r["med"]), r["n"]
         ratio = n / med
+        ratios[r["net"]] = ratio
         if ratio >= SITE_DROP_WARN:
             continue
         sev = "critical" if ratio < SITE_DROP_CRIT else "warning"
@@ -115,14 +116,20 @@ def rule_site_volume(cur, d):
                       f"habituellement ({ratio:.0%}). Plusieurs pointeuses du même site semblent touchées "
                       f"(synchronisation, réseau ou électricité).",
                       {"today": n, "baseline_median": med, "ratio": round(ratio, 3)}))
-    return out
+    return out, ratios
 
 
-def tidy(d, alerts):
+def tidy(d, alerts, site_ratios=None):
     """Drop device alerts covered by a site alert; demote near-zero Saturday drops to info."""
     site_nets = {a["scope_value"].rsplit(".", 1)[0] for a in alerts if a["rule"] == "site_volume_drop"}
     out = [a for a in alerts
            if not (a["rule"] == "device_volume_drop" and a["scope_value"].rsplit(".", 1)[0] in site_nets)]
+    for a in out:  # site total stable: employees just use other terminals
+        if a["rule"] == "device_volume_drop" and a["severity"] != "info":
+            net = a["scope_value"].rsplit(".", 1)[0]
+            if (site_ratios or {}).get(net, 0) >= 0.85:
+                a["severity"] = "info"
+                a["message"] += " Total du site stable : probablement une redistribution vers d'autres pointeuses."
     if d.weekday() == 5:  # Saturday: work is optional per site
         for a in out:
             if a["rule"] in ("site_volume_drop", "device_volume_drop"):
@@ -224,8 +231,9 @@ def analyse(cur, d):
     if not global_drop:  # if everything dropped, per-device alerts would only add noise
         out += rule_device_volume(cur, d)
         seen = {a["scope_value"] for a in out if a["rule"] == "site_volume_drop"}
-        out += [a for a in rule_site_volume(cur, d) if a["scope_value"] not in seen]
-        out = tidy(d, out)
+        site, ratios = rule_site_volume(cur, d)
+        out += [a for a in site if a["scope_value"] not in seen]
+        out = tidy(d, out, ratios)
     dbl, total_doubles = rule_double_punches(cur, d)
     out += dbl
     inc, odd, users = rule_incomplete_days(cur, d)
