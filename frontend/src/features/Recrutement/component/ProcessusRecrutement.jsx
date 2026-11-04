@@ -9,6 +9,8 @@ import {
   AlertCircle,
   BriefcaseBusiness,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   CirclePlay,
   Clock3,
   Loader2,
@@ -21,6 +23,7 @@ import {
 import recrutementApi from "../../../api/recrutementApi";
 
 const NOMBRE_ETAPES = 4;
+const TAILLES_PAGE = [20, 50, 100];
 
 const STATUS_CONFIG = {
   PAS_COMMENCE: {
@@ -79,6 +82,22 @@ function formatDate(value) {
     month: "2-digit",
     year: "numeric",
   }).format(date);
+}
+
+// Jour local au format AAAA-MM-JJ (comparaison avec les champs date).
+function jourLocal(value) {
+  if (!value) return "";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const mois = String(date.getMonth() + 1).padStart(2, "0");
+  const jour = String(date.getDate()).padStart(2, "0");
+
+  return `${date.getFullYear()}-${mois}-${jour}`;
 }
 
 function obtenirNombreTotal(demande) {
@@ -371,6 +390,11 @@ export default function ProcessusRecrutement() {
   const [recherche, setRecherche] = useState("");
   const [statut, setStatut] = useState("TOUS");
   const [site, setSite] = useState("TOUS");
+  const [dateDebut, setDateDebut] = useState("");
+  const [dateFin, setDateFin] = useState("");
+  const [page, setPage] = useState(1);
+  const [taillePage, setTaillePage] = useState(TAILLES_PAGE[0]);
+
 
   const [chargement, setChargement] =
     useState(true);
@@ -443,9 +467,36 @@ useEffect(() => {
         site === "TOUS" ||
         item.site === site;
 
-      return correspondStatut && correspondSite;
+            // Filtre par date de demande (bornes incluses)
+      const jour = jourLocal(item.dateDemande);
+      const correspondDate =
+        (!dateDebut || (jour && jour >= dateDebut)) &&
+        (!dateFin || (jour && jour <= dateFin));
+
+      return correspondStatut && correspondSite && correspondDate;
     });
-  }, [processus, statut, site]);
+  }, [processus, statut, site, dateDebut, dateFin]);
+
+  const nombrePages = Math.max(
+    Math.ceil(processusFiltres.length / taillePage),
+    1
+  );
+  const pageCourante = Math.min(page, nombrePages);
+
+  const processusPage = useMemo(
+    () =>
+      processusFiltres.slice(
+        (pageCourante - 1) * taillePage,
+        pageCourante * taillePage
+      ),
+    [processusFiltres, pageCourante, taillePage]
+  );
+
+  // Retour à la première page quand les filtres changent
+  useEffect(() => {
+    setPage(1);
+  }, [recherche, statut, site, dateDebut, dateFin, taillePage]);
+
 
   const sites = useMemo(
     () =>
@@ -579,7 +630,7 @@ useEffect(() => {
         )}
 
         {/* Filtres */}
-        <div className="mb-5 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-[1fr_220px_200px]">
+        <div className="mb-5 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-2 xl:grid-cols-[1fr_200px_180px_auto]">
           <div className="relative">
             <Search
               size={18}
@@ -657,13 +708,56 @@ useEffect(() => {
               Tous les sites
             </option>
 
-            {sites.map((nom) => (
+                        {sites.map((nom) => (
               <option key={nom} value={nom}>
                 {nom}
               </option>
             ))}
           </select>
+
+          {/* Date de demande : du … au … */}
+          <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+            <label className="flex items-center gap-2">
+              Du
+              <input
+                type="date"
+                value={dateDebut}
+                max={dateFin || undefined}
+                onChange={(event) =>
+                  setDateDebut(event.target.value)
+                }
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+            </label>
+
+            <label className="flex items-center gap-2">
+              au
+              <input
+                type="date"
+                value={dateFin}
+                min={dateDebut || undefined}
+                onChange={(event) =>
+                  setDateFin(event.target.value)
+                }
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+            </label>
+
+            {(dateDebut || dateFin) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDateDebut("");
+                  setDateFin("");
+                }}
+                className="text-xs font-semibold text-blue-700 hover:underline"
+              >
+                Effacer
+              </button>
+            )}
+          </div>
         </div>
+
 
         {/* Tableau */}
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -753,7 +847,7 @@ useEffect(() => {
                   </thead>
 
                   <tbody className="divide-y divide-slate-200">
-                    {processusFiltres.map(
+                    {processusPage.map(
                       (item) => {
                         const nombreDemande =
                           item.nombreDemande;
@@ -922,9 +1016,55 @@ useEffect(() => {
                 </table>
               </div>
 
-              <div className="border-t border-slate-200 bg-slate-50 px-5 py-3 text-sm text-slate-500">
-                {processusFiltres.length} processus
-                affiché(s)
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-5 py-3 text-sm text-slate-500">
+                <span>
+                  {processusFiltres.length === 0
+                    ? "0 processus"
+                    : `${(pageCourante - 1) * taillePage + 1}–${Math.min(pageCourante * taillePage, processusFiltres.length)} sur ${processusFiltres.length} processus`}
+                </span>
+
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2">
+                    Par page
+                    <select
+                      value={taillePage}
+                      onChange={(event) =>
+                        setTaillePage(Number(event.target.value))
+                      }
+                      className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm"
+                    >
+                      {TAILLES_PAGE.map((taille) => (
+                        <option key={taille} value={taille}>
+                          {taille}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() => setPage(pageCourante - 1)}
+                    disabled={pageCourante <= 1}
+                    aria-label="Page précédente"
+                    className="rounded-md border border-slate-300 bg-white p-1.5 text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+
+                  <span>
+                    Page {pageCourante} / {nombrePages}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => setPage(pageCourante + 1)}
+                    disabled={pageCourante >= nombrePages}
+                    aria-label="Page suivante"
+                    className="rounded-md border border-slate-300 bg-white p-1.5 text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
               </div>
             </>
           )}

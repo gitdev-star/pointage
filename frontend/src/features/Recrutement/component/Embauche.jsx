@@ -18,6 +18,49 @@ import {
 } from "lucide-react";
 
 import recrutementApi from "../../../api/recrutementApi";
+// Brouillon de l'étape, gardé dans le navigateur : ce qui est saisi
+// avant « Confirmer l'embauche » est retrouvé au retour sur la page.
+const CHAMPS_BROUILLON = [
+  "typeContrat",
+  "dateDebutContrat",
+  "signeCandidat",
+  "signeEmployeur",
+  "remarqueGenerale",
+  "dossierEmbaucheComplet",
+  "contratTravailSigne",
+  "journeeIntegrationRealisee",
+  "reglementInterieurCommunique",
+  "codeSocieteCommunique",
+];
+
+function cleBrouillon(processusId) {
+  return `recrutement_brouillon_embauche_${processusId}`;
+}
+
+function lireBrouillon(processusId) {
+  try {
+    return JSON.parse(
+      window.localStorage.getItem(cleBrouillon(processusId))
+    ) || null;
+  } catch {
+    return null;
+  }
+}
+
+function ecrireBrouillon(processusId, brouillon) {
+  try {
+    if (brouillon) {
+      window.localStorage.setItem(
+        cleBrouillon(processusId),
+        JSON.stringify(brouillon)
+      );
+    } else {
+      window.localStorage.removeItem(cleBrouillon(processusId));
+    }
+  } catch {
+    // Stockage indisponible (navigation privée…) : pas de brouillon.
+  }
+}
 
 function dateDuJour() {
   return new Date()
@@ -409,13 +452,31 @@ export default function EtapeEmbauche({
             {}
           );
 
+        // Reprend le brouillon, uniquement pour les embauches
+        // pas encore confirmées.
+        const brouillon = lireBrouillon(processusId);
+
+        Object.entries(brouillon?.lignes || {}).forEach(
+          ([id, valeurs]) => {
+            const embauche = embauchesParCandidat[id];
+
+            if (!embauche || embauche.confirmee) return;
+
+            CHAMPS_BROUILLON.forEach((champ) => {
+              if (valeurs[champ] !== undefined) {
+                embauche[champ] = valeurs[champ];
+              }
+            });
+          }
+        );
+
         // Ouvriers : par défaut, une même date d'embauche pour
         // tous les candidats encore à confirmer.
         if (!estCadre) {
           const aConfirmer = Object.values(embauchesParCandidat)
             .filter((embauche) => !embauche.confirmee);
 
-          const dateCommune = aConfirmer.find(
+          const dateCommune = brouillon?.dateCommune || aConfirmer.find(
             (embauche) => embauche.dateDebutContrat
           )?.dateDebutContrat;
 
@@ -457,6 +518,30 @@ export default function EtapeEmbauche({
       composantActif = false;
     };
   }, [processusId, recrutement, estCadre]);
+
+  // Enregistre le brouillon à chaque saisie. Une embauche confirmée
+  // en sort ; il est supprimé quand tout est confirmé.
+  useEffect(() => {
+    if (chargement || !processusId) return;
+    if (Object.keys(embauches).length === 0) return;
+
+    const lignes = {};
+
+    Object.entries(embauches).forEach(([id, embauche]) => {
+      if (embauche.confirmee) return;
+
+      lignes[id] = Object.fromEntries(
+        CHAMPS_BROUILLON.map((champ) => [champ, embauche[champ]])
+      );
+    });
+
+    ecrireBrouillon(
+      processusId,
+      Object.keys(lignes).length > 0
+        ? { dateCommune, lignes }
+        : null
+    );
+  }, [embauches, dateCommune, chargement, processusId]);
 
   const modifierEmbauche = (
     candidatId,
@@ -1442,6 +1527,10 @@ export default function EtapeEmbauche({
 
             <p className="mt-1 text-xs text-slate-500">
               Une ligne par candidat. Indiquez dans « Remarques » les documents manquants ou les anomalies éventuelles.
+            </p>
+
+            <p className="mt-1 text-xs text-slate-400">
+              Votre saisie est gardée sur ce poste jusqu’à la confirmation de l’embauche.
             </p>
           </div>
 

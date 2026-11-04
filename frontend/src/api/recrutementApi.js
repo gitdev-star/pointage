@@ -742,23 +742,33 @@ async obtenirPostes(params = {}) {
   // PROCESSUS
   // ===================================================
 
+  // Récupère toutes les pages : la page Processus filtre et
+  // pagine elle-même la liste complète.
   async obtenirProcessus(params = {}) {
-    const response = await hrClient.get(
-      "recruitment/processus/",
-      { params }
-    );
+    const processus = [];
+    let page = 1;
+    let pageSuivante = true;
 
-    const processus = extraireListe(
-      response.data
-    );
+    while (pageSuivante) {
+      const response = await hrClient.get(
+        "recruitment/processus/",
+        { params: { page_size: 500, ...params, page } }
+      );
+
+      processus.push(
+        ...extraireListe(response.data)
+      );
+
+      pageSuivante = Boolean(response.data?.next);
+      page += 1;
+    }
 
     return {
       processus,
-      count:
-        response.data?.count ??
-        processus.length,
+      count: processus.length,
     };
   },
+
 
   async obtenirProcessusParId(id) {
     const response = await hrClient.get(
