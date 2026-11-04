@@ -176,6 +176,10 @@ export default function SuiviCandidatCadre({
   const [datesEntretien, setDatesEntretien] =
     useState({});
 
+    // Emails des participants, saisis à la planification
+  const [emailsEntretien, setEmailsEntretien] =
+    useState({});
+
   const [recherche, setRecherche] =
     useState("");
 
@@ -261,6 +265,21 @@ const fermerConfirmationEntretien =
             {}
           )
       );
+      
+      setEmailsEntretien(
+        Object.fromEntries(
+          (resultat.candidats || []).map(
+            (candidat) => [
+              candidat.id,
+              (
+                candidat.emails_participants_entretien ||
+                []
+              ).join(", "),
+            ]
+          )
+        )
+      );
+
     } catch (error) {
       setErreur(
         recrutementApi.extraireErreur(
@@ -433,6 +452,22 @@ const nombreRetenus =
       return;
     }
 
+    
+    const emails = (
+      emailsEntretien[candidat.id] || ""
+    )
+      .split(/[,;\n]/)
+      .map((email) => email.trim())
+      .filter(Boolean);
+
+    if (emails.length === 0) {
+      setErreur(
+        "Indiquez l’email d’au moins un participant : il recevra la demande de compte rendu."
+      );
+      return;
+    }
+
+
     setActionEnCours(
       `planifier-${candidat.id}`
     );
@@ -443,8 +478,10 @@ const nombreRetenus =
       await recrutementApi
         .planifierEntretienCadre(
           candidat.id,
-          new Date(date).toISOString()
+          new Date(date).toISOString(),
+          emails
         );
+
 
       setMessage(
         "L’entretien a été planifié."
@@ -758,26 +795,60 @@ const candidatModifie =
                       Date et heure de l’entretien
                     </label>
 
-                    <div className="flex flex-col gap-3 sm:flex-row">
-                      <input
-                        type="datetime-local"
-                        value={
-                          datesEntretien[
-                            candidat.id
-                          ] || ""
-                        }
-                        onChange={(event) =>
-                          setDatesEntretien(
-                            (precedent) => ({
-                              ...precedent,
-                              [candidat.id]:
-                                event.target
-                                  .value,
-                            })
-                          )
-                        }
-                        className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"
-                      />
+                     <input
+                      type="datetime-local"
+                      value={
+                        datesEntretien[
+                          candidat.id
+                        ] || ""
+                      }
+                      onChange={(event) =>
+                        setDatesEntretien(
+                          (precedent) => ({
+                            ...precedent,
+                            [candidat.id]:
+                              event.target
+                                .value,
+                          })
+                        )
+                      }
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"
+                    />
+
+                    <label className="mb-1.5 mt-3 block text-sm font-medium text-slate-700">
+                      Emails des participants
+                    </label>
+
+                    <input
+                      type="text"
+                      value={
+                        emailsEntretien[
+                          candidat.id
+                        ] || ""
+                      }
+                      onChange={(event) =>
+                        setEmailsEntretien(
+                          (precedent) => ({
+                            ...precedent,
+                            [candidat.id]:
+                              event.target
+                                .value,
+                          })
+                        )
+                      }
+                      placeholder="prenom.nom@exemple.com, autre.personne@exemple.com"
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"
+                    />
+
+                    <p className="mt-1 text-xs text-slate-500">
+                      Séparez les adresses par des virgules. Une heure après
+                      l’entretien, ces personnes recevront la demande de compte
+                      rendu, puis une relance 30 minutes plus tard s’il n’est
+                      pas encore fait.
+                    </p>
+
+                    <div className="mt-3 flex justify-end">
+
 
                       <button
                         type="button"

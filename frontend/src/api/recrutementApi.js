@@ -268,7 +268,8 @@ const recrutementApi = {
 
   async planifierEntretienCadre(
     candidatId,
-    dateEntretienPrevue
+    dateEntretienPrevue,
+    emailsParticipants = []
   ) {
     const response =
       await hrClient.post(
@@ -276,8 +277,11 @@ const recrutementApi = {
         {
           date_entretien_prevue:
             dateEntretienPrevue,
+          emails_participants:
+            emailsParticipants,
         }
       );
+
 
     return response.data;
   },
