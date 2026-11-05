@@ -115,7 +115,7 @@ from django.db.models import (
 from django.db.models.functions import Coalesce, ExtractMonth
 from django.utils.timezone import make_aware
 
-def lire_emails_participants(valeur):
+def lire_emails_participants(valeur, obligatoire=True):
     """
     Emails des participants à l'entretien cadre : liste, ou texte
     séparé par des virgules, points-virgules ou retours à la ligne.
@@ -134,7 +134,7 @@ def lire_emails_participants(valeur):
         if email and email not in emails:
             emails.append(email)
 
-    if not emails:
+    if obligatoire and not emails:
         raise drf_serializers.ValidationError({
             "emails_participants": (
                 "Indiquez l'email d'au moins un participant : "
@@ -2342,9 +2342,14 @@ class CandidatViewSet(
         # un entretien déjà tenu, en attendant la synchronisation
         # avec le calendrier Outlook.
 
+        # avec le calendrier Outlook. Les emails ne sont alors pas
+        # obligatoires.
+
         emails_participants = lire_emails_participants(
-            request.data.get("emails_participants")
+            request.data.get("emails_participants"),
+            obligatoire=date_entretien > timezone.now(),
         )
+
 
         candidat.date_entretien_prevue = (
             date_entretien

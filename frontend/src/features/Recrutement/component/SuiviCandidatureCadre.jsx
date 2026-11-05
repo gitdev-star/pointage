@@ -460,7 +460,8 @@ const nombreRetenus =
       .map((email) => email.trim())
       .filter(Boolean);
 
-    if (emails.length === 0) {
+    // Facultatifs si l'entretien a déjà eu lieu
+    if (emails.length === 0 && new Date(date) > new Date()) {
       setErreur(
         "Indiquez l’email d’au moins un participant : il recevra la demande de compte rendu."
       );
@@ -844,7 +845,8 @@ const candidatModifie =
                       Séparez les adresses par des virgules. Une heure après
                       l’entretien, ces personnes recevront la demande de compte
                       rendu, puis une relance 30 minutes plus tard s’il n’est
-                      pas encore fait.
+                      pas encore fait. Facultatif si la date est déjà passée :
+                      sans email, aucun mail n’est envoyé.
                     </p>
 
                     <div className="mt-3 flex justify-end">
