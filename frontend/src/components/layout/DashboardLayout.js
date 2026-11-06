@@ -5,6 +5,7 @@ import React, {useState}  from "react";
 import { Outlet } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
+import AssistantWidget from "../../features/Assistant/AssistantWidget";
 
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -26,6 +27,7 @@ export default function DashboardLayout() {
         {/* Contenu — seule zone qui scrolle */}
         <div className="flex-1 overflow-y-auto">
           <Outlet />
+        <AssistantWidget />
         </div>
 
       </main>

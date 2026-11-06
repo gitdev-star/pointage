@@ -148,6 +148,21 @@ services:
         max-file: "3"
     restart: unless-stopped
 
+  # ── Assistant IA (port 8000, internal only; reached through nginx) ──
+  assistant:
+    build:
+      context: ./assistant
+    container_name: assistant
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
+      - AI_DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   # ── FastAPI (Port 8080) ──────────────────────────────────────────────────────
   fastapi:
     build:
@@ -167,6 +182,7 @@ services:
       - HR_DB_USER=${POSTGRES_USER}
       - HR_DB_PASSWORD=${POSTGRES_PASSWORD}
       - GLITCHTIP_DSN=${GLITCHTIP_DSN_FASTAPI}
+      - AI_DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
     volumes:
       - ./:/app
       - ./ssl:/etc/ssl/glitchtip:ro
@@ -278,6 +294,13 @@ services:
     volumes:
       - ./django_hr:/app
     command: bash -c "echo '0 7 * * * /app/cron_jobs.sh' > /etc/cron.d/hr-cron && chmod 0644 /etc/cron.d/hr-cron && crontab /etc/cron.d/hr-cron && cron -f"
+
+  # ── Reminder: notify HR in the bell when a clocker is unreachable (every 5 min) ──
+  device-watch:
+    extends:
+      service: cron
+    container_name: device_watch
+    command: bash -c "while true; do python manage.py check_device_status; sleep 300; done"
 
   glitchtip-postgres:
     image: postgres:15

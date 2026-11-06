@@ -53,3 +53,4 @@ ldap3
 whitenoise
 whitenoise
 sentry-sdk
+sqlglot>=23
