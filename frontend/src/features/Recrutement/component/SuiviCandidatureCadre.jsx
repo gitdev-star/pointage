@@ -930,6 +930,7 @@ const candidatModifie =
                 )}
 
                 {[
+                  "COMPTE_RENDU_ENVOYE",
                   "RETENU",
                   "NON_RETENU",
                   "EMBAUCHE",
@@ -939,6 +940,19 @@ const candidatModifie =
                   <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
                     Le compte rendu a été
                     finalisé et envoyé au DRH.
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onOuvrirCompteRendu?.(
+                          candidat
+                        )
+                      }
+                      className="mt-3 flex items-center gap-2 rounded-lg border border-violet-200 bg-white px-4 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50"
+                    >
+                      <FileText size={17} />
+                      Voir le compte rendu
+                    </button>
                   </div>
                 )}
               </article>
