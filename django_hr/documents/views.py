@@ -541,7 +541,6 @@ def build_convocation_abandon(emp, extra, template_name):
         "<date_embauche>" : fmt_date(emp.hire_date),
         "<date_abandon>"  : fmt_date(extra.get("date_abandon")),
         "<date_presence>" : fmt_date(extra.get("date_derniere_presence")),
-        "<chiffres>"      : extra.get("montant") or "\u2014",
     }
     return fill_template(
         os.path.join(TEMPLATES_DIR, template_name),

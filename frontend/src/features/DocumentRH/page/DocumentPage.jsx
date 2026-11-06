@@ -23,12 +23,10 @@ const DOC_EXTRA_FIELDS = {
   convocation_cdd: [
     { key: "date_abandon",           label: "Date d'abandon de poste",   type: "date" },
     { key: "date_derniere_presence", label: "Date de dernière présence", type: "date" },
-    { key: "montant",                label: "Montant dû (Ariary)",       type: "text" },
   ],
   convocation_cdi: [
     { key: "date_abandon",           label: "Date d'abandon de poste",   type: "date" },
     { key: "date_derniere_presence", label: "Date de dernière présence", type: "date" },
-    { key: "montant",                label: "Montant dû (Ariary)",       type: "text" },
   ],
   suspension: [
     { key: "ref",                label: "Référence RH",                      type: "text" },
