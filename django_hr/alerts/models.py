@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 from employees.models import Employee
 
 
@@ -132,3 +133,17 @@ class LateAlertAssignment(models.Model):
 
     def __str__(self):
         return f"{self.email} ({self.recipient_type}) ← {self.factory.name}"
+
+
+class DeviceAlertState(models.Model):
+    """Last known reachability of each clocker, so we notify only when something changes."""
+    ip_address       = models.CharField(max_length=64, unique=True)
+    name             = models.CharField(max_length=150, blank=True, default="")
+    reachable        = models.BooleanField(default=True)
+    fail_count       = models.IntegerField(default=0)
+    since            = models.DateTimeField(default=timezone.now)
+    last_notified_at = models.DateTimeField(null=True, blank=True)
+    updated_at       = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.name or self.ip_address}: {'up' if self.reachable else 'down'}"

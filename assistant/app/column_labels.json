@@ -1,0 +1,466 @@
+{
+ "user_id": {
+  "fr": "Matricule",
+  "en": "Badge no."
+ },
+ "employee_id": {
+  "fr": "Matricule RH",
+  "en": "HR employee ID"
+ },
+ "matricule": {
+  "fr": "Matricule",
+  "en": "Employee number"
+ },
+ "matricule_paie": {
+  "fr": "Matricule paie",
+  "en": "Payroll number"
+ },
+ "n_rh": {
+  "fr": "N° RH",
+  "en": "HR no."
+ },
+ "device_user_id": {
+  "fr": "Matricule (badge)",
+  "en": "Badge ID"
+ },
+ "uid": {
+  "fr": "UID",
+  "en": "UID"
+ },
+ "full_name": {
+  "fr": "Nom complet",
+  "en": "Full name"
+ },
+ "first_name": {
+  "fr": "Prénom",
+  "en": "First name"
+ },
+ "last_name": {
+  "fr": "Nom",
+  "en": "Last name"
+ },
+ "nom": {
+  "fr": "Nom",
+  "en": "Last name"
+ },
+ "prenom": {
+  "fr": "Prénom",
+  "en": "First name"
+ },
+ "sexe": {
+  "fr": "Sexe",
+  "en": "Sex"
+ },
+ "date": {
+  "fr": "Date",
+  "en": "Date"
+ },
+ "arrival": {
+  "fr": "Arrivée",
+  "en": "Arrival"
+ },
+ "departure": {
+  "fr": "Départ",
+  "en": "Departure"
+ },
+ "punches": {
+  "fr": "Pointages",
+  "en": "Punches"
+ },
+ "punches_site": {
+  "fr": "Pointages (site)",
+  "en": "Punches (site)"
+ },
+ "first_punch": {
+  "fr": "Premier pointage",
+  "en": "First punch"
+ },
+ "last_punch": {
+  "fr": "Dernier pointage",
+  "en": "Last punch"
+ },
+ "device_timestamp": {
+  "fr": "Heure de pointage",
+  "en": "Punch time"
+ },
+ "timestamp": {
+  "fr": "Horodatage",
+  "en": "Timestamp"
+ },
+ "is_late": {
+  "fr": "En retard",
+  "en": "Late"
+ },
+ "late": {
+  "fr": "En retard",
+  "en": "Late"
+ },
+ "present": {
+  "fr": "Présent",
+  "en": "Present"
+ },
+ "overtime_hours": {
+  "fr": "Heures supplémentaires",
+  "en": "Overtime hours"
+ },
+ "total_overtime_hours": {
+  "fr": "Heures supplémentaires",
+  "en": "Overtime hours"
+ },
+ "total_overtime": {
+  "fr": "Heures supplémentaires",
+  "en": "Overtime hours"
+ },
+ "overtime_threshold_hours": {
+  "fr": "Seuil heures sup. (h)",
+  "en": "Overtime threshold (h)"
+ },
+ "site": {
+  "fr": "Site",
+  "en": "Site"
+ },
+ "site_name": {
+  "fr": "Site (nom complet)",
+  "en": "Site (full name)"
+ },
+ "hk_ou_pbi": {
+  "fr": "Site (HK / PBI)",
+  "en": "Site (HK / PBI)"
+ },
+ "section_name": {
+  "fr": "Section",
+  "en": "Section"
+ },
+ "department_name": {
+  "fr": "Département",
+  "en": "Department"
+ },
+ "factory_name": {
+  "fr": "Usine",
+  "en": "Factory"
+ },
+ "section_id": {
+  "fr": "Section (ID)",
+  "en": "Section ID"
+ },
+ "department_id": {
+  "fr": "Département (ID)",
+  "en": "Department ID"
+ },
+ "factory_id": {
+  "fr": "Usine (ID)",
+  "en": "Factory ID"
+ },
+ "code_departement": {
+  "fr": "Code département",
+  "en": "Department code"
+ },
+ "affectation": {
+  "fr": "Affectation",
+  "en": "Assignment"
+ },
+ "fonction": {
+  "fr": "Fonction",
+  "en": "Job function"
+ },
+ "job_title_id": {
+  "fr": "Poste (ID)",
+  "en": "Job title ID"
+ },
+ "manager_id": {
+  "fr": "Responsable (ID)",
+  "en": "Manager ID"
+ },
+ "contract_type": {
+  "fr": "Type de contrat",
+  "en": "Contract type"
+ },
+ "status": {
+  "fr": "Statut",
+  "en": "Status"
+ },
+ "hire_date": {
+  "fr": "Date d'embauche",
+  "en": "Hire date"
+ },
+ "termination_date": {
+  "fr": "Date de sortie",
+  "en": "Termination date"
+ },
+ "classe": {
+  "fr": "Classe",
+  "en": "Class"
+ },
+ "salaire": {
+  "fr": "Salaire",
+  "en": "Salary"
+ },
+ "classification_id": {
+  "fr": "Classification (ID)",
+  "en": "Classification ID"
+ },
+ "id_classification": {
+  "fr": "Classification (ID)",
+  "en": "Classification ID"
+ },
+ "device_ip": {
+  "fr": "Pointeuse (IP)",
+  "en": "Clocker IP"
+ },
+ "ip_address": {
+  "fr": "Adresse IP",
+  "en": "IP address"
+ },
+ "port": {
+  "fr": "Port",
+  "en": "Port"
+ },
+ "group_id": {
+  "fr": "Groupe (ID)",
+  "en": "Group ID"
+ },
+ "specific_name": {
+  "fr": "Nom spécifique",
+  "en": "Specific name"
+ },
+ "is_active": {
+  "fr": "Actif",
+  "en": "Active"
+ },
+ "is_permission_clocker": {
+  "fr": "Pointeuse permission",
+  "en": "Permission clocker"
+ },
+ "employees": {
+  "fr": "Employés",
+  "en": "Employees"
+ },
+ "name": {
+  "fr": "Nom",
+  "en": "Name"
+ },
+ "description": {
+  "fr": "Description",
+  "en": "Description"
+ },
+ "code": {
+  "fr": "Code",
+  "en": "Code"
+ },
+ "color": {
+  "fr": "Couleur",
+  "en": "Color"
+ },
+ "category": {
+  "fr": "Catégorie",
+  "en": "Category"
+ },
+ "title": {
+  "fr": "Titre",
+  "en": "Title"
+ },
+ "message": {
+  "fr": "Message",
+  "en": "Message"
+ },
+ "severity": {
+  "fr": "Gravité",
+  "en": "Severity"
+ },
+ "location": {
+  "fr": "Lieu",
+  "en": "Location"
+ },
+ "start_date": {
+  "fr": "Date de début",
+  "en": "Start date"
+ },
+ "end_date": {
+  "fr": "Date de fin",
+  "en": "End date"
+ },
+ "start_time": {
+  "fr": "Heure de début",
+  "en": "Start time"
+ },
+ "end_time": {
+  "fr": "Heure de fin",
+  "en": "End time"
+ },
+ "start_datetime": {
+  "fr": "Début",
+  "en": "Start"
+ },
+ "end_datetime": {
+  "fr": "Fin",
+  "en": "End"
+ },
+ "heure_fin": {
+  "fr": "Heure de fin",
+  "en": "End time"
+ },
+ "standard_start": {
+  "fr": "Début standard",
+  "en": "Standard start"
+ },
+ "standard_end": {
+  "fr": "Fin standard",
+  "en": "Standard end"
+ },
+ "standard_work_hours": {
+  "fr": "Heures standard",
+  "en": "Standard hours"
+ },
+ "break_minutes": {
+  "fr": "Pause (min)",
+  "en": "Break (min)"
+ },
+ "early_leave_limit": {
+  "fr": "Limite départ anticipé",
+  "en": "Early leave limit"
+ },
+ "duration_hours": {
+  "fr": "Durée (h)",
+  "en": "Duration (h)"
+ },
+ "days_requested": {
+  "fr": "Jours demandés",
+  "en": "Days requested"
+ },
+ "days_per_year": {
+  "fr": "Jours par an",
+  "en": "Days per year"
+ },
+ "entitled_days": {
+  "fr": "Jours acquis",
+  "en": "Entitled days"
+ },
+ "used_days": {
+  "fr": "Jours pris",
+  "en": "Days used"
+ },
+ "pending_days": {
+  "fr": "Jours en attente",
+  "en": "Pending days"
+ },
+ "leave_type_id": {
+  "fr": "Type de congé (ID)",
+  "en": "Leave type ID"
+ },
+ "is_paid": {
+  "fr": "Payé",
+  "en": "Paid"
+ },
+ "year": {
+  "fr": "Année",
+  "en": "Year"
+ },
+ "event_type": {
+  "fr": "Type d'événement",
+  "en": "Event type"
+ },
+ "event_type_id": {
+  "fr": "Type d'événement (ID)",
+  "en": "Event type ID"
+ },
+ "affects_status": {
+  "fr": "Modifie le statut",
+  "en": "Affects status"
+ },
+ "target_status": {
+  "fr": "Statut cible",
+  "en": "Target status"
+ },
+ "is_recurring": {
+  "fr": "Récurrent",
+  "en": "Recurring"
+ },
+ "is_protected": {
+  "fr": "Protégé",
+  "en": "Protected"
+ },
+ "auto_generated": {
+  "fr": "Généré automatiquement",
+  "en": "Auto-generated"
+ },
+ "shift_id": {
+  "fr": "Équipe (ID)",
+  "en": "Shift ID"
+ },
+ "valid_from": {
+  "fr": "Valide du",
+  "en": "Valid from"
+ },
+ "valid_until": {
+  "fr": "Valide jusqu'au",
+  "en": "Valid until"
+ },
+ "scope_type": {
+  "fr": "Portée",
+  "en": "Scope"
+ },
+ "scope_value": {
+  "fr": "Valeur de portée",
+  "en": "Scope value"
+ },
+ "rule": {
+  "fr": "Règle",
+  "en": "Rule"
+ },
+ "version_num": {
+  "fr": "Version",
+  "en": "Version"
+ },
+ "cantine_date": {
+  "fr": "Date cantine",
+  "en": "Canteen date"
+ },
+ "cantine_list_id": {
+  "fr": "Liste cantine (ID)",
+  "en": "Canteen list ID"
+ },
+ "transport_date": {
+  "fr": "Date transport",
+  "en": "Transport date"
+ },
+ "transport_list_id": {
+  "fr": "Liste transport (ID)",
+  "en": "Transport list ID"
+ },
+ "added_at": {
+  "fr": "Ajouté le",
+  "en": "Added on"
+ },
+ "insight_date": {
+  "fr": "Date de l'analyse",
+  "en": "Insight date"
+ },
+ "created_at": {
+  "fr": "Créé le",
+  "en": "Created on"
+ },
+ "updated_at": {
+  "fr": "Modifié le",
+  "en": "Updated on"
+ },
+ "created_by": {
+  "fr": "Créé par",
+  "en": "Created by"
+ },
+ "processed_for_permission": {
+  "fr": "Traité pour permission",
+  "en": "Processed for permission"
+ },
+ "source_attendance_in_id": {
+  "fr": "Pointage entrée (ID)",
+  "en": "Punch-in ID"
+ },
+ "source_attendance_out_id": {
+  "fr": "Pointage sortie (ID)",
+  "en": "Punch-out ID"
+ },
+ "id": {
+  "fr": "ID",
+  "en": "ID"
+ }
+}

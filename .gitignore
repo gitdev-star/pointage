@@ -68,3 +68,5 @@ test_clocker.py
 *.bak2
 analytics/.venv/
 analytics/.env
+analytics/out/
+assistant/.env

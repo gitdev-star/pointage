@@ -88,6 +88,15 @@ async def log_requests(request, call_next):
 app.include_router(attendance_routes.router, prefix="/attendance")
 app.include_router(hr_routes.router)
 app.include_router(late_report_router)
+
+try:  # AI assistant: a problem here must never stop the HR app from starting
+    from app.routers import ai_assistant
+    app.include_router(ai_assistant.router)
+    from app.routers import ai_conversations
+    app.include_router(ai_conversations.router)
+except Exception:
+    import logging
+    logging.getLogger(__name__).exception("AI assistant disabled")
 app.include_router(overtime_report_router)
 app.include_router(devices_router)
 app.include_router(adms_routes.router)

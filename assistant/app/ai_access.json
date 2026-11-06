@@ -1,0 +1,93 @@
+{
+  "always": [
+    "events_publicholiday",
+    "events_companyevent"
+  ],
+  "permissions": {
+    "perm_presence_read": [
+      "v_daily",
+      "v_daily_summary",
+      "v_daily_employee",
+      "v_daily_site",
+      "attendance",
+      "v_anomalies"
+    ],
+    "perm_retard_read": [
+      "v_daily",
+      "v_daily_summary",
+      "v_daily_employee",
+      "v_daily_site",
+      "attendance",
+      "v_anomalies",
+      "v_daily_class"
+    ],
+    "perm_dashboard_read": [
+      "v_daily",
+      "v_daily_summary",
+      "v_daily_employee",
+      "v_daily_site",
+      "attendance",
+      "v_anomalies"
+    ],
+    "perm_devices_read": [
+      "v_device_daily",
+      "devices_clocker",
+      "devices_clocker_group"
+    ],
+    "perm_employees_read": [
+      "v_employees",
+      "employees_employee",
+      "employees_department",
+      "employees_section",
+      "employees_factory",
+      "poste"
+    ],
+    "perm_classification_read": [
+      "classification"
+    ],
+    "perm_leaves_read": [
+      "leaves_*"
+    ],
+    "perm_shifts_read": [
+      "events_employeeshift",
+      "events_shiftschedule",
+      "employees_workschedule"
+    ],
+    "perm_horaire_read": [
+      "events_employeeshift",
+      "events_shiftschedule",
+      "employees_workschedule"
+    ],
+    "perm_hr_events_read": [
+      "hr_events_*"
+    ],
+    "perm_transport_read": [
+      "transport*"
+    ],
+    "perm_cantine_read": [
+      "cantine*"
+    ]
+  },
+  "deny": [
+    "*payroll*",
+    "*paie*",
+    "*salary*",
+    "*sanction*",
+    "*recruit*",
+    "accounts_*",
+    "*password*"
+  ],
+  "columns": {
+    "salaire": {
+      "any": [
+        "perm_classification_read"
+      ],
+      "all_of": [
+        [
+          "perm_employees_read",
+          "perm_employees_write"
+        ]
+      ]
+    }
+  }
+}
