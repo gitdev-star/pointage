@@ -392,17 +392,17 @@ def build_cdd_3(emp, extra):
 
     mergefields = {
         "Nom": emp.last_name or "—",
-        "Prenom": emp.first_name or "—",
+        "Prénom": emp.first_name or "—",
         "Matricule": emp.employee_id or "—",
         "Fonction": fonction,
         "Section": section,
-        "Site_Publi": factory,
         "DE_en_LETTRES": hire_fr,
         "D_Fin_Ess_en_lettres": fin_essai,
     }
     return fill_template(
         os.path.join(TEMPLATES_DIR, "cdd-3mois.docx"),
-        {},  # pas de remplacement texte classique ici
+        # Le modèle n'a pas de champ de fusion pour le site : texte simple
+        {"Site\xa0: ": f"Site\xa0: {factory}"},
         mergefields=mergefields,
     )
 

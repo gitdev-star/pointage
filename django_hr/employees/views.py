@@ -1144,11 +1144,10 @@ def employee_export(request):
     if sexe:
         qs = qs.filter(sexe__iregex=r"^f[eé]minin$") if sexe.upper() == "F" else qs.filter(sexe__icontains="masc")
     if search:
-        from django.db.models import Q
-        qs = qs.filter(
-            Q(first_name__icontains=search) | Q(last_name__icontains=search) |
-            Q(employee_id__icontains=search) | Q(cin__icontains=search)
-        )
+        # Même recherche que la liste des employés (EmployeeViewSet) :
+        # mots séparés, poste, email, CNAPS et matricule paie inclus.
+        qs = filters.SearchFilter().filter_queryset(request, qs, EmployeeViewSet)
+
 
     data = EmployeeDetailSerializer(qs, many=True).data
     return Response({"count": len(data), "results": data})

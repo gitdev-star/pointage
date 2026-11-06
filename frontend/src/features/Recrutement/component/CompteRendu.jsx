@@ -576,7 +576,7 @@ export default function CompteRenduEntretienCadre({
     candidat: candidat.id,
 
     date_entretien:
-      form.dateEntretien,
+      form.dateEntretien || null,
 
     pretention_salariale:
       form.pretentionSalariale === ""
@@ -1074,8 +1074,15 @@ const formulaireApercu = useMemo(
                 label="Date de l’entretien"
                 type="date"
                 value={form.dateEntretien}
-                disabled
+                onChange={(e) =>
+                  modifierChamp(
+                    "dateEntretien",
+                    e.target.value
+                  )
+                }
+                disabled={lectureSeule}
               />
+
 
               <Field
                 label="Poste"

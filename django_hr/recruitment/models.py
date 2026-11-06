@@ -1097,6 +1097,24 @@ class Candidat(models.Model):
         )
     )
 
+    # Participants à l'entretien (cadres) : ils reçoivent, 1 h après
+    # l'heure prévue, le mail demandant le compte rendu, puis une
+    # relance 30 min plus tard s'il n'est toujours pas fait.
+    emails_participants_entretien = models.JSONField(
+        default=list,
+        blank=True,
+    )
+
+    date_mail_compte_rendu = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    date_relance_compte_rendu = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
     source = models.CharField(
         max_length=200,
         blank=True,

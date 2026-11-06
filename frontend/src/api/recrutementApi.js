@@ -10,6 +10,31 @@ function extraireListe(data) {
   return data?.results || [];
 }
 
+// Récupère toutes les pages d'une liste de l'API
+// (limitée à 20 lignes par défaut).
+async function chargerToutesLesPages(url, params = {}) {
+  const resultats = [];
+  let page = 1;
+  let pageSuivante = true;
+
+  while (pageSuivante) {
+    const response = await hrClient.get(
+      url,
+      { params: { page_size: 500, ...params, page } }
+    );
+
+    resultats.push(
+      ...extraireListe(response.data)
+    );
+
+    pageSuivante = Boolean(response.data?.next);
+    page += 1;
+  }
+
+  return resultats;
+}
+
+
 function extraireErreur(error) {
   const data = error.response?.data;
 
@@ -72,22 +97,17 @@ const recrutementApi = {
 },
 
   async obtenirCandidats(params = {}) {
-    const response = await hrClient.get(
+    const candidats = await chargerToutesLesPages(
       "recruitment/candidats/",
-      { params }
-    );
-
-    const candidats = extraireListe(
-      response.data
+      params
     );
 
     return {
       candidats,
-      count:
-        response.data?.count ??
-        candidats.length,
+      count: candidats.length,
     };
   },
+
 
   async creerCandidat({
     processusId,
@@ -268,7 +288,8 @@ const recrutementApi = {
 
   async planifierEntretienCadre(
     candidatId,
-    dateEntretienPrevue
+    dateEntretienPrevue,
+    emailsParticipants = []
   ) {
     const response =
       await hrClient.post(
@@ -276,8 +297,11 @@ const recrutementApi = {
         {
           date_entretien_prevue:
             dateEntretienPrevue,
+          emails_participants:
+            emailsParticipants,
         }
       );
+
 
     return response.data;
   },
@@ -742,23 +766,21 @@ async obtenirPostes(params = {}) {
   // PROCESSUS
   // ===================================================
 
+  // Récupère toutes les pages : la page Processus filtre et
+  // pagine elle-même la liste complète.
   async obtenirProcessus(params = {}) {
-    const response = await hrClient.get(
+    const processus = await chargerToutesLesPages(
       "recruitment/processus/",
-      { params }
-    );
-
-    const processus = extraireListe(
-      response.data
+      params
     );
 
     return {
       processus,
-      count:
-        response.data?.count ??
-        processus.length,
+      count: processus.length,
     };
   },
+
+
 
   async obtenirProcessusParId(id) {
     const response = await hrClient.get(
@@ -801,22 +823,17 @@ async obtenirPostes(params = {}) {
   async obtenirRetoursRH(
     params = {}
   ) {
-    const response = await hrClient.get(
+    const retours = await chargerToutesLesPages(
       "recruitment/retours-rh/",
-      { params }
-    );
-
-    const retours = extraireListe(
-      response.data
+      params
     );
 
     return {
       retours,
-      count:
-        response.data?.count ??
-        retours.length,
+      count: retours.length,
     };
   },
+
 
   async enregistrerRetourRH({
     retourId = null,
@@ -862,27 +879,20 @@ async obtenirPostes(params = {}) {
   async obtenirCandidatsRecus(
     processusId
   ) {
-    const response = await hrClient.get(
+    const candidats = await chargerToutesLesPages(
       "recruitment/candidats/",
       {
-        params: {
-          processus: processusId,
-          statut: "RECU",
-        },
+        processus: processusId,
+        statut: "RECU",
       }
-    );
-
-    const candidats = extraireListe(
-      response.data
     );
 
     return {
       candidats,
-      count:
-        response.data?.count ??
-        candidats.length,
+      count: candidats.length,
     };
   },
+
 
   // ===================================================
   // EMBAUCHES
@@ -891,17 +901,12 @@ async obtenirPostes(params = {}) {
   async obtenirCandidatsPourEmbauche(
     processusId
   ) {
-    const response = await hrClient.get(
-      "recruitment/candidats/",
-      {
-        params: {
-          processus: processusId,
-        },
-      }
-    );
+       const tousLesCandidats =
+      await chargerToutesLesPages(
+        "recruitment/candidats/",
+        { processus: processusId }
+      );
 
-    const tousLesCandidats =
-      extraireListe(response.data);
 
     const candidats =
       tousLesCandidats.filter(
@@ -921,22 +926,17 @@ async obtenirPostes(params = {}) {
   async obtenirEmbauches(
     params = {}
   ) {
-    const response = await hrClient.get(
+    const embauches = await chargerToutesLesPages(
       "recruitment/embauches/",
-      { params }
-    );
-
-    const embauches = extraireListe(
-      response.data
+      params
     );
 
     return {
       embauches,
-      count:
-        response.data?.count ??
-        embauches.length,
+      count: embauches.length,
     };
   },
+
 
   async obtenirEmbauche(id) {
     const response = await hrClient.get(
@@ -951,22 +951,17 @@ async obtenirPostes(params = {}) {
   // ===================================================
 
   async obtenirDesistements(params = {}) {
-    const response = await hrClient.get(
+    const desistements = await chargerToutesLesPages(
       "recruitment/desistements/",
-      { params }
-    );
-
-    const desistements = extraireListe(
-      response.data
+      params
     );
 
     return {
       desistements,
-      count:
-        response.data?.count ??
-        desistements.length,
+      count: desistements.length,
     };
   },
+
 
   async signalerDesistement({
     embaucheId,

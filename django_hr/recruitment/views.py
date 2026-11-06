@@ -115,6 +115,49 @@ from django.db.models import (
 from django.db.models.functions import Coalesce, ExtractMonth
 from django.utils.timezone import make_aware
 
+def lire_emails_participants(valeur, obligatoire=True):
+    """
+    Emails des participants à l'entretien cadre : liste, ou texte
+    séparé par des virgules, points-virgules ou retours à la ligne.
+    Au moins une adresse, toutes valides ; doublons retirés.
+    """
+    from django.core.validators import validate_email
+
+    if isinstance(valeur, str):
+        valeur = valeur.replace(";", ",").replace("\n", ",").split(",")
+
+    emails = []
+
+    for email in valeur or []:
+        email = str(email).strip().lower()
+
+        if email and email not in emails:
+            emails.append(email)
+
+    if obligatoire and not emails:
+        raise drf_serializers.ValidationError({
+            "emails_participants": (
+                "Indiquez l'email d'au moins un participant : "
+                "il recevra la demande de compte rendu."
+            )
+        })
+
+    invalides = []
+
+    for email in emails:
+        try:
+            validate_email(email)
+        except DjangoValidationError:
+            invalides.append(email)
+
+    if invalides:
+        raise drf_serializers.ValidationError({
+            "emails_participants": (
+                "Adresse(s) invalide(s) : " + ", ".join(invalides)
+            )
+        })
+
+    return emails
 
 class ViewSetRecrutementBase(
     viewsets.ModelViewSet
@@ -2295,15 +2338,18 @@ class CandidatViewSet(
                 }
             )
 
-        if date_entretien <= timezone.now():
-            raise drf_serializers.ValidationError(
-                {
-                    "date_entretien_prevue": (
-                        "La date prévue doit "
-                        "être dans le futur."
-                    )
-                }
-            )
+        # Date passée acceptée pour l'instant : permet d'enregistrer
+        # un entretien déjà tenu, en attendant la synchronisation
+        # avec le calendrier Outlook.
+
+        # avec le calendrier Outlook. Les emails ne sont alors pas
+        # obligatoires.
+
+        emails_participants = lire_emails_participants(
+            request.data.get("emails_participants"),
+            obligatoire=date_entretien > timezone.now(),
+        )
+
 
         candidat.date_entretien_prevue = (
             date_entretien
@@ -2318,11 +2364,22 @@ class CandidatViewSet(
             .ENTRETIEN_PLANIFIE
         )
 
+        # Nouvelle date : le mail de compte rendu et sa relance
+        # repartent de cette date.
+        candidat.emails_participants_entretien = (
+            emails_participants
+        )
+        candidat.date_mail_compte_rendu = None
+        candidat.date_relance_compte_rendu = None
+
         candidat.save(
             update_fields=[
                 "date_entretien_prevue",
                 "date_entretien_realisee",
                 "statut",
+                "emails_participants_entretien",
+                "date_mail_compte_rendu",
+                "date_relance_compte_rendu",
                 "date_modification",
             ]
         )
@@ -2334,7 +2391,10 @@ class CandidatViewSet(
             {
                 "date_entretien_prevue": (
                     date_entretien.isoformat()
-                )
+                ),
+                "emails_participants": (
+                    emails_participants
+                ),
             },
         )
 

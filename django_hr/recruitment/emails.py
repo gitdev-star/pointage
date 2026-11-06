@@ -1745,3 +1745,140 @@ def style_value():
         "padding: 10px;"
         "border: 1px solid #e2e8f0;"
     )
+
+def notifier_compte_rendu_a_faire(candidat, relance=False):
+    """
+    Demande aux participants de l'entretien cadre d'en faire le
+    compte rendu (1 h après l'heure prévue), ou les relance
+    (30 min plus tard) s'il n'est toujours pas fait.
+    """
+
+    destinataires = candidat.emails_participants_entretien or []
+
+    processus = candidat.processus
+    demande = processus.demande
+
+    poste = (
+        demande.poste.name
+        if demande.poste
+        else "Non renseigné"
+    )
+
+    date_entretien = timezone.localtime(
+        candidat.date_entretien_prevue
+    ).strftime("%d/%m/%Y à %Hh%M")
+
+    url_processus = (
+        f"{settings.FRONTEND_URL.rstrip('/')}"
+        f"/hr/recrutement/processus/{processus.pk}"
+    )
+
+    if relance:
+        sujet = (
+            "[Recrutement] Relance : compte rendu d'entretien "
+            f"à faire - {candidat.nom_complet}"
+        )
+        titre = "Relance : compte rendu à faire"
+        intro = (
+            "Le compte rendu de l'entretien ci-dessous n'a pas "
+            "encore été fait. Merci de le compléter dès que possible."
+        )
+    else:
+        sujet = (
+            "[Recrutement] Compte rendu d'entretien à faire - "
+            f"{candidat.nom_complet}"
+        )
+        titre = "Compte rendu d'entretien à faire"
+        intro = (
+            "L'entretien ci-dessous est passé. Merci d'en faire le "
+            "compte rendu dans l'outil de recrutement."
+        )
+
+    contenu_texte = (
+        "Bonjour,\n\n"
+        f"{intro}\n\n"
+        f"Candidat : {candidat.nom_complet}\n"
+        f"Poste : {poste}\n"
+        f"Référence : {demande.reference}\n"
+        f"Entretien prévu le : {date_entretien}\n\n"
+        f"Accéder au processus : {url_processus}\n"
+    )
+
+    contenu_html = f"""
+    <html>
+      <body style="
+        margin: 0;
+        padding: 24px;
+        background: #f1f5f9;
+        font-family: Arial, sans-serif;
+      ">
+        <div style="
+          max-width: 650px;
+          margin: auto;
+          background: white;
+          border: 1px solid #e2e8f0;
+          border-radius: 12px;
+          overflow: hidden;
+        ">
+          <div style="
+            padding: 20px 24px;
+            background: {'#d97706' if relance else '#2563eb'};
+            color: white;
+          ">
+            <h2 style="margin: 0;">{escape(titre)}</h2>
+            <p style="margin: 8px 0 0; opacity: 0.9;">
+              {escape(demande.reference)}
+            </p>
+          </div>
+
+          <div style="padding: 24px; color: #334155;">
+            <p>Bonjour,</p>
+
+            <p>{escape(intro)}</p>
+
+            <table style="
+              width: 100%;
+              margin: 20px 0;
+              border-collapse: collapse;
+            ">
+              <tr>
+                <td style="{style_label()}">Candidat</td>
+                <td style="{style_value()}">
+                  {escape(candidat.nom_complet)}
+                </td>
+              </tr>
+              <tr>
+                <td style="{style_label()}">Poste</td>
+                <td style="{style_value()}">{escape(poste)}</td>
+              </tr>
+              <tr>
+                <td style="{style_label()}">Entretien prévu le</td>
+                <td style="{style_value()}">
+                  {escape(date_entretien)}
+                </td>
+              </tr>
+            </table>
+
+            <a href="{escape(url_processus)}" style="
+              display: inline-block;
+              padding: 12px 18px;
+              background: #2563eb;
+              color: white;
+              text-decoration: none;
+              border-radius: 8px;
+              font-weight: bold;
+            ">
+              Ouvrir le processus de recrutement
+            </a>
+          </div>
+        </div>
+      </body>
+    </html>
+    """
+
+    return envoyer_email(
+        sujet=sujet,
+        contenu_texte=contenu_texte,
+        contenu_html=contenu_html,
+        destinataires=destinataires,
+    )

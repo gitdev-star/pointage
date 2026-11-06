@@ -1887,6 +1887,9 @@ class CandidatSerializer(
             "date_candidature",
             "date_entretien_prevue",
             "date_entretien_realisee",
+            "emails_participants_entretien",
+            "date_mail_compte_rendu",
+            "date_relance_compte_rendu",
 
             "source",
             "fiche_test",
@@ -1923,6 +1926,9 @@ class CandidatSerializer(
             "statut",
             "date_entretien_prevue",
             "date_entretien_realisee",
+            "emails_participants_entretien",
+            "date_mail_compte_rendu",
+            "date_relance_compte_rendu",
             "date_creation",
             "date_modification",
         ]
