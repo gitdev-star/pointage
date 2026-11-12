@@ -842,7 +842,7 @@ export default function DetailProcessusRecrutement() {
   }
 
   return (
-    <div className="min-h-screen min-w-0 overflow-x-hidden bg-slate-50 px-2 py-3 sm:px-3 sm:py-4 lg:px-4">
+        <div className="min-h-screen min-w-0 overflow-x-hidden bg-slate-50 p-4 sm:p-6 lg:p-8">
       <div className="mx-auto w-full min-w-0 max-w-none">
         {erreur && (
           <div className="mb-5 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">

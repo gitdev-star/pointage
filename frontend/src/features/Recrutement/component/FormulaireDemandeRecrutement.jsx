@@ -746,8 +746,8 @@ export default function FormulaireDemandeRecrutement({
 
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
-      <div className="mx-auto max-w-5xl">
+    <div className="w-full">
+      <div className="w-full">
         <div className="mb-6 flex items-center gap-3">
           <div className="rounded-xl bg-blue-100 p-3 text-blue-700">
             <BriefcaseBusiness size={24} />

@@ -60,7 +60,7 @@ const [
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
-      <div className="mx-auto max-w-6xl">
+      <div className="w-full">
         {/* En-tête */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-slate-900">
