@@ -46,6 +46,7 @@ import DemandeRecrutementPage from "./features/Recrutement/component/DemandeRecr
 import ProcessusRecrutement from "./features/Recrutement/component/ProcessusRecrutement";
 import DetailProcessusRecrutement from "./features/Recrutement/component/DetailProceRecru";
 import CompteRenduEntretienCadre from "./features/Recrutement/component/CompteRendu";
+import MesComptesRendus from "./features/Recrutement/component/MesComptesRendus";
 import PermissionRoute from "./routes/PermissionRoute";
 
 
@@ -132,6 +133,18 @@ function App() {
       <DetailProcessusRecrutement />
     </PermissionRoute>
   }
+/>
+
+{/* Rédacteurs choisis à la planification : pas de permission
+    Recrutement requise, le serveur ne renvoie que leurs candidats */}
+<Route
+  path="/hr/recrutement/mes-comptes-rendus"
+  element={<MesComptesRendus />}
+/>
+
+<Route
+  path="/hr/recrutement/mes-comptes-rendus/:candidatId"
+  element={<MesComptesRendus />}
 />
 
 <Route

@@ -286,10 +286,12 @@ const recrutementApi = {
   // ENTRETIENS DES CADRES
   // ===================================================
 
+  // redacteurs : identifiants des profils RH qui rédigeront
+  // le compte rendu (ils reçoivent le mail et la relance)
   async planifierEntretienCadre(
     candidatId,
     dateEntretienPrevue,
-    emailsParticipants = []
+    redacteurs = []
   ) {
     const response =
       await hrClient.post(
@@ -297,13 +299,21 @@ const recrutementApi = {
         {
           date_entretien_prevue:
             dateEntretienPrevue,
-          emails_participants:
-            emailsParticipants,
+          redacteurs,
         }
       );
 
 
     return response.data;
+  },
+
+  // Profils RH pouvant être choisis comme rédacteurs
+  async obtenirRedacteursPossibles() {
+    const response = await hrClient.get(
+      "recruitment/candidats/redacteurs-possibles/"
+    );
+
+    return response.data || [];
   },
 
   async terminerEntretienCadre(
@@ -1231,6 +1241,26 @@ async telechargerFichePoste(embaucheId, nomCandidat = "candidat") {
       resultat.comptesRendus[0] ||
       null
     );
+  },
+
+  // Candidats dont l'utilisateur connecté est rédacteur
+  // du compte rendu (page « Mes comptes rendus à rédiger »)
+  async obtenirMesComptesRendus() {
+    const response = await hrClient.get(
+      "recruitment/mes-comptes-rendus/"
+    );
+
+    return response.data || [];
+  },
+
+  async obtenirMonCompteRendu(
+    candidatId
+  ) {
+    const response = await hrClient.get(
+      `recruitment/mes-comptes-rendus/${candidatId}/`
+    );
+
+    return response.data;
   },
 
   async creerCompteRenduCadre(

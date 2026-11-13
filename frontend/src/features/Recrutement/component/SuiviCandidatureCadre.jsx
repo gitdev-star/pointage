@@ -159,6 +159,130 @@ function StatutCadre({ statut }) {
   );
 }
 
+// Choix des rédacteurs du compte rendu parmi les profils RH :
+// le demandeur est proposé par défaut.
+function ChoixRedacteurs({
+  possibles,
+  selection,
+  demandeurId,
+  onChange,
+}) {
+  const [recherche, setRecherche] =
+    useState("");
+
+  const choisis = selection
+    .map((id) =>
+      possibles.find((p) => p.id === id)
+    )
+    .filter(Boolean);
+
+  const terme = recherche
+    .trim()
+    .toLowerCase();
+
+  const suggestions = terme
+    ? possibles
+        .filter(
+          (p) =>
+            !selection.includes(p.id) &&
+            [p.nom, p.username, p.email]
+              .join(" ")
+              .toLowerCase()
+              .includes(terme)
+        )
+        .slice(0, 8)
+    : [];
+
+  return (
+    <div>
+      {choisis.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-2">
+          {choisis.map((p) => (
+            <span
+              key={p.id}
+              className="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-white px-3 py-1 text-xs text-slate-700"
+            >
+              <strong>{p.nom}</strong>
+              <span className="text-slate-500">
+                {p.email}
+              </span>
+              {p.id === demandeurId && (
+                <span className="rounded-full bg-violet-100 px-2 text-violet-700">
+                  demandeur
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() =>
+                  onChange(
+                    selection.filter(
+                      (id) => id !== p.id
+                    )
+                  )
+                }
+                className="rounded-full p-0.5 text-slate-400 hover:bg-slate-100 hover:text-red-600"
+                title="Retirer"
+              >
+                <X size={13} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="relative">
+        <input
+          type="text"
+          value={recherche}
+          onChange={(event) =>
+            setRecherche(event.target.value)
+          }
+          placeholder="Ajouter un rédacteur : nom, login ou email…"
+          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"
+        />
+
+        {suggestions.length > 0 && (
+          <ul className="absolute z-20 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+            {suggestions.map((p) => (
+              <li key={p.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChange([
+                      ...selection,
+                      p.id,
+                    ]);
+                    setRecherche("");
+                  }}
+                  className="flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-violet-50"
+                >
+                  <span className="font-medium text-slate-800">
+                    {p.nom}
+                  </span>
+                  <span className="text-xs text-slate-500">
+                    {p.email || p.username}
+                    {p.fonction
+                      ? ` · ${p.fonction}`
+                      : ""}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {terme && suggestions.length === 0 && (
+          <p className="mt-1 text-xs text-slate-500">
+            Aucun utilisateur trouvé. Seules les
+            personnes ayant un compte dans
+            l’application peuvent être choisies.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function SuiviCandidatCadre({
   recrutement,
   onOuvrirCompteRendu,
@@ -176,9 +300,13 @@ export default function SuiviCandidatCadre({
   const [datesEntretien, setDatesEntretien] =
     useState({});
 
-    // Emails des participants, saisis à la planification
-  const [emailsEntretien, setEmailsEntretien] =
+  // Rédacteurs du compte rendu, choisis à la planification
+  // (identifiants des profils RH, par candidat)
+  const [redacteursEntretien, setRedacteursEntretien] =
     useState({});
+
+  const [redacteursPossibles, setRedacteursPossibles] =
+    useState([]);
 
   const [recherche, setRecherche] =
     useState("");
@@ -265,16 +393,19 @@ const fermerConfirmationEntretien =
             {}
           )
       );
-      
-      setEmailsEntretien(
+
+      // Rédacteurs déjà choisis, sinon le demandeur par défaut
+      setRedacteursEntretien(
         Object.fromEntries(
           (resultat.candidats || []).map(
             (candidat) => [
               candidat.id,
-              (
-                candidat.emails_participants_entretien ||
-                []
-              ).join(", "),
+              candidat.redacteurs_compte_rendu
+                ?.length
+                ? candidat.redacteurs_compte_rendu
+                : [
+                    candidat.demandeur_profil_id,
+                  ].filter(Boolean),
             ]
           )
         )
@@ -294,6 +425,13 @@ const fermerConfirmationEntretien =
   useEffect(() => {
     chargerCandidats();
   }, [recrutement.id]);
+
+  useEffect(() => {
+    recrutementApi
+      .obtenirRedacteursPossibles()
+      .then(setRedacteursPossibles)
+      .catch(() => setRedacteursPossibles([]));
+  }, []);
 
   const candidatsFiltres =
     useMemo(() => {
@@ -452,18 +590,13 @@ const nombreRetenus =
       return;
     }
 
-    
-    const emails = (
-      emailsEntretien[candidat.id] || ""
-    )
-      .split(/[,;\n]/)
-      .map((email) => email.trim())
-      .filter(Boolean);
+    const redacteurs =
+      redacteursEntretien[candidat.id] || [];
 
     // Facultatifs si l'entretien a déjà eu lieu
-    if (emails.length === 0 && new Date(date) > new Date()) {
+    if (redacteurs.length === 0 && new Date(date) > new Date()) {
       setErreur(
-        "Indiquez l’email d’au moins un participant : il recevra la demande de compte rendu."
+        "Choisissez au moins un rédacteur : il recevra la demande de compte rendu."
       );
       return;
     }
@@ -480,7 +613,7 @@ const nombreRetenus =
         .planifierEntretienCadre(
           candidat.id,
           new Date(date).toISOString(),
-          emails
+          redacteurs
         );
 
 
@@ -817,36 +950,53 @@ const candidatModifie =
                     />
 
                     <label className="mb-1.5 mt-3 block text-sm font-medium text-slate-700">
-                      Emails des participants
+                      Rédacteurs du compte rendu
                     </label>
 
-                    <input
-                      type="text"
-                      value={
-                        emailsEntretien[
-                          candidat.id
-                        ] || ""
+                    <ChoixRedacteurs
+                      possibles={
+                        redacteursPossibles
                       }
-                      onChange={(event) =>
-                        setEmailsEntretien(
+                      selection={
+                        redacteursEntretien[
+                          candidat.id
+                        ] || []
+                      }
+                      demandeurId={
+                        candidat.demandeur_profil_id
+                      }
+                      onChange={(selection) =>
+                        setRedacteursEntretien(
                           (precedent) => ({
                             ...precedent,
                             [candidat.id]:
-                              event.target
-                                .value,
+                              selection,
                           })
                         )
                       }
-                      placeholder="prenom.nom@exemple.com, autre.personne@exemple.com"
-                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"
                     />
 
+                    {!candidat.redacteurs_compte_rendu
+                      ?.length &&
+                      candidat
+                        .emails_participants_entretien
+                        ?.length > 0 && (
+                        <p className="mt-1 text-xs text-amber-700">
+                          Emails saisis auparavant :{" "}
+                          {candidat.emails_participants_entretien.join(
+                            ", "
+                          )}
+                        </p>
+                      )}
+
                     <p className="mt-1 text-xs text-slate-500">
-                      Séparez les adresses par des virgules. Une heure après
-                      l’entretien, ces personnes recevront la demande de compte
-                      rendu, puis une relance 30 minutes plus tard s’il n’est
-                      pas encore fait. Facultatif si la date est déjà passée :
-                      sans email, aucun mail n’est envoyé.
+                      Les rédacteurs peuvent rédiger, valider et envoyer
+                      au DRH le compte rendu de ce candidat, même sans accès
+                      au module Recrutement. Une heure après l’entretien, ils
+                      reçoivent la demande de compte rendu avec un lien
+                      direct, puis une relance 30 minutes plus tard s’il
+                      n’est pas encore fait. Facultatif si la date est déjà
+                      passée.
                     </p>
 
                     <div className="mt-3 flex justify-end">

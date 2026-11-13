@@ -58,6 +58,61 @@ class PermissionRecrutement(BasePermission):
             view,
         )
 
+def acces_recrutement_complet(request, view):
+    """
+    Accès habituel du module Recrutement (directeur,
+    recruitment_read / recruitment_write, appels internes).
+    """
+    return PermissionRecrutement().has_permission(request, view)
+
+
+class PermissionCompteRendu(BasePermission):
+    """
+    Compte rendu d'entretien cadre.
+
+    Accès habituel du module Recrutement, ou rédacteur choisi
+    à la planification : il peut lire, rédiger, valider et
+    envoyer au DRH le compte rendu de ses candidats uniquement,
+    sans pouvoir le supprimer.
+    """
+
+    message = (
+        "Vous n’êtes pas rédacteur de ce compte rendu."
+    )
+
+    def has_permission(self, request, view):
+        if acces_recrutement_complet(request, view):
+            return True
+
+        profil = get_hr_profile(request)
+
+        if not profil or not profil.is_active:
+            return False
+
+        if getattr(view, "action", None) == "destroy":
+            return False
+
+        return profil.candidats_compte_rendu.exists()
+
+    def has_object_permission(
+        self,
+        request,
+        view,
+        objet,
+    ):
+        if acces_recrutement_complet(request, view):
+            return True
+
+        profil = get_hr_profile(request)
+
+        return bool(
+            profil
+            and objet.candidat.redacteurs_compte_rendu
+            .filter(pk=profil.pk)
+            .exists()
+        )
+
+
 class PermissionDemandeRecrutement(BasePermission):
     """
     Permission réservée aux demandes de recrutement.

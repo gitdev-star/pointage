@@ -1768,10 +1768,20 @@ def notifier_compte_rendu_a_faire(candidat, relance=False):
         candidat.date_entretien_prevue
     ).strftime("%d/%m/%Y à %Hh%M")
 
-    url_processus = (
-        f"{settings.FRONTEND_URL.rstrip('/')}"
-        f"/hr/recrutement/processus/{processus.pk}"
-    )
+    # Rédacteurs choisis : lien direct vers le compte rendu.
+    # Anciens entretiens (emails saisis à la main) : processus.
+    if candidat.redacteurs_compte_rendu.exists():
+        url_processus = (
+            f"{settings.FRONTEND_URL.rstrip('/')}"
+            f"/hr/recrutement/mes-comptes-rendus/{candidat.pk}"
+        )
+        libelle_lien = "Rédiger le compte rendu"
+    else:
+        url_processus = (
+            f"{settings.FRONTEND_URL.rstrip('/')}"
+            f"/hr/recrutement/processus/{processus.pk}"
+        )
+        libelle_lien = "Ouvrir le processus de recrutement"
 
     if relance:
         sujet = (
@@ -1801,7 +1811,7 @@ def notifier_compte_rendu_a_faire(candidat, relance=False):
         f"Poste : {poste}\n"
         f"Référence : {demande.reference}\n"
         f"Entretien prévu le : {date_entretien}\n\n"
-        f"Accéder au processus : {url_processus}\n"
+        f"{libelle_lien} : {url_processus}\n"
     )
 
     contenu_html = f"""
@@ -1868,7 +1878,7 @@ def notifier_compte_rendu_a_faire(candidat, relance=False):
               border-radius: 8px;
               font-weight: bold;
             ">
-              Ouvrir le processus de recrutement
+              {escape(libelle_lien)}
             </a>
           </div>
         </div>

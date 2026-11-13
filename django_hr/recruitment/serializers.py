@@ -1871,6 +1871,19 @@ class CandidatSerializer(
         serializers.SerializerMethodField()
     )
 
+    # Rédacteurs du compte rendu (profils RH), et demandeur
+    # de la demande, proposé par défaut à la planification.
+    redacteurs_compte_rendu = (
+        serializers.PrimaryKeyRelatedField(
+            many=True,
+            read_only=True,
+        )
+    )
+
+    demandeur_profil_id = (
+        serializers.SerializerMethodField()
+    )
+
     class Meta:
         model = Candidat
 
@@ -1888,6 +1901,8 @@ class CandidatSerializer(
             "date_entretien_prevue",
             "date_entretien_realisee",
             "emails_participants_entretien",
+            "redacteurs_compte_rendu",
+            "demandeur_profil_id",
             "date_mail_compte_rendu",
             "date_relance_compte_rendu",
 
@@ -2014,6 +2029,12 @@ class CandidatSerializer(
             candidat.date_entretien_prevue
             is not None
         )
+
+    def get_demandeur_profil_id(
+        self,
+        candidat,
+    ):
+        return candidat.processus.demande.demandeur_id
 
     def get_peut_rediger_compte_rendu(
         self,

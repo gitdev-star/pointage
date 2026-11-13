@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { logout } from "../../api/auth";
+import recrutementApi from "../../api/recrutementApi";
 import { useHRAuth } from "../../contexts/HRAuthContext";
 import NavSection from "./NavSection";
 import NavItem from "./NavItem";
@@ -52,9 +53,43 @@ export default function Sidebar({ isOpen, onClose }) {
     canSee,
   } = useHRAuth();
 
-  const peutVoirRecrutement =
-    can("recruitment_read")
-    || can("recruitment_requests_read");
+  /*
+   * Rédacteurs de comptes rendus : la ligne « Mes comptes
+   * rendus à rédiger » n'apparaît que s'ils ont été choisis
+   * pour au moins un entretien (nombre = comptes rendus à faire).
+   */
+  const [mesComptesRendus, setMesComptesRendus] = useState([]);
+
+  useEffect(() => {
+    let actif = true;
+
+    recrutementApi
+      .obtenirMesComptesRendus()
+      .then((liste) => actif && setMesComptesRendus(liste))
+      .catch(() => actif && setMesComptesRendus([]));
+
+    return () => {
+      actif = false;
+    };
+  }, [location.pathname]);
+
+  const nbComptesRendusARediger = mesComptesRendus.filter(
+    (candidat) => candidat.a_rediger
+  ).length;
+
+  const recrutementItems = [
+    ...RECRUTEMENT_ITEMS.filter((item) => can(item.permission)),
+    ...(mesComptesRendus.length > 0
+      ? [{
+          to: "/hr/recrutement/mes-comptes-rendus",
+          label: "Mes comptes rendus à rédiger",
+          badge: nbComptesRendusARediger,
+          matchPrefix: true,
+        }]
+      : []),
+  ];
+
+  const peutVoirRecrutement = recrutementItems.length > 0;
 
   /*
    * Le menu s'ouvre automatiquement lorsque l'utilisateur
@@ -238,11 +273,12 @@ export default function Sidebar({ isOpen, onClose }) {
 
     {recrutementOpen && (
       <div className="ml-7 border-l border-white/20 bg-black/10">
-        {RECRUTEMENT_ITEMS
-          .filter((item) => can(item.permission))
+        {recrutementItems
           .map((item) => {
           const isActive =
-            location.pathname === item.to;
+            location.pathname === item.to
+            || (item.matchPrefix
+              && location.pathname.startsWith(`${item.to}/`));
 
           return (
             <button
@@ -269,6 +305,12 @@ export default function Sidebar({ isOpen, onClose }) {
               )}
 
               {item.label}
+
+              {item.badge > 0 && (
+                <span className="ml-2 rounded-full bg-violet-500 px-2 py-0.5 text-xs font-semibold text-white">
+                  {item.badge}
+                </span>
+              )}
             </button>
           );
         })}

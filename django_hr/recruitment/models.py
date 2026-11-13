@@ -1105,6 +1105,17 @@ class Candidat(models.Model):
         blank=True,
     )
 
+    # Rédacteurs du compte rendu (cadres), choisis par le responsable
+    # recrutement à la planification. Ils peuvent rédiger, valider et
+    # envoyer au DRH le compte rendu de ce candidat, même sans la
+    # permission Recrutement. Leurs emails remplissent
+    # emails_participants_entretien (mail et relance).
+    redacteurs_compte_rendu = models.ManyToManyField(
+        "accounts.HRProfile",
+        blank=True,
+        related_name="candidats_compte_rendu",
+    )
+
     date_mail_compte_rendu = models.DateTimeField(
         null=True,
         blank=True,

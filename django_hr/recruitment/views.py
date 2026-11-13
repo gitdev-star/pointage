@@ -46,7 +46,7 @@ from rest_framework import (
     viewsets,
 )
 
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from rest_framework.decorators import action
 
@@ -79,6 +79,8 @@ from .models import (
 
 from .permissions import (
     PermissionRecrutement,
+    PermissionCompteRendu,
+    acces_recrutement_complet,
     PermissionDemandeRecrutement,
     PermissionDirecteurRecrutement,
     PermissionDRHRecrutement,
@@ -158,6 +160,150 @@ def lire_emails_participants(valeur, obligatoire=True):
         })
 
     return emails
+
+
+def email_profil(profil):
+    """Adresse d'un profil RH (email, ou username s'il en est une)."""
+    email = (profil.email or "").strip().lower()
+
+    if not email and "@" in (profil.username or ""):
+        email = profil.username.strip().lower()
+
+    return email
+
+
+def noms_profils(profils):
+    """
+    Nom affiché de chaque profil RH ({id: nom}), retrouvé dans la
+    fiche employé par l'email, sinon le username.
+    """
+    from employees.models import Employee
+
+    employes = {}
+
+    for email, prenom, nom in (
+        Employee.objects
+        .exclude(email__isnull=True)
+        .exclude(email="")
+        .values_list("email", "first_name", "last_name")
+    ):
+        employes[email.strip().lower()] = " ".join(
+            partie for partie in [prenom, nom] if partie
+        )
+
+    noms = {}
+
+    for profil in profils:
+        email = email_profil(profil)
+        nom = employes.get(email, "")
+
+        if not nom and profil.username and "@" not in profil.username:
+            debut = f"{profil.username.strip().lower()}@"
+            trouves = [
+                valeur for cle, valeur in employes.items()
+                if cle.startswith(debut)
+            ]
+            if len(trouves) == 1:
+                nom = trouves[0]
+
+        noms[profil.pk] = nom or profil.username
+
+    return noms
+
+
+def lire_redacteurs_compte_rendu(valeur, obligatoire=True):
+    """
+    Rédacteurs du compte rendu choisis à la planification :
+    liste d'identifiants de profils RH actifs, chacun avec un email.
+    """
+    from accounts.models import HRProfile
+
+    identifiants = []
+
+    for identifiant in valeur or []:
+        try:
+            identifiant = int(identifiant)
+        except (TypeError, ValueError):
+            raise drf_serializers.ValidationError({
+                "redacteurs": "Rédacteur invalide."
+            })
+
+        if identifiant not in identifiants:
+            identifiants.append(identifiant)
+
+    if obligatoire and not identifiants:
+        raise drf_serializers.ValidationError({
+            "redacteurs": (
+                "Choisissez au moins un rédacteur : il recevra "
+                "la demande de compte rendu."
+            )
+        })
+
+    profils = list(
+        HRProfile.objects.filter(pk__in=identifiants, is_active=True)
+    )
+
+    if len(profils) != len(identifiants):
+        raise drf_serializers.ValidationError({
+            "redacteurs": "Un rédacteur choisi n'existe pas ou est inactif."
+        })
+
+    sans_email = [p.username for p in profils if not email_profil(p)]
+
+    if sans_email:
+        raise drf_serializers.ValidationError({
+            "redacteurs": (
+                "Pas d'adresse email dans le profil de : "
+                + ", ".join(sans_email)
+            )
+        })
+
+    return profils
+
+
+def candidat_pour_redacteur(candidat):
+    """Informations du candidat utiles au rédacteur du compte rendu."""
+    compte_rendu = getattr(candidat, "compte_rendu_cadre", None)
+    demande = candidat.processus.demande
+
+    return {
+        "id": candidat.pk,
+        "nom": candidat.nom,
+        "prenom": candidat.prenom,
+        "nom_complet": candidat.nom_complet,
+        "email": candidat.email,
+        "telephone": candidat.telephone,
+        "poste_nom": demande.poste.name if demande.poste else "",
+        "reference_processus": demande.reference,
+        "date_entretien_prevue": candidat.date_entretien_prevue,
+        "date_entretien_realisee": candidat.date_entretien_realisee,
+        "statut": candidat.statut,
+        "statut_libelle": candidat.get_statut_display(),
+        "compte_rendu_id": compte_rendu.pk if compte_rendu else None,
+        "compte_rendu_statut": (
+            compte_rendu.statut if compte_rendu else None
+        ),
+        "a_rediger": entretien_a_rediger(candidat),
+    }
+
+
+def entretien_a_rediger(candidat):
+    """
+    Compte rendu à rédiger : entretien réalisé (ou date prévue
+    passée) et compte rendu pas encore envoyé.
+    """
+    if candidat.statut in [
+        Candidat.Statut.ENTRETIEN_REALISE,
+        Candidat.Statut.COMPTE_RENDU_BROUILLON,
+    ]:
+        return True
+
+    return bool(
+        candidat.statut == Candidat.Statut.ENTRETIEN_PLANIFIE
+        and candidat.date_entretien_prevue
+        and candidat.date_entretien_prevue <= timezone.now()
+    )
+
 
 class ViewSetRecrutementBase(
     viewsets.ModelViewSet
@@ -2097,6 +2243,7 @@ class CandidatViewSet(
         )
         .prefetch_related(
             "processus__publications",
+            "redacteurs_compte_rendu",
         )
         .all()
     )
@@ -2104,6 +2251,38 @@ class CandidatViewSet(
     serializer_class = (
         CandidatSerializer
     )
+
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="redacteurs-possibles",
+    )
+    def redacteurs_possibles(self, request):
+        """
+        Profils RH actifs pouvant être choisis comme rédacteurs
+        du compte rendu (ils ont un compte dans l'application).
+        """
+        from accounts.models import HRProfile
+
+        profils = list(
+            HRProfile.objects.filter(is_active=True).order_by("username")
+        )
+        noms = noms_profils(profils)
+
+        resultats = [
+            {
+                "id": profil.pk,
+                "username": profil.username,
+                "email": email_profil(profil),
+                "nom": noms[profil.pk],
+                "fonction": profil.job_title,
+            }
+            for profil in profils
+        ]
+
+        resultats.sort(key=lambda r: (r["nom"] or "").lower())
+
+        return Response(resultats)
 
     filter_backends = [
         DjangoFilterBackend,
@@ -2345,11 +2524,27 @@ class CandidatViewSet(
         # avec le calendrier Outlook. Les emails ne sont alors pas
         # obligatoires.
 
-        emails_participants = lire_emails_participants(
-            request.data.get("emails_participants"),
-            obligatoire=date_entretien > timezone.now(),
-        )
+        # Rédacteurs choisis par le responsable recrutement : leurs
+        # emails reçoivent le mail et la relance. L'ancienne saisie
+        # libre des emails reste acceptée.
+        redacteurs = None
 
+        if "redacteurs" in request.data:
+            redacteurs = lire_redacteurs_compte_rendu(
+                request.data.get("redacteurs"),
+                obligatoire=date_entretien > timezone.now(),
+            )
+            emails_participants = []
+
+            for profil in redacteurs:
+                email = email_profil(profil)
+                if email not in emails_participants:
+                    emails_participants.append(email)
+        else:
+            emails_participants = lire_emails_participants(
+                request.data.get("emails_participants"),
+                obligatoire=date_entretien > timezone.now(),
+            )
 
         candidat.date_entretien_prevue = (
             date_entretien
@@ -2384,6 +2579,9 @@ class CandidatViewSet(
             ]
         )
 
+        if redacteurs is not None:
+            candidat.redacteurs_compte_rendu.set(redacteurs)
+
         log_action(
             request,
             candidat,
@@ -2394,6 +2592,11 @@ class CandidatViewSet(
                 ),
                 "emails_participants": (
                     emails_participants
+                ),
+                "redacteurs": (
+                    [profil.username for profil in redacteurs]
+                    if redacteurs is not None
+                    else None
                 ),
             },
         )
@@ -2643,6 +2846,42 @@ class CompteRenduEntretienCadreViewSet(
         CompteRenduEntretienCadreSerializer
     )
 
+    # Accès habituel, ou rédacteur choisi à la planification
+    permission_classes = [
+        PermissionCompteRendu,
+    ]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+
+        if acces_recrutement_complet(self.request, self):
+            return queryset
+
+        # Rédacteur : ses candidats uniquement
+        return queryset.filter(
+            candidat__redacteurs_compte_rendu=get_hr_profile(
+                self.request
+            )
+        )
+
+    def verifier_redacteur(self, candidat):
+        """Un rédacteur ne travaille que sur ses candidats."""
+        if acces_recrutement_complet(self.request, self):
+            return
+
+        profil = get_hr_profile(self.request)
+
+        if not (
+            profil
+            and candidat.redacteurs_compte_rendu
+            .filter(pk=profil.pk)
+            .exists()
+        ):
+            raise PermissionDenied(
+                "Vous n’êtes pas rédacteur du compte "
+                "rendu de ce candidat."
+            )
+
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,
@@ -2699,6 +2938,8 @@ class CompteRenduEntretienCadreViewSet(
             .validated_data["candidat"]
         )
 
+        self.verifier_redacteur(candidat)
+
         if not candidat.est_cadre:
             raise ValidationError(
                 {
@@ -2707,6 +2948,20 @@ class CompteRenduEntretienCadreViewSet(
                         "uniquement un candidat cadre."
                     )
                 }
+            )
+
+        # Entretien passé mais pas encore marqué réalisé : le
+        # rédacteur, prévenu par mail, peut tout de même commencer.
+        if (
+            candidat.statut
+            == Candidat.Statut.ENTRETIEN_PLANIFIE
+            and entretien_a_rediger(candidat)
+        ):
+            candidat.date_entretien_realisee = (
+                candidat.date_entretien_prevue
+            )
+            candidat.statut = (
+                Candidat.Statut.ENTRETIEN_REALISE
             )
 
         if (
@@ -2737,6 +2992,7 @@ class CompteRenduEntretienCadreViewSet(
         candidat.save(
             update_fields=[
                 "statut",
+                "date_entretien_realisee",
                 "date_modification",
             ]
         )
@@ -2770,6 +3026,15 @@ class CompteRenduEntretienCadreViewSet(
                     )
                 }
             )
+
+        # Un rédacteur ne peut pas déplacer le compte rendu
+        # vers un autre candidat.
+        self.verifier_redacteur(
+            serializer.validated_data.get(
+                "candidat",
+                compte_rendu.candidat,
+            )
+        )
 
         instance = serializer.save()
 
@@ -3149,6 +3414,50 @@ class CompteRenduEntretienCadreViewSet(
             },
             status=status.HTTP_200_OK,
         )
+
+
+class MesComptesRendusViewSet(viewsets.ViewSet):
+    """
+    Page « Mes comptes rendus à rédiger » : candidats dont
+    l'utilisateur connecté est rédacteur du compte rendu.
+    Ouverte à tout profil RH actif ; la liste est vide pour
+    les autres.
+    """
+
+    def get_candidats(self):
+        profil = get_hr_profile(self.request)
+
+        if not profil:
+            return Candidat.objects.none()
+
+        return (
+            Candidat.objects
+            .filter(
+                redacteurs_compte_rendu=profil,
+                processus__demande__type_recrutement=(
+                    DemandeRecrutement.TypeRecrutement.CADRE
+                ),
+            )
+            .exclude(statut=Candidat.Statut.AJOUTE)
+            .select_related(
+                "processus__demande__poste",
+                "compte_rendu_cadre",
+            )
+            .order_by("-date_entretien_prevue")
+        )
+
+    def list(self, request):
+        return Response(
+            [
+                candidat_pour_redacteur(candidat)
+                for candidat in self.get_candidats()
+            ]
+        )
+
+    def retrieve(self, request, pk=None):
+        candidat = get_object_or_404(self.get_candidats(), pk=pk)
+
+        return Response(candidat_pour_redacteur(candidat))
 
 class TachePreparationEmbaucheViewSet(
     viewsets.ModelViewSet

@@ -18,6 +18,7 @@ from .views import (
     DocumentCandidatViewSet,
     EmbaucheViewSet,
     CompteRenduEntretienCadreViewSet,
+    MesComptesRendusViewSet,
     TachePreparationEmbaucheViewSet,
     DesistementEmbaucheViewSet,
 )
@@ -83,6 +84,12 @@ router.register(
     r"comptes-rendus-cadres",
     CompteRenduEntretienCadreViewSet,
     basename="compte-rendu-cadre",
+)
+
+router.register(
+    r"mes-comptes-rendus",
+    MesComptesRendusViewSet,
+    basename="mes-comptes-rendus",
 )
 
 router.register(
