@@ -1213,6 +1213,21 @@ const formulaireApercu = useMemo(
             </div>
           </section>
 
+          {/* Rappel du message près des boutons : celui du haut
+              est caché par l'en-tête quand on est en bas */}
+          {(erreur || message) && (
+            <div
+              role={erreur ? "alert" : "status"}
+              className={`rounded-xl border p-4 text-sm ${
+                erreur
+                  ? "border-red-200 bg-red-50 text-red-700"
+                  : "border-emerald-200 bg-emerald-50 text-emerald-700"
+              }`}
+            >
+              {erreur || message}
+            </div>
+          )}
+
           <div className="flex flex-wrap justify-end gap-3">
             <button
               type="button"

@@ -12,6 +12,7 @@ from .emails import (
     notifier_processus_recrutement_cree,
     envoyer_email,
     envoyer_invitation_entretien,
+    notifier_compte_rendu_a_faire,
     preparer_annulation_entretien,
 )
 
@@ -2755,6 +2756,127 @@ class CandidatViewSet(
         serializer = self.get_serializer(
             candidat
         )
+
+        return Response(
+            {
+                "message": message,
+                "candidat": serializer.data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="redacteurs-compte-rendu",
+    )
+    def modifier_redacteurs_compte_rendu(
+        self,
+        request,
+        pk=None,
+    ):
+        """
+        Ajoute ou change les rédacteurs du compte rendu sans
+        reprogrammer l'entretien, tant que le compte rendu
+        n'est pas envoyé au DRH.
+        """
+        candidat = self.get_object()
+
+        self.verifier_candidat_cadre(
+            candidat
+        )
+
+        if candidat.statut not in [
+            Candidat.Statut.ENTRETIEN_PLANIFIE,
+            Candidat.Statut.ENTRETIEN_REALISE,
+            Candidat.Statut.COMPTE_RENDU_BROUILLON,
+        ]:
+            raise drf_serializers.ValidationError({
+                "detail": (
+                    "Les rédacteurs ne peuvent être modifiés "
+                    "qu'après la planification et tant que le "
+                    "compte rendu n'est pas envoyé."
+                )
+            })
+
+        redacteurs = lire_redacteurs_compte_rendu(
+            request.data.get("redacteurs"),
+            obligatoire=True,
+        )
+
+        emails = []
+        for profil in redacteurs:
+            email = email_profil(profil)
+            if email not in emails:
+                emails.append(email)
+
+        anciens = list(candidat.emails_participants_entretien or [])
+        ajoutes = [email for email in emails if email not in anciens]
+        retires = [email for email in anciens if email not in emails]
+
+        candidat.emails_participants_entretien = emails
+        candidat.save(
+            update_fields=[
+                "emails_participants_entretien",
+                "date_modification",
+            ]
+        )
+        candidat.redacteurs_compte_rendu.set(redacteurs)
+
+        log_action(
+            request,
+            candidat,
+            "UPDATE",
+            {
+                "redacteurs_compte_rendu": [
+                    profil.username for profil in redacteurs
+                ],
+                "ajoutes": ajoutes,
+                "retires": retires,
+            },
+        )
+
+        message = "Les rédacteurs du compte rendu ont été enregistrés."
+        entretien_a_venir = bool(
+            candidat.statut == Candidat.Statut.ENTRETIEN_PLANIFIE
+            and candidat.date_entretien_prevue
+            and candidat.date_entretien_prevue > timezone.now()
+        )
+
+        if entretien_a_venir:
+            # Réunion Outlook : invitation aux nouveaux rédacteurs,
+            # annulation pour ceux qui sont retirés.
+            if retires:
+                annulation = preparer_annulation_entretien(
+                    candidat, retires
+                )
+                if annulation:
+                    envoyer_email(**annulation)
+
+            if ajoutes and envoyer_invitation_entretien(
+                candidat, ajoutes
+            ):
+                message += (
+                    " Invitation Outlook envoyée à "
+                    f"{len(ajoutes)} nouveau(x) rédacteur(s)."
+                )
+        elif ajoutes and (
+            candidat.date_mail_compte_rendu
+            or candidat.statut
+            == Candidat.Statut.COMPTE_RENDU_BROUILLON
+        ):
+            # Le mail « compte rendu à faire » est déjà parti (ou ne
+            # partira plus) : les nouveaux rédacteurs le reçoivent
+            # tout de suite, avec le lien direct.
+            if notifier_compte_rendu_a_faire(
+                candidat, destinataires=ajoutes
+            ):
+                message += (
+                    " Le lien du compte rendu a été envoyé à "
+                    f"{len(ajoutes)} nouveau(x) rédacteur(s)."
+                )
+
+        serializer = self.get_serializer(candidat)
 
         return Response(
             {

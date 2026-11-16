@@ -1786,14 +1786,18 @@ def piece_jointe_cv(candidat):
     )]
 
 
-def notifier_compte_rendu_a_faire(candidat, relance=False):
+def notifier_compte_rendu_a_faire(
+    candidat, relance=False, destinataires=None,
+):
     """
     Demande aux participants de l'entretien cadre d'en faire le
     compte rendu (1 h après l'heure prévue), ou les relance
     (30 min plus tard) s'il n'est toujours pas fait.
+    destinataires : pour n'écrire qu'aux rédacteurs ajoutés.
     """
 
-    destinataires = candidat.emails_participants_entretien or []
+    if destinataires is None:
+        destinataires = candidat.emails_participants_entretien or []
 
     processus = candidat.processus
     demande = processus.demande

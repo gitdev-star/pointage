@@ -318,6 +318,21 @@ const recrutementApi = {
         donnees
       );
 
+    return response.data;
+  },
+
+  // Change les rédacteurs sans reprogrammer l'entretien
+  // (tant que le compte rendu n'est pas envoyé)
+  async modifierRedacteursCompteRendu(
+    candidatId,
+    redacteurs
+  ) {
+    const response =
+      await hrClient.post(
+        `recruitment/candidats/${candidatId}/redacteurs-compte-rendu/`,
+        { redacteurs }
+      );
+
 
     return response.data;
   },

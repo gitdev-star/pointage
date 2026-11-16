@@ -1,6 +1,7 @@
 import React, {
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -332,6 +333,19 @@ export default function SuiviCandidatCadre({
   const [message, setMessage] =
     useState("");
 
+  // Les messages sont en haut de la liste : on y ramène
+  // l'écran, sinon on ne les voit pas en bas d'une fiche.
+  const zoneMessages = useRef(null);
+
+  useEffect(() => {
+    if (message || erreur) {
+      zoneMessages.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }
+  }, [message, erreur]);
+
   const [
     candidatEntretienAConfirmer,
     setCandidatEntretienAConfirmer,
@@ -659,6 +673,50 @@ const nombreRetenus =
     }
   };
 
+  // Rédacteurs changés sans reprogrammer l'entretien
+  const enregistrerRedacteurs = async (
+    candidat
+  ) => {
+    const redacteurs =
+      redacteursEntretien[candidat.id] || [];
+
+    if (redacteurs.length === 0) {
+      setErreur(
+        "Choisissez au moins un rédacteur."
+      );
+      return;
+    }
+
+    setActionEnCours(
+      `redacteurs-${candidat.id}`
+    );
+    setErreur("");
+    setMessage("");
+
+    try {
+      const resultat = await recrutementApi
+        .modifierRedacteursCompteRendu(
+          candidat.id,
+          redacteurs
+        );
+
+      setMessage(
+        resultat?.message
+          || "Les rédacteurs ont été enregistrés."
+      );
+
+      await chargerCandidats();
+    } catch (error) {
+      setErreur(
+        recrutementApi.extraireErreur(
+          error
+        )
+      );
+    } finally {
+      setActionEnCours(null);
+    }
+  };
+
 const confirmerEntretienRealise =
   async () => {
     if (
@@ -764,17 +822,23 @@ const candidatModifie =
         </div>
       </section>
 
-      {message && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
-          {message}
-        </div>
-      )}
+      <div
+        ref={zoneMessages}
+        hidden={!message && !erreur}
+        className="scroll-mt-24 space-y-4"
+      >
+        {message && (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
+            {message}
+          </div>
+        )}
 
-      {erreur && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          {erreur}
-        </div>
-      )}
+        {erreur && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {erreur}
+          </div>
+        )}
+      </div>
 
       {afficherFormulaire && (
         <section className="rounded-xl border border-blue-200 bg-blue-50/40 p-5">
@@ -1082,7 +1146,29 @@ const candidatModifie =
                         : " Obligatoire pour planifier l’entretien."}
                     </p>
 
-                    <div className="mt-3 flex justify-end">
+                    <div className="mt-3 flex flex-col justify-end gap-2 sm:flex-row">
+                      {/* Changer les rédacteurs sans toucher à la date
+                          ni au CV (et sans renvoyer l'invitation à tous) */}
+                      {candidat.statut ===
+                        "ENTRETIEN_PLANIFIE" && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            enregistrerRedacteurs(
+                              candidat
+                            )
+                          }
+                          disabled={
+                            actionEnCours ===
+                            `redacteurs-${candidat.id}`
+                          }
+                          className="inline-flex items-center justify-center gap-2 rounded-lg border border-violet-300 bg-white px-4 py-2.5 text-sm font-semibold text-violet-700 hover:bg-violet-50 disabled:opacity-60"
+                        >
+                          <Users size={16} />
+                          Enregistrer les rédacteurs
+                        </button>
+                      )}
+
                       <button
                         type="button"
                         onClick={() =>
@@ -1133,6 +1219,80 @@ const candidatModifie =
                         </button>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* Entretien réalisé : on peut encore ajouter ou
+                    changer les rédacteurs tant que le compte rendu
+                    n'est pas envoyé */}
+                {[
+                  "ENTRETIEN_REALISE",
+                  "COMPTE_RENDU_BROUILLON",
+                ].includes(
+                  candidat.statut
+                ) && (
+                  <div className="mt-5 rounded-lg border border-violet-200 bg-violet-50 p-4">
+                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                      Rédacteurs du compte rendu
+                    </label>
+
+                    {!candidat.redacteurs_compte_rendu
+                      ?.length && (
+                      <p className="mb-2 text-xs text-amber-700">
+                        Aucun rédacteur enregistré pour ce candidat.
+                        {candidat
+                          .emails_participants_entretien
+                          ?.length > 0 &&
+                          ` Emails saisis auparavant : ${candidat.emails_participants_entretien.join(", ")}.`}
+                      </p>
+                    )}
+
+                    <ChoixRedacteurs
+                      possibles={
+                        redacteursPossibles
+                      }
+                      selection={
+                        redacteursEntretien[
+                          candidat.id
+                        ] || []
+                      }
+                      demandeurId={
+                        candidat.demandeur_profil_id
+                      }
+                      onChange={(selection) =>
+                        setRedacteursEntretien(
+                          (precedent) => ({
+                            ...precedent,
+                            [candidat.id]:
+                              selection,
+                          })
+                        )
+                      }
+                    />
+
+                    <p className="mt-1 text-xs text-slate-500">
+                      Les nouveaux rédacteurs reçoivent le lien du compte
+                      rendu par mail s'il a déjà été demandé.
+                    </p>
+
+                    <div className="mt-3 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          enregistrerRedacteurs(
+                            candidat
+                          )
+                        }
+                        disabled={
+                          actionEnCours ===
+                          `redacteurs-${candidat.id}`
+                        }
+                        className="inline-flex items-center justify-center gap-2 rounded-lg border border-violet-300 bg-white px-4 py-2.5 text-sm font-semibold text-violet-700 hover:bg-violet-100 disabled:opacity-60"
+                      >
+                        <Users size={16} />
+                        Enregistrer les rédacteurs
+                      </button>
+                    </div>
                   </div>
                 )}
 
