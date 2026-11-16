@@ -611,6 +611,14 @@ const nombreRetenus =
     }
 
 
+    // CV obligatoire, sauf s'il a déjà été joint
+    if (!cvsEntretien[candidat.id] && !candidat.cv_nom) {
+      setErreur(
+        "Joignez le CV du candidat (PDF ou Word)."
+      );
+      return;
+    }
+
     setActionEnCours(
       `planifier-${candidat.id}`
     );
@@ -1018,7 +1026,7 @@ const candidatModifie =
                     </p>
 
                     <label className="mb-1.5 mt-3 block text-sm font-medium text-slate-700">
-                      CV du candidat (facultatif)
+                      CV du candidat *
                     </label>
 
                     {candidat.cv_nom && (
@@ -1069,8 +1077,9 @@ const candidatModifie =
                       PDF ou Word, 10 Mo au plus. Il est joint à l’invitation
                       Outlook et au mail de compte rendu, et les rédacteurs
                       peuvent le télécharger depuis le compte rendu.
-                      {candidat.cv_nom &&
-                        " Un nouveau fichier remplace le CV actuel."}
+                      {candidat.cv_nom
+                        ? " Un nouveau fichier remplace le CV actuel."
+                        : " Obligatoire pour planifier l’entretien."}
                     </p>
 
                     <div className="mt-3 flex justify-end">

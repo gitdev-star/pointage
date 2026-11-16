@@ -2615,8 +2615,14 @@ class CandidatViewSet(
                 obligatoire=date_entretien > timezone.now(),
             )
 
-        # CV facultatif ; sans nouveau fichier, on garde l'ancien.
+        # CV obligatoire s'il n'y en a pas encore ; sans nouveau
+        # fichier, on garde l'ancien.
         cv = lire_cv(request.FILES.get("cv"))
+
+        if not cv and not candidat.cv:
+            raise drf_serializers.ValidationError({
+                "cv": "Joignez le CV du candidat (PDF ou Word)."
+            })
 
         # Pour l'invitation Outlook : déjà envoyée si l'entretien
         # était planifié, et personnes retirées à prévenir.
