@@ -16,6 +16,7 @@ import {
   UserPlus,
   Users,
   CalendarCheck2,
+  Download,
   X,
 } from "lucide-react";
 
@@ -307,6 +308,14 @@ export default function SuiviCandidatCadre({
 
   const [redacteursPossibles, setRedacteursPossibles] =
     useState([]);
+
+  // CV choisi à la planification (par candidat) ; la clé
+  // vide le champ fichier après un envoi réussi.
+  const [cvsEntretien, setCvsEntretien] =
+    useState({});
+
+  const [cleChampCv, setCleChampCv] =
+    useState(0);
 
   const [recherche, setRecherche] =
     useState("");
@@ -609,17 +618,26 @@ const nombreRetenus =
     setMessage("");
 
     try {
-      await recrutementApi
+      const resultat = await recrutementApi
         .planifierEntretienCadre(
           candidat.id,
           new Date(date).toISOString(),
-          redacteurs
+          redacteurs,
+          cvsEntretien[candidat.id] || null
         );
 
-
+      // Le serveur précise si l'invitation Outlook est partie
       setMessage(
-        "L’entretien a été planifié."
+        resultat?.message
+          || "L’entretien a été planifié."
       );
+
+      setCvsEntretien((precedent) => {
+        const suite = { ...precedent };
+        delete suite[candidat.id];
+        return suite;
+      });
+      setCleChampCv((cle) => cle + 1);
 
       await chargerCandidats();
     } catch (error) {
@@ -999,9 +1017,63 @@ const candidatModifie =
                       passée.
                     </p>
 
+                    <label className="mb-1.5 mt-3 block text-sm font-medium text-slate-700">
+                      CV du candidat (facultatif)
+                    </label>
+
+                    {candidat.cv_nom && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          recrutementApi
+                            .telechargerCvCandidat(
+                              candidat.id,
+                              candidat.cv_nom
+                            )
+                            .catch((error) =>
+                              setErreur(
+                                recrutementApi.extraireErreur(
+                                  error
+                                )
+                              )
+                            )
+                        }
+                        className="mb-2 inline-flex max-w-full items-center gap-2 rounded-lg border border-violet-300 bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-700 hover:bg-violet-100"
+                      >
+                        <Download size={15} />
+                        <span className="truncate">
+                          {candidat.cv_nom}
+                        </span>
+                      </button>
+                    )}
+
+                    <input
+                      key={`cv-${candidat.id}-${cleChampCv}`}
+                      type="file"
+                      accept=".pdf,.doc,.docx"
+                      onChange={(event) => {
+                        const fichier =
+                          event.target.files?.[0] || null;
+
+                        setCvsEntretien(
+                          (precedent) => ({
+                            ...precedent,
+                            [candidat.id]: fichier,
+                          })
+                        );
+                      }}
+                      className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200"
+                    />
+
+                    <p className="mt-1 text-xs text-slate-500">
+                      PDF ou Word, 10 Mo au plus. Il est joint à l’invitation
+                      Outlook et au mail de compte rendu, et les rédacteurs
+                      peuvent le télécharger depuis le compte rendu.
+                      {candidat.cv_nom &&
+                        " Un nouveau fichier remplace le CV actuel."}
+                    </p>
+
                     <div className="mt-3 flex justify-end">
-
-
                       <button
                         type="button"
                         onClick={() =>

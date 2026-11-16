@@ -41,15 +41,6 @@ const AVIS_OPTIONS = [
   },
 ];
 
-const DISPONIBILITES = [
-  "Immédiate",
-  "Sous 15 jours",
-  "Sous 1 mois",
-  "Sous 2 mois",
-  "Sous 3 mois",
-  "Autre",
-];
-
 function dateDuJour() {
   return new Date()
     .toISOString()
@@ -774,51 +765,8 @@ export default function CompteRenduEntretienCadre({
       return false;
     }
 
-    if (
-      form.pretentionSalariale === "" ||
-      Number(
-        form.pretentionSalariale
-      ) < 0
-    ) {
-      setErreur(
-        "La prétention salariale est obligatoire."
-      );
-      return false;
-    }
-
-    if (!form.disponibilite) {
-      setErreur(
-        "La disponibilité est obligatoire."
-      );
-      return false;
-    }
-
-    if (
-      form.disponibilite ===
-        "Autre" &&
-      !form.precisionDisponibilite.trim()
-    ) {
-      setErreur(
-        "Précisez la disponibilité."
-      );
-      return false;
-    }
-
-    if (
-      form.anneesExperience === ""
-    ) {
-      setErreur(
-        "Les années d’expérience sont obligatoires."
-      );
-      return false;
-    }
-
-    if (!form.diplome.trim()) {
-      setErreur(
-        "Le diplôme est obligatoire."
-      );
-      return false;
-    }
+    // Profil professionnel retiré : le CV du candidat est
+    // joint à la planification de l'entretien.
 
     if (!form.decisionFinale) {
       setErreur(
@@ -943,6 +891,27 @@ export default function CompteRenduEntretienCadre({
           error.response?.data || error
         );
 
+        setErreur(
+          recrutementApi.extraireErreur(
+            error
+          )
+        );
+      } finally {
+        setActionEnCours("");
+      }
+    };
+
+  const telechargerCv =
+    async () => {
+      setActionEnCours("cv");
+      setErreur("");
+
+      try {
+        await recrutementApi.telechargerCvCandidat(
+          candidat.id,
+          candidat.cv_nom
+        );
+      } catch (error) {
         setErreur(
           recrutementApi.extraireErreur(
             error
@@ -1093,152 +1062,35 @@ const formulaireApercu = useMemo(
                 }
                 disabled
               />
-            </div>
-          </section>
 
-          <section className="rounded-xl border border-slate-200 bg-white p-5">
-            <h2 className="mb-5 font-semibold text-slate-900">
-              Profil professionnel
-            </h2>
-
-            <div className="grid gap-5 md:grid-cols-2">
+              {/* CV joint à la planification de l'entretien */}
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Prétention salariale *
+                  CV du candidat
                 </label>
 
-                <div className="grid grid-cols-[1fr_110px]">
-                  <input
-                    type="number"
-                    min="0"
-                    value={
-                      form.pretentionSalariale
-                    }
-                    disabled={lectureSeule}
-                    onChange={(event) =>
-                      modifierChamp(
-                        "pretentionSalariale",
-                        event.target.value
-                      )
-                    }
-                    className="rounded-l-lg border border-r-0 border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-
-                  <select
-                    value={form.devise}
-                    disabled={lectureSeule}
-                    onChange={(event) =>
-                      modifierChamp(
-                        "devise",
-                        event.target.value
-                      )
-                    }
-                    className="rounded-r-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"
+                {candidat.cv_nom ? (
+                  <button
+                    type="button"
+                    onClick={telechargerCv}
+                    disabled={actionEnCours === "cv"}
+                    className="inline-flex w-full items-center gap-2 rounded-lg border border-violet-300 bg-violet-50 px-3.5 py-2.5 text-left text-sm font-medium text-violet-700 hover:bg-violet-100 disabled:opacity-60"
                   >
-                    <option value="MGA">
-                      MGA
-                    </option>
-                    <option value="EUR">
-                      EUR
-                    </option>
-                    <option value="USD">
-                      USD
-                    </option>
-                  </select>
-                </div>
+                    {actionEnCours === "cv" ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Download size={16} />
+                    )}
+                    <span className="truncate">
+                      {candidat.cv_nom}
+                    </span>
+                  </button>
+                ) : (
+                  <p className="rounded-lg border border-dashed border-slate-300 px-3.5 py-2.5 text-sm text-slate-500">
+                    Aucun CV joint à la planification.
+                  </p>
+                )}
               </div>
-
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Disponibilité / préavis *
-                </label>
-
-                <select
-                  value={form.disponibilite}
-                  disabled={lectureSeule}
-                  onChange={(event) =>
-                    modifierChamp(
-                      "disponibilite",
-                      event.target.value
-                    )
-                  }
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm"
-                >
-                  <option value="">
-                    Sélectionner
-                  </option>
-
-                  {DISPONIBILITES.map(
-                    (disponibilite) => (
-                      <option
-                        key={disponibilite}
-                        value={disponibilite}
-                      >
-                        {disponibilite}
-                      </option>
-                    )
-                  )}
-                </select>
-              </div>
-
-              {form.disponibilite ===
-                "Autre" && (
-                <Field
-                  label="Précision"
-                  value={
-                    form.precisionDisponibilite
-                  }
-                  disabled={lectureSeule}
-                  onChange={(event) =>
-                    modifierChamp(
-                      "precisionDisponibilite",
-                      event.target.value
-                    )
-                  }
-                />
-              )}
-
-              <Field
-                label="Années d’expérience"
-                type="number"
-                min="0"
-                value={
-                  form.anneesExperience
-                }
-                disabled={lectureSeule}
-                onChange={(event) =>
-                  modifierChamp(
-                    "anneesExperience",
-                    event.target.value
-                  )
-                }
-                required
-              />
-
-              <Field
-                label="Diplôme"
-                value={form.diplome}
-                disabled={lectureSeule}
-                onChange={(event) =>
-                  modifierChamp(
-                    "diplome",
-                    event.target.value
-                  )
-                }
-                required
-              />
-
-              <Field
-                label="Établissement"
-                value={form.etablissement}
-                disabled={lectureSeule}
-                onChange={(event) =>
-                  modifierChamp(
-                    "etablissement",
-                    event.target.value
-                  )
-                }
-              />
             </div>
           </section>
 

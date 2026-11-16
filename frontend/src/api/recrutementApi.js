@@ -288,19 +288,34 @@ const recrutementApi = {
 
   // redacteurs : identifiants des profils RH qui rédigeront
   // le compte rendu (ils reçoivent le mail et la relance)
+  // cv : fichier PDF/Word facultatif (sinon l'ancien CV est gardé)
   async planifierEntretienCadre(
     candidatId,
     dateEntretienPrevue,
-    redacteurs = []
+    redacteurs = [],
+    cv = null
   ) {
+    const donnees = new FormData();
+
+    donnees.append(
+      "date_entretien_prevue",
+      dateEntretienPrevue
+    );
+    // Liste envoyée en JSON : un FormData ne sait pas
+    // transmettre une liste vide.
+    donnees.append(
+      "redacteurs",
+      JSON.stringify(redacteurs)
+    );
+
+    if (cv) {
+      donnees.append("cv", cv);
+    }
+
     const response =
       await hrClient.post(
         `recruitment/candidats/${candidatId}/planifier-entretien/`,
-        {
-          date_entretien_prevue:
-            dateEntretienPrevue,
-          redacteurs,
-        }
+        donnees
       );
 
 
@@ -1329,6 +1344,38 @@ async validerEtEnvoyerCompteRenduCadre(
     const url =
       window.URL.createObjectURL(
         fichier
+      );
+
+    const lien =
+      document.createElement("a");
+
+    lien.href = url;
+    lien.download = nomFichier;
+
+    document.body.appendChild(lien);
+    lien.click();
+    lien.remove();
+
+    window.URL.revokeObjectURL(url);
+
+    return response;
+  },
+
+  // CV du candidat (rédacteurs et accès Recrutement)
+  async telechargerCvCandidat(
+    candidatId,
+    nomFichier = "cv"
+  ) {
+    const response = await hrClient.get(
+      `recruitment/mes-comptes-rendus/${candidatId}/cv/`,
+      {
+        responseType: "blob",
+      }
+    );
+
+    const url =
+      window.URL.createObjectURL(
+        response.data
       );
 
     const lien =

@@ -373,6 +373,76 @@ def creer_table_informations(
     return table
 
 
+def lignes_informations_candidat(candidat, compte_rendu):
+    """
+    Informations du candidat. Le profil professionnel n'est plus
+    saisi (le CV est joint à la planification) : il n'apparaît
+    que pour les anciens comptes rendus qui l'avaient rempli.
+    """
+    lignes = [
+        (
+            ("Nom et prénom", candidat.nom_complet),
+            ("Téléphone", candidat.telephone),
+        ),
+    ]
+
+    profil_renseigne = any([
+        compte_rendu.annees_experience is not None,
+        compte_rendu.pretention_salariale is not None,
+        (compte_rendu.diplome or "").strip(),
+        (compte_rendu.etablissement or "").strip(),
+        (compte_rendu.disponibilite or "").strip(),
+    ])
+
+    if not profil_renseigne:
+        lignes.append(
+            (
+                ("Adresse e-mail", candidat.email),
+                (
+                    "CV",
+                    "Joint à la planification"
+                    if candidat.cv
+                    else "—",
+                ),
+            )
+        )
+        return lignes
+
+    disponibilite = (
+        compte_rendu.precision_disponibilite
+        if compte_rendu.disponibilite == "Autre"
+        else compte_rendu.disponibilite
+    )
+
+    lignes += [
+        (
+            ("Adresse e-mail", candidat.email),
+            (
+                "Années d’expérience",
+                f"{compte_rendu.annees_experience} an(s)"
+                if compte_rendu.annees_experience is not None
+                else "—",
+            ),
+        ),
+        (
+            ("Diplôme", compte_rendu.diplome),
+            ("Établissement", compte_rendu.etablissement),
+        ),
+        (
+            (
+                "Prétention salariale",
+                formater_salaire(
+                    compte_rendu.pretention_salariale,
+                    compte_rendu.devise,
+                ),
+            ),
+            ("Disponibilité", disponibilite),
+        ),
+    ]
+
+    return lignes
+
+
 def creer_bloc_avis(
     titre,
     decision,
@@ -595,67 +665,10 @@ def generer_pdf_compte_rendu(
             ],
         ),
         creer_table_informations(
-            [
-                (
-                    (
-                        "Nom et prénom",
-                        candidat.nom_complet,
-                    ),
-                    (
-                        "Téléphone",
-                        candidat.telephone,
-                    ),
-                ),
-                (
-                    (
-                        "Adresse e-mail",
-                        candidat.email,
-                    ),
-                    (
-                        "Années d’expérience",
-                        (
-                            f"{compte_rendu.annees_experience} an(s)"
-                            if compte_rendu.annees_experience
-                            is not None
-                            else "—"
-                        ),
-                    ),
-                ),
-                (
-                    (
-                        "Diplôme",
-                        compte_rendu.diplome,
-                    ),
-                    (
-                        "Établissement",
-                        compte_rendu.etablissement,
-                    ),
-                ),
-                (
-                    (
-                        "Prétention salariale",
-                        formater_salaire(
-                            compte_rendu
-                            .pretention_salariale,
-                            compte_rendu.devise,
-                        ),
-                    ),
-                    (
-                        "Disponibilité",
-                        (
-                            compte_rendu
-                            .precision_disponibilite
-                            if (
-                                compte_rendu
-                                .disponibilite
-                                == "Autre"
-                            )
-                            else compte_rendu
-                            .disponibilite
-                        ),
-                    ),
-                ),
-            ],
+            lignes_informations_candidat(
+                candidat,
+                compte_rendu,
+            ),
             styles,
         ),
         Spacer(1, 5 * mm),

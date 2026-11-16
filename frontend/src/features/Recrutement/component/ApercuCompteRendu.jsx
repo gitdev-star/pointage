@@ -30,6 +30,18 @@ function formatSalaire(value, devise) {
   }`;
 }
 
+function profilRenseigne(form) {
+  return [
+    form.anneesExperience,
+    form.pretentionSalariale,
+    form.diplome,
+    form.etablissement,
+    form.disponibilite,
+  ].some(
+    (valeur) => String(valeur ?? "").trim() !== ""
+  );
+}
+
 function AvisSection({ titre, avis, couleur }) {
   if (!avis) return null;
 
@@ -204,39 +216,45 @@ export default function ApercuCompteRendu({
                   value={candidat.posteActuel}
                 />
 
-                <Info
-                  label="Années d’expérience"
-                  value={
-                    form.anneesExperience
-                      ? `${form.anneesExperience} an(s)`
-                      : ""
-                  }
-                />
+                {/* Profil professionnel : plus saisi (CV joint à la
+                    planification), affiché pour les anciens comptes rendus */}
+                {profilRenseigne(form) && (
+                  <>
+                    <Info
+                      label="Années d’expérience"
+                      value={
+                        form.anneesExperience
+                          ? `${form.anneesExperience} an(s)`
+                          : ""
+                      }
+                    />
 
-                <Info label="Diplôme" value={form.diplome} />
+                    <Info label="Diplôme" value={form.diplome} />
 
-                <Info
-                  label="Établissement"
-                  value={form.etablissement}
-                />
+                    <Info
+                      label="Établissement"
+                      value={form.etablissement}
+                    />
 
-                <Info
-                  label="Prétention salariale"
-                  value={formatSalaire(
-                    form.pretentionSalariale,
-                    form.devise
-                  )}
-                />
+                    <Info
+                      label="Prétention salariale"
+                      value={formatSalaire(
+                        form.pretentionSalariale,
+                        form.devise
+                      )}
+                    />
 
-                <Info
-                  label="Disponibilité"
-                  value={form.disponibilite}
-                />
+                    <Info
+                      label="Disponibilité"
+                      value={form.disponibilite}
+                    />
 
-                <Info
-                  label="Précision sur la disponibilité"
-                  value={form.precisionDisponibilite}
-                />
+                    <Info
+                      label="Précision sur la disponibilité"
+                      value={form.precisionDisponibilite}
+                    />
+                  </>
+                )}
               </div>
             </section>
 

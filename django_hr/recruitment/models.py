@@ -730,6 +730,17 @@ def chemin_fichier_offre(instance, filename):
     return f"recruitment/offres/{annee}/{nom_fichier}"
 
 
+def chemin_cv_candidat(instance, filename):
+    """
+    CV des candidats cadres : nom aléatoire, pour qu'on ne
+    puisse pas deviner l'adresse du fichier.
+    """
+    extension = os.path.splitext(filename)[1].lower()
+    annee = timezone.localdate().year
+
+    return f"recruitment/cv/{annee}/cv-{uuid.uuid4().hex}{extension}"
+
+
 class OffreRecrutement(models.Model):
     reference = models.CharField(
         max_length=30,
@@ -1114,6 +1125,20 @@ class Candidat(models.Model):
         "accounts.HRProfile",
         blank=True,
         related_name="candidats_compte_rendu",
+    )
+
+    # CV du candidat cadre, joint à la planification (facultatif).
+    # Envoyé avec l'invitation et le mail de compte rendu, et
+    # consultable par les rédacteurs.
+    cv = models.FileField(
+        upload_to=chemin_cv_candidat,
+        null=True,
+        blank=True,
+    )
+
+    cv_nom_original = models.CharField(
+        max_length=255,
+        blank=True,
     )
 
     date_mail_compte_rendu = models.DateTimeField(
@@ -2036,43 +2061,10 @@ class CompteRenduEntretienCadre(
                     "est obligatoire."
                 )
 
-            if (
-                self.pretention_salariale
-                is None
-            ):
-                erreurs[
-                    "pretention_salariale"
-                ] = (
-                    "La prétention salariale "
-                    "est obligatoire."
-                )
-
-            if (
-                not self
-                .disponibilite
-                .strip()
-            ):
-                erreurs["disponibilite"] = (
-                    "La disponibilité "
-                    "est obligatoire."
-                )
-
-            if (
-                self.annees_experience
-                is None
-            ):
-                erreurs[
-                    "annees_experience"
-                ] = (
-                    "Le nombre d’années "
-                    "d’expérience est obligatoire."
-                )
-
-            if not self.diplome.strip():
-                erreurs["diplome"] = (
-                    "Le diplôme "
-                    "est obligatoire."
-                )
+            # Profil professionnel (prétention, disponibilité,
+            # expérience, diplôme) retiré du formulaire : le CV
+            # du candidat est joint à la planification. Les
+            # colonnes restent pour les anciens comptes rendus.
 
             if not self.decision_finale:
                 erreurs["decision_finale"] = (

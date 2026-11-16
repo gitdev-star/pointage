@@ -1884,6 +1884,12 @@ class CandidatSerializer(
         serializers.SerializerMethodField()
     )
 
+    # Nom du CV seulement : le fichier se télécharge par l'API
+    # (authentifiée), jamais par son adresse /media/.
+    cv_nom = (
+        serializers.SerializerMethodField()
+    )
+
     class Meta:
         model = Candidat
 
@@ -1903,6 +1909,7 @@ class CandidatSerializer(
             "emails_participants_entretien",
             "redacteurs_compte_rendu",
             "demandeur_profil_id",
+            "cv_nom",
             "date_mail_compte_rendu",
             "date_relance_compte_rendu",
 
@@ -2035,6 +2042,15 @@ class CandidatSerializer(
         candidat,
     ):
         return candidat.processus.demande.demandeur_id
+
+    def get_cv_nom(
+        self,
+        candidat,
+    ):
+        if not candidat.cv:
+            return None
+
+        return candidat.cv_nom_original or "CV"
 
     def get_peut_rediger_compte_rendu(
         self,

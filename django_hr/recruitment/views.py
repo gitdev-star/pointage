@@ -10,6 +10,9 @@ from .emails import (
     notifier_services_preparation_cadre,
     envoyer_documents_onboarding_cadre,
     notifier_processus_recrutement_cree,
+    envoyer_email,
+    envoyer_invitation_entretien,
+    preparer_annulation_entretien,
 )
 
 from django.core.exceptions import (
@@ -17,7 +20,11 @@ from django.core.exceptions import (
     ImproperlyConfigured
 )
 from django.db import transaction, close_old_connections 
-from django.http import HttpResponse
+import json
+import mimetypes
+import os
+
+from django.http import FileResponse, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
@@ -164,6 +171,9 @@ def lire_emails_participants(valeur, obligatoire=True):
 
 def email_profil(profil):
     """Adresse d'un profil RH (email, ou username s'il en est une)."""
+    if not profil:
+        return ""
+
     email = (profil.email or "").strip().lower()
 
     if not email and "@" in (profil.username or ""):
@@ -218,6 +228,18 @@ def lire_redacteurs_compte_rendu(valeur, obligatoire=True):
     """
     from accounts.models import HRProfile
 
+    # Envoi multipart (avec le CV) : la liste arrive en JSON.
+    if isinstance(valeur, str):
+        try:
+            valeur = json.loads(valeur or "[]")
+        except ValueError:
+            raise drf_serializers.ValidationError({
+                "redacteurs": "Rédacteur invalide."
+            })
+
+    if not isinstance(valeur, (list, tuple)):
+        valeur = [valeur] if valeur else []
+
     identifiants = []
 
     for identifiant in valeur or []:
@@ -261,6 +283,30 @@ def lire_redacteurs_compte_rendu(valeur, obligatoire=True):
     return profils
 
 
+EXTENSIONS_CV = {".pdf", ".doc", ".docx"}
+TAILLE_MAX_CV = 10 * 1024 * 1024
+
+
+def lire_cv(fichier):
+    """CV joint à la planification : PDF ou Word, 10 Mo au plus."""
+    if not fichier:
+        return None
+
+    extension = os.path.splitext(fichier.name)[1].lower()
+
+    if extension not in EXTENSIONS_CV:
+        raise drf_serializers.ValidationError({
+            "cv": "Le CV doit être un fichier PDF ou Word (.doc, .docx)."
+        })
+
+    if fichier.size > TAILLE_MAX_CV:
+        raise drf_serializers.ValidationError({
+            "cv": "Le CV ne doit pas dépasser 10 Mo."
+        })
+
+    return fichier
+
+
 def candidat_pour_redacteur(candidat):
     """Informations du candidat utiles au rédacteur du compte rendu."""
     compte_rendu = getattr(candidat, "compte_rendu_cadre", None)
@@ -284,6 +330,9 @@ def candidat_pour_redacteur(candidat):
             compte_rendu.statut if compte_rendu else None
         ),
         "a_rediger": entretien_a_rediger(candidat),
+        "cv_nom": (
+            (candidat.cv_nom_original or "CV") if candidat.cv else None
+        ),
     }
 
 
@@ -2407,7 +2456,27 @@ class CandidatViewSet(
                 )
             })
 
+        # Entretien à venir : on retire la réunion des calendriers
+        # Outlook. Le mail est préparé avant la suppression.
+        annulation = None
+
+        if (
+            instance.statut == Candidat.Statut.ENTRETIEN_PLANIFIE
+            and instance.date_entretien_prevue
+            and instance.date_entretien_prevue > timezone.now()
+        ):
+            invites = list(instance.emails_participants_entretien or [])
+            email_auteur = email_profil(get_hr_profile(self.request))
+
+            if email_auteur and email_auteur not in invites:
+                invites.append(email_auteur)
+
+            annulation = preparer_annulation_entretien(instance, invites)
+
         super().perform_destroy(instance)
+
+        if annulation:
+            envoyer_email(**annulation)
 
     def verifier_candidat_cadre(
         self,
@@ -2546,6 +2615,24 @@ class CandidatViewSet(
                 obligatoire=date_entretien > timezone.now(),
             )
 
+        # CV facultatif ; sans nouveau fichier, on garde l'ancien.
+        cv = lire_cv(request.FILES.get("cv"))
+
+        # Pour l'invitation Outlook : déjà envoyée si l'entretien
+        # était planifié, et personnes retirées à prévenir.
+        deja_planifie = (
+            candidat.statut == Candidat.Statut.ENTRETIEN_PLANIFIE
+        )
+        ancienne_date = candidat.date_entretien_prevue
+        reunion_a_venir = bool(
+            deja_planifie
+            and ancienne_date
+            and ancienne_date > timezone.now()
+        )
+        anciens_invites = list(
+            candidat.emails_participants_entretien or []
+        )
+
         candidat.date_entretien_prevue = (
             date_entretien
         )
@@ -2567,16 +2654,27 @@ class CandidatViewSet(
         candidat.date_mail_compte_rendu = None
         candidat.date_relance_compte_rendu = None
 
+        champs_modifies = [
+            "date_entretien_prevue",
+            "date_entretien_realisee",
+            "statut",
+            "emails_participants_entretien",
+            "date_mail_compte_rendu",
+            "date_relance_compte_rendu",
+            "date_modification",
+        ]
+
+        if cv:
+            # Nouveau CV : l'ancien fichier est supprimé du disque
+            if candidat.cv:
+                candidat.cv.delete(save=False)
+
+            candidat.cv = cv
+            candidat.cv_nom_original = os.path.basename(cv.name)[:255]
+            champs_modifies += ["cv", "cv_nom_original"]
+
         candidat.save(
-            update_fields=[
-                "date_entretien_prevue",
-                "date_entretien_realisee",
-                "statut",
-                "emails_participants_entretien",
-                "date_mail_compte_rendu",
-                "date_relance_compte_rendu",
-                "date_modification",
-            ]
+            update_fields=champs_modifies
         )
 
         if redacteurs is not None:
@@ -2598,8 +2696,55 @@ class CandidatViewSet(
                     if redacteurs is not None
                     else None
                 ),
+                "cv": candidat.cv_nom_original if cv else None,
             },
         )
+
+        message = "L'entretien a été planifié."
+
+        # Invitation Outlook : rédacteurs + personne qui planifie.
+        planificateur = email_profil(get_hr_profile(request))
+        invites = list(emails_participants)
+
+        if planificateur and planificateur not in invites:
+            invites.append(planificateur)
+
+        if reunion_a_venir:
+            # Réunion déjà dans les calendriers : on l'annule pour
+            # les personnes retirées, ou pour tous si la nouvelle
+            # date est passée (entretien déjà tenu).
+            if date_entretien > timezone.now():
+                a_annuler = [
+                    email for email in anciens_invites
+                    if email not in invites
+                ]
+            else:
+                a_annuler = list(
+                    dict.fromkeys(anciens_invites + invites)
+                )
+
+            annulation = preparer_annulation_entretien(
+                candidat, a_annuler, ancienne_date
+            )
+            if annulation:
+                envoyer_email(**annulation)
+
+        # Invitation seulement pour un entretien à venir.
+        if date_entretien > timezone.now():
+            if envoyer_invitation_entretien(
+                candidat,
+                invites,
+                modification=reunion_a_venir,
+            ):
+                message += (
+                    " Invitation Outlook envoyée à "
+                    f"{len(invites)} personne(s)."
+                )
+            elif invites:
+                message += (
+                    " L'invitation Outlook n'a pas pu "
+                    "être envoyée."
+                )
 
         serializer = self.get_serializer(
             candidat
@@ -2607,10 +2752,7 @@ class CandidatViewSet(
 
         return Response(
             {
-                "message": (
-                    "L'entretien a été "
-                    "planifié."
-                ),
+                "message": message,
                 "candidat": serializer.data,
             },
             status=status.HTTP_200_OK,
@@ -3458,6 +3600,36 @@ class MesComptesRendusViewSet(viewsets.ViewSet):
         candidat = get_object_or_404(self.get_candidats(), pk=pk)
 
         return Response(candidat_pour_redacteur(candidat))
+
+    @action(detail=True, methods=["get"], url_path="cv")
+    def cv(self, request, pk=None):
+        """
+        CV du candidat : pour ses rédacteurs, et pour les
+        personnes ayant l'accès Recrutement.
+        """
+        if acces_recrutement_complet(request, self):
+            candidats = Candidat.objects.all()
+        else:
+            candidats = self.get_candidats()
+
+        candidat = get_object_or_404(candidats, pk=pk)
+
+        if not candidat.cv:
+            raise drf_serializers.ValidationError(
+                {"detail": "Aucun CV pour ce candidat."}
+            )
+
+        nom = candidat.cv_nom_original or os.path.basename(candidat.cv.name)
+
+        return FileResponse(
+            candidat.cv.open("rb"),
+            as_attachment=True,
+            filename=nom,
+            content_type=(
+                mimetypes.guess_type(nom)[0]
+                or "application/octet-stream"
+            ),
+        )
 
 class TachePreparationEmbaucheViewSet(
     viewsets.ModelViewSet

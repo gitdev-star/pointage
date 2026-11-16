@@ -1,5 +1,7 @@
 import logging
 import mimetypes
+from datetime import timedelta, timezone as dt_timezone
+from email.utils import parseaddr
 from pathlib import Path
 
 from django.conf import settings
@@ -112,6 +114,7 @@ def envoyer_email(
     contenu_html,
     destinataires,
     pieces_jointes=None,
+    calendrier=None,
 ):
     """
     Fonction commune pour tous les e-mails
@@ -123,6 +126,9 @@ def envoyer_email(
         contenu,
         type_mime,
     )
+
+    calendrier : (contenu_ics, methode) pour une invitation
+    Outlook (methode = "REQUEST" ou "CANCEL").
     """
 
     destinataires_valides = (
@@ -156,6 +162,16 @@ def envoyer_email(
             contenu_html,
             "text/html",
         )
+
+        # Partie text/calendar : Outlook l'affiche comme une
+        # réunion (Accepter / Refuser) et l'ajoute au calendrier.
+        if calendrier:
+            contenu_ics, methode = calendrier
+            message.attach_alternative(
+                contenu_ics,
+                # le charset est ajouté par Django
+                f"text/calendar; method={methode}",
+            )
 
         for piece_jointe in (
             pieces_jointes or []
@@ -1746,6 +1762,30 @@ def style_value():
         "border: 1px solid #e2e8f0;"
     )
 
+
+def piece_jointe_cv(candidat):
+    """CV du candidat en pièce jointe (liste vide s'il n'y en a pas)."""
+
+    if not candidat.cv:
+        return []
+
+    nom = candidat.cv_nom_original or Path(candidat.cv.name).name
+
+    try:
+        with candidat.cv.open("rb") as fichier:
+            contenu = fichier.read()
+    except Exception:
+        # Fichier absent du disque : le mail part quand même
+        logger.exception("CV illisible pour le candidat #%s", candidat.pk)
+        return []
+
+    return [(
+        nom,
+        contenu,
+        mimetypes.guess_type(nom)[0] or "application/octet-stream",
+    )]
+
+
 def notifier_compte_rendu_a_faire(candidat, relance=False):
     """
     Demande aux participants de l'entretien cadre d'en faire le
@@ -1803,6 +1843,9 @@ def notifier_compte_rendu_a_faire(candidat, relance=False):
             "L'entretien ci-dessous est passé. Merci d'en faire le "
             "compte rendu dans l'outil de recrutement."
         )
+
+    if candidat.cv:
+        intro += " Le CV du candidat est joint à ce mail."
 
     contenu_texte = (
         "Bonjour,\n\n"
@@ -1891,4 +1934,298 @@ def notifier_compte_rendu_a_faire(candidat, relance=False):
         contenu_texte=contenu_texte,
         contenu_html=contenu_html,
         destinataires=destinataires,
+        pieces_jointes=piece_jointe_cv(candidat),
     )
+
+
+# ---------------------------------------------------------------
+# Invitation Outlook (fichier iCalendar) pour l'entretien cadre
+# ---------------------------------------------------------------
+
+# Pas de durée dans le modèle : l'invitation bloque 1 h.
+DUREE_ENTRETIEN_MINUTES = 60
+
+# Origine du numéro de version (SEQUENCE) : 01/01/2026 UTC.
+ORIGINE_SEQUENCE = 1767225600
+
+
+def echapper_ics(texte):
+    """Échappe un texte pour un champ iCalendar (RFC 5545)."""
+
+    return (
+        str(texte or "")
+        .replace("\\", "\\\\")
+        .replace(";", "\\;")
+        .replace(",", "\\,")
+        .replace("\r\n", "\\n")
+        .replace("\n", "\\n")
+    )
+
+
+def plier_ligne_ics(ligne):
+    """Coupe les lignes à 75 octets, comme le demande la norme."""
+
+    morceaux = []
+    courant = ""
+
+    for caractere in ligne:
+        limite = 75 if not morceaux else 74
+        if len((courant + caractere).encode("utf-8")) > limite:
+            morceaux.append(courant)
+            courant = caractere
+        else:
+            courant += caractere
+
+    morceaux.append(courant)
+    return "\r\n ".join(morceaux)
+
+
+def format_date_ics(valeur):
+    return valeur.astimezone(
+        dt_timezone.utc
+    ).strftime("%Y%m%dT%H%M%SZ")
+
+
+def adresse_organisateur():
+    return parseaddr(settings.DEFAULT_FROM_EMAIL or "")[1]
+
+
+def uid_entretien(candidat_id):
+    """Même UID à chaque envoi : Outlook met à jour la réunion."""
+
+    domaine = adresse_organisateur().split("@")[-1] or "rh.local"
+    return f"entretien-candidat-{candidat_id}@{domaine}"
+
+
+def construire_ics_entretien(
+    candidat, destinataires, methode, date_entretien=None,
+):
+    """
+    Construit l'invitation (REQUEST) ou l'annulation (CANCEL)
+    de l'entretien d'un candidat cadre.
+    """
+
+    demande = candidat.processus.demande
+    poste = demande.poste.name if demande.poste else "Non renseigné"
+
+    debut = date_entretien or candidat.date_entretien_prevue
+    fin =debut + timedelta(minutes=DUREE_ENTRETIEN_MINUTES)
+    maintenant = timezone.now()
+
+    # Doit augmenter à chaque envoi pour qu'Outlook prenne
+    # la dernière version de la réunion.
+    sequence = int(maintenant.timestamp()) - ORIGINE_SEQUENCE
+
+    url = (
+        f"{settings.FRONTEND_URL.rstrip('/')}"
+        f"/hr/recrutement/mes-comptes-rendus/{candidat.pk}"
+    )
+
+    description = (
+        "Entretien de recrutement\n"
+        f"Candidat : {candidat.nom_complet}\n"
+        f"Poste : {poste}\n"
+        f"Référence : {demande.reference}\n\n"
+        f"Compte rendu : {url}"
+    )
+
+    lignes = [
+        "BEGIN:VCALENDAR",
+        "PRODID:-//Systeme RH//Recrutement//FR",
+        "VERSION:2.0",
+        "CALSCALE:GREGORIAN",
+        f"METHOD:{methode}",
+        "BEGIN:VEVENT",
+        f"UID:{uid_entretien(candidat.pk)}",
+        f"SEQUENCE:{sequence}",
+        f"DTSTAMP:{format_date_ics(maintenant)}",
+        f"DTSTART:{format_date_ics(debut)}",
+        f"DTEND:{format_date_ics(fin)}",
+        "SUMMARY:" + echapper_ics(
+            f"Entretien - {candidat.nom_complet} ({poste})"
+        ),
+        "DESCRIPTION:" + echapper_ics(description),
+        "ORGANIZER;CN=Recrutement RH:mailto:"
+        f"{adresse_organisateur()}",
+    ]
+
+    for email in destinataires:
+        lignes.append(
+            "ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;"
+            f"PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:{email}"
+        )
+
+    if methode == "CANCEL":
+        lignes += ["STATUS:CANCELLED", "TRANSP:TRANSPARENT"]
+    else:
+        lignes += [
+            "STATUS:CONFIRMED",
+            "TRANSP:OPAQUE",
+            "BEGIN:VALARM",
+            "ACTION:DISPLAY",
+            "DESCRIPTION:Rappel entretien",
+            "TRIGGER:-PT15M",
+            "END:VALARM",
+        ]
+
+    lignes += ["END:VEVENT", "END:VCALENDAR"]
+
+    return "\r\n".join(
+        plier_ligne_ics(ligne) for ligne in lignes
+    ) + "\r\n"
+
+
+def corps_invitation_entretien(
+    candidat, titre, intro, couleur, date_entretien=None,
+):
+    demande = candidat.processus.demande
+    poste = demande.poste.name if demande.poste else "Non renseigné"
+    date_entretien = timezone.localtime(
+        date_entretien or candidat.date_entretien_prevue
+    ).strftime("%d/%m/%Y à %Hh%M")
+
+    contenu_texte = (
+        "Bonjour,\n\n"
+        f"{intro}\n\n"
+        f"Candidat : {candidat.nom_complet}\n"
+        f"Poste : {poste}\n"
+        f"Référence : {demande.reference}\n"
+        f"Date : {date_entretien}\n"
+    )
+
+    contenu_html = f"""
+    <html>
+      <body style="margin: 0; padding: 24px; background: #f1f5f9;
+                   font-family: Arial, sans-serif;">
+        <div style="max-width: 650px; margin: auto; background: white;
+                    border: 1px solid #e2e8f0; border-radius: 12px;
+                    overflow: hidden;">
+          <div style="padding: 20px 24px; background: {couleur};
+                      color: white;">
+            <h2 style="margin: 0;">{escape(titre)}</h2>
+            <p style="margin: 8px 0 0; opacity: 0.9;">
+              {escape(demande.reference)}
+            </p>
+          </div>
+          <div style="padding: 24px; color: #334155;">
+            <p>Bonjour,</p>
+            <p>{escape(intro)}</p>
+            <table style="width: 100%; margin: 20px 0;
+                          border-collapse: collapse;">
+              <tr>
+                <td style="{style_label()}">Candidat</td>
+                <td style="{style_value()}">
+                  {escape(candidat.nom_complet)}
+                </td>
+              </tr>
+              <tr>
+                <td style="{style_label()}">Poste</td>
+                <td style="{style_value()}">{escape(poste)}</td>
+              </tr>
+              <tr>
+                <td style="{style_label()}">Date</td>
+                <td style="{style_value()}">
+                  {escape(date_entretien)}
+                </td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      </body>
+    </html>
+    """
+
+    return contenu_texte, contenu_html, date_entretien
+
+
+def envoyer_invitation_entretien(
+    candidat,
+    destinataires,
+    modification=False,
+):
+    """Invitation Outlook, ou mise à jour si l'entretien est déplacé."""
+
+    destinataires = nettoyer_destinataires(destinataires)
+    if not destinataires:
+        return False
+
+    if modification:
+        titre = "Entretien replanifié"
+        intro = (
+            "L'entretien ci-dessous a été déplacé. "
+            "La réunion sera mise à jour dans votre calendrier Outlook."
+        )
+    else:
+        titre = "Invitation à un entretien de recrutement"
+        intro = (
+            "Vous êtes invité(e) à l'entretien ci-dessous. "
+            "Acceptez l'invitation pour l'ajouter à votre "
+            "calendrier Outlook."
+        )
+
+    if candidat.cv:
+        intro += " Le CV du candidat est joint à ce mail."
+
+    contenu_texte, contenu_html, date_entretien = (
+        corps_invitation_entretien(candidat, titre, intro, "#7c3aed")
+    )
+
+    prefixe = "Entretien replanifié" if modification else "Invitation"
+
+    return envoyer_email(
+        sujet=(
+            f"[Recrutement] {prefixe} : "
+            f"{candidat.nom_complet} - {date_entretien}"
+        ),
+        contenu_texte=contenu_texte,
+        contenu_html=contenu_html,
+        destinataires=destinataires,
+        pieces_jointes=piece_jointe_cv(candidat),
+        calendrier=(
+            construire_ics_entretien(
+                candidat, destinataires, "REQUEST"
+            ),
+            "REQUEST",
+        ),
+    )
+
+
+def preparer_annulation_entretien(
+    candidat, destinataires, date_entretien=None,
+):
+    """
+    Prépare le mail d'annulation (à passer à envoyer_email).
+    Il est construit tout de suite pour pouvoir partir même
+    après la suppression du candidat.
+    """
+
+    destinataires = nettoyer_destinataires(destinataires)
+    if not destinataires:
+        return None
+
+    contenu_texte, contenu_html, date_affichee = (
+        corps_invitation_entretien(
+            candidat,
+            "Entretien annulé",
+            "L'entretien ci-dessous est annulé. "
+            "Il sera retiré de votre calendrier Outlook.",
+            "#dc2626",
+            date_entretien,
+        )
+    )
+
+    return {
+        "sujet": (
+            "[Recrutement] Entretien annulé : "
+            f"{candidat.nom_complet} - {date_affichee}"
+        ),
+        "contenu_texte": contenu_texte,
+        "contenu_html": contenu_html,
+        "destinataires": destinataires,
+        "calendrier": (
+            construire_ics_entretien(
+                candidat, destinataires, "CANCEL", date_entretien
+            ),
+            "CANCEL",
+        ),
+    }
