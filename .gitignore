@@ -70,3 +70,4 @@ analytics/.venv/
 analytics/.env
 analytics/out/
 assistant/.env
+ssl/
