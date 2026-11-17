@@ -3564,7 +3564,7 @@ class CompteRenduEntretienCadreViewSet(
             compte_rendu.save()
 
             try:
-                envoyer_compte_rendu_cadre(
+                envoye = envoyer_compte_rendu_cadre(
                     compte_rendu
                 )
 
@@ -3582,6 +3582,22 @@ class CompteRenduEntretienCadreViewSet(
                             "Le compte rendu n'a pas "
                             "pu être envoyé au DRH : "
                             f"{str(error)}"
+                        )
+                    }
+                )
+
+            # Mail non parti : l'erreur annule toute la transaction,
+            # le compte rendu reste en brouillon et peut être renvoyé.
+            if not envoye:
+                raise ValidationError(
+                    {
+                        "detail": (
+                            "Le compte rendu n'a pas pu être "
+                            "envoyé au DRH (aucune adresse DRH "
+                            "ou erreur du serveur mail). Rien "
+                            "n'a été enregistré : réessayez "
+                            "plus tard ou prévenez "
+                            "l'administrateur."
                         )
                     }
                 )

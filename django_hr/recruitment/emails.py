@@ -992,12 +992,15 @@ def envoyer_compte_rendu_cadre(
     au DRH avec le PDF en pièce jointe.
     """
 
+    # DRH_EMAILS (réglage facultatif) reste prioritaire ; sinon
+    # les comptes « directeur », comme pour les demandes.
     destinataires = nettoyer_destinataires(
         getattr(
             settings,
             "DRH_EMAILS",
-            [],
+            None,
         )
+        or emails_directeurs_rh()
     )
 
     if not destinataires:
