@@ -4280,8 +4280,11 @@ class EmbaucheViewSet(ModelViewSet):
 
         resultat_email = None
 
+        # Candidat cadre sans e-mail : pas d'envoi, le RI et le Code
+        # société sont remis en main propre et cochés à la main.
         if (
             est_cadre
+            and embauche.envoi_documents_cadre_requis
             and not embauche.documents_cadre_email_envoyes
         ):
             resultat_email = envoyer_documents_onboarding_cadre(

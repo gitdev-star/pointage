@@ -1303,7 +1303,9 @@ export default function EtapeEmbauche({
             </h3>
             <p className="mt-1 text-xs text-slate-500">
               Une ligne correspond à  un candidat. Le RI et le Code société
-              sont validés automatiquement après leur envoi par e-mail.
+              sont validés automatiquement après leur envoi par e-mail. Pour
+              un candidat sans e-mail, cochez-les après les avoir remis en
+              main propre.
             </p>
             <p className="mt-1 text-[11px] font-medium text-blue-600 lg:hidden">
               Faites défiler horizontalement pour voir toutes les colonnes.
@@ -1341,6 +1343,8 @@ export default function EtapeEmbauche({
 
                   const traitement = candidatEnCours === candidat.id;
                   const nom = obtenirNomCandidat(candidat);
+                  // Sans e-mail : RI et Code société remis en main propre
+                  const sansEmail = !(candidat.email || "").trim();
 
                   return (
                     <tr
@@ -1432,17 +1436,34 @@ export default function EtapeEmbauche({
                         </td>
                       ))}
 
-                      <td className="px-2 py-3 text-center text-xs">
-                        <span className={embauche.reglementInterieurCommunique ? "text-emerald-600" : "text-slate-400"}>
-                          {embauche.reglementInterieurCommunique ? "✓ Communiqué" : "- En attente"}
-                        </span>
-                      </td>
-
-                      <td className="px-2 py-3 text-center text-xs">
-                        <span className={embauche.codeSocieteCommunique ? "text-emerald-600" : "text-slate-400"}>
-                          {embauche.codeSocieteCommunique ? "✓ Communiqué" : "- En attente"}
-                        </span>
-                      </td>
+                      {["reglementInterieurCommunique", "codeSocieteCommunique"].map((champ) => (
+                        <td key={champ} className="px-2 py-3 text-center text-xs">
+                          {sansEmail ? (
+                            <label className="inline-flex flex-col items-center gap-1">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(embauche[champ])}
+                                disabled={traitement}
+                                onChange={(event) =>
+                                  modifierEmbauche(
+                                    candidat.id,
+                                    champ,
+                                    event.target.checked
+                                  )
+                                }
+                                className="h-5 w-5 rounded border-slate-300 text-blue-600"
+                              />
+                              <span className="text-[11px] text-slate-500">
+                                Remis en main propre
+                              </span>
+                            </label>
+                          ) : (
+                            <span className={embauche[champ] ? "text-emerald-600" : "text-slate-400"}>
+                              {embauche[champ] ? "✓ Communiqué" : "- En attente"}
+                            </span>
+                          )}
+                        </td>
+                      ))}
 
                       <td className="px-2 py-3">
                         {!embauche.confirmee ? (
@@ -1477,7 +1498,7 @@ export default function EtapeEmbauche({
                               Fiche de poste
                             </button>
 
-                            {!embauche.documentsCadreEmailEnvoyes && (
+                            {!embauche.documentsCadreEmailEnvoyes && !sansEmail && (
                               <button
                                 type="button"
                                 disabled={traitement}
@@ -1494,10 +1515,18 @@ export default function EtapeEmbauche({
                               </p>
                             )}
 
-                            {embauche.erreurEnvoiDocumentsCadre && (
-                              <p className="text-xs text-red-600">
-                                {embauche.erreurEnvoiDocumentsCadre}
+                            {sansEmail ? (
+                              <p className="text-xs text-slate-500">
+                                Pas d'adresse e-mail : remettez le RI et le
+                                Code société en main propre, cochez-les puis
+                                enregistrez.
                               </p>
+                            ) : (
+                              embauche.erreurEnvoiDocumentsCadre && (
+                                <p className="text-xs text-red-600">
+                                  {embauche.erreurEnvoiDocumentsCadre}
+                                </p>
+                              )
                             )}
                           </div>
                         )}

@@ -2549,6 +2549,13 @@ class EmbaucheSerializer(
                     }
                 )
 
+            # Avec un e-mail, seul l'envoi réussi valide le RI et le Code
+            # société ; les cases à la main ne servent qu'aux candidats
+            # sans e-mail (documents remis en main propre).
+            if est_cadre and (candidat.email or "").strip():
+                attrs.pop("reglement_interieur_communique", None)
+                attrs.pop("code_societe_communique", None)
+
         return attrs
 
 class DesistementEmbaucheSerializer(
