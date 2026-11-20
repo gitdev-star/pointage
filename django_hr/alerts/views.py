@@ -383,3 +383,15 @@ class MonthlyLateReportAssignmentViewSet(viewsets.ModelViewSet):
     filter_backends  = [DjangoFilterBackend]
     filterset_fields = ["is_active"]
 
+
+
+from .models import OvertimeLimitAssignment
+from .serializers import OvertimeLimitAssignmentSerializer
+
+
+class OvertimeLimitAssignmentViewSet(viewsets.ModelViewSet):
+    queryset = OvertimeLimitAssignment.objects.all()
+    serializer_class = OvertimeLimitAssignmentSerializer
+    permission_classes = [require_perm("alerts_read")]
+    filter_backends  = [DjangoFilterBackend]
+    filterset_fields = ["is_active"]

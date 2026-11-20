@@ -32,6 +32,7 @@ class OvertimeEmployeeSchema(BaseModel):
     overtime_hours: float
     overtime_days:  int
     days:           List[OvertimeDaySchema]
+    clocker_group:  Optional[str] = None
 
 
 class OvertimeReportResponseSchema(BaseModel):
@@ -67,6 +68,7 @@ async def get_overtime_report(
                 user_id        = e.user_id,
                 overtime_hours = e.overtime_hours,
                 overtime_days  = e.overtime_days,
+                clocker_group  = e.clocker_group,
                 days           = [
                     OvertimeDaySchema(
                         date           = d.date,

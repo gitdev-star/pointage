@@ -8,6 +8,7 @@ from .views import (
     InAppNotificationViewSet,
     LateAlertAssignmentViewSet,
     MonthlyLateReportAssignmentViewSet,
+    OvertimeLimitAssignmentViewSet,
 )
 
 router = DefaultRouter()
@@ -16,6 +17,7 @@ router.register("notifications", CDDNotificationAssignmentViewSet, basename="cdd
 router.register("inbox",         InAppNotificationViewSet,         basename="inbox")
 router.register("late-notifications", LateAlertAssignmentViewSet, basename="late-notification")
 router.register("monthly-hc-notifications", MonthlyLateReportAssignmentViewSet, basename="monthly-hc-notification")
+router.register("overtime-limit-notifications", OvertimeLimitAssignmentViewSet, basename="overtime-limit-notification")
 
 urlpatterns = [
     path("", include(router.urls)),

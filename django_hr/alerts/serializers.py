@@ -44,3 +44,12 @@ class MonthlyLateReportAssignmentSerializer(serializers.ModelSerializer):
         model  = MonthlyLateReportAssignment
         fields = "__all__"
 
+
+
+from .models import OvertimeLimitAssignment
+
+
+class OvertimeLimitAssignmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = OvertimeLimitAssignment
+        fields = "__all__"

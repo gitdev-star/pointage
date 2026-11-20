@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import List, Optional, Set
 
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.attendance import Attendance
@@ -48,6 +48,7 @@ class OvertimeEmployee:
     overtime_hours: float
     overtime_days:  int
     days:           List[OvertimeDay]   # uniquement les jours avec HS
+    clocker_group:  Optional[str] = None  # groupe de pointeuses principal
 
 
 @dataclass
@@ -116,6 +117,25 @@ async def compute_overtime_report(
             continue
         user_rows[uid].append(row)
 
+    # Groupe de pointeuses principal de chaque employé (celui où il pointe le plus)
+    group_of: dict = {}
+    grp_res = await db.execute(
+        text("""
+            SELECT a.user_id, g.name AS grp, COUNT(*) AS n
+            FROM attendance a
+            JOIN devices_clocker c ON host(c.ip_address) = a.device_ip
+            JOIN devices_clocker_group g ON g.id = c.group_id
+            WHERE a.date >= :d1 AND a.date <= :d2
+            GROUP BY a.user_id, g.name
+        """),
+        {"d1": date_from, "d2": date_to},
+    )
+    best: dict = {}
+    for r in grp_res.all():
+        if r.user_id in user_rows and r.n > best.get(r.user_id, 0):
+            best[r.user_id] = r.n
+            group_of[r.user_id] = r.grp
+
     # Un horaire par employé pour toute la période (comme le rapport des retards)
     def _fetch_schedule(uid: int) -> tuple:
         return uid, get_schedule_for_employee(uid, date_from)
@@ -146,6 +166,7 @@ async def compute_overtime_report(
             overtime_hours = round(sum(d.overtime_hours for d in days_out), 2),
             overtime_days  = len(days_out),
             days           = days_out,
+            clocker_group  = group_of.get(uid),
         ))
 
     employees.sort(key=lambda e: e.overtime_hours, reverse=True)

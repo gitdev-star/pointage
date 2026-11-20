@@ -685,6 +685,211 @@ function MonthlyReportAssignmentTab({ hrClient }) {
 
 
 
+const EMPTY_OVERTIME_FORM = { email: "", username: "", factory: "", is_active: true };
+
+function OvertimeLimitAssignmentTab({ hrClient }) {
+  const [assignments, setAssignments] = useState([]);
+  const [loading, setLoading]         = useState(false);
+  const [alert, setAlert]             = useState(null);
+  const [dialog, setDialog]           = useState(false);
+  const [editItem, setEditItem]       = useState(null);
+  const [form, setForm]               = useState(EMPTY_OVERTIME_FORM);
+  const [saving, setSaving]           = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState(null);
+  const [deleting, setDeleting]         = useState(false);
+  const [pickerOpen, setPickerOpen]     = useState(false);
+  const [pickerSource, setPickerSource] = useState("ldap");
+
+  const fetchAssignments = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await hrClient.get("alerts/overtime-limit-notifications/?page_size=100");
+      setAssignments(res.data.results || res.data);
+    } catch { setAlert({ type: "error", msg: "Erreur chargement." }); }
+    finally { setLoading(false); }
+  }, [hrClient]);
+
+  useEffect(() => { fetchAssignments(); }, [fetchAssignments]);
+
+  const openAdd = () => { setForm(EMPTY_OVERTIME_FORM); setEditItem(null); setDialog(true); };
+
+  const openEdit = (item) => {
+    setForm({
+      email:     item.email,
+      username:  item.username || "",
+      factory:   item.factory || "",
+      is_active: item.is_active,
+    });
+    setEditItem(item);
+    setDialog(true);
+  };
+
+  const handleSave = async () => {
+    if (!form.email) {
+      setAlert({ type: "error", msg: "Email requis." });
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload = {
+        email: form.email, username: form.username, factory: (form.factory || "").trim(), is_active: form.is_active,
+      };
+      if (editItem) {
+        await hrClient.patch(`alerts/overtime-limit-notifications/${editItem.id}/`, payload);
+      } else {
+        await hrClient.post("alerts/overtime-limit-notifications/", payload);
+      }
+      setAlert({ type: "success", msg: "Sauvegardé." });
+      setDialog(false);
+      fetchAssignments();
+    } catch (err) {
+      setAlert({
+        type: "error",
+        msg: err.response?.data?.email?.[0] || err.response?.data?.non_field_errors?.[0] || "Erreur (destinataire déjà configuré pour ce groupe ?).",
+      });
+    } finally { setSaving(false); }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await hrClient.delete(`alerts/overtime-limit-notifications/${deleteDialog.id}/`);
+      setAlert({ type: "success", msg: "Supprimé." });
+      setDeleteDialog(null);
+      fetchAssignments();
+    } catch { setAlert({ type: "error", msg: "Erreur suppression." }); }
+    finally { setDeleting(false); }
+  };
+
+  return (
+    <Box>
+      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
+        <Typography variant="body2" color="text.secondary">
+          Sans groupe : reçoit le mail global (tous les sites). Avec un groupe (PBI1, PBI2, PBI3) : reçoit uniquement le mail des employés de ce site, au plafond de 60h.
+        </Typography>
+        <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={openAdd}>
+          Ajouter
+        </Button>
+      </Box>
+
+      {alert && <Alert severity={alert.type} sx={{ mb: 2 }} onClose={() => setAlert(null)}>{alert.msg}</Alert>}
+
+      <TableContainer component={Paper} elevation={1}>
+        <Table size="small">
+          <TableHead>
+            <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
+              <TableCell><strong>Email</strong></TableCell>
+              <TableCell><strong>Nom</strong></TableCell>
+              <TableCell><strong>Groupe</strong></TableCell>
+              <TableCell><strong>Statut</strong></TableCell>
+              <TableCell><strong>Actions</strong></TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {loading ? (
+              <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3 }}><CircularProgress size={24} /></TableCell></TableRow>
+            ) : assignments.length === 0 ? (
+              <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3, color: "text.secondary" }}>
+                Aucun destinataire — cliquez sur Ajouter
+              </TableCell></TableRow>
+            ) : assignments.map(a => (
+              <TableRow key={a.id} hover>
+                <TableCell>{a.email}</TableCell>
+                <TableCell>{a.username || "—"}</TableCell>
+                <TableCell>{a.factory ? <Chip label={a.factory.toUpperCase()} size="small" color="primary" variant="outlined" /> : <Chip label="Tous les sites" size="small" />}</TableCell>
+                <TableCell>
+                  <Chip label={a.is_active ? "Actif" : "Inactif"} color={a.is_active ? "success" : "default"} size="small" />
+                </TableCell>
+                <TableCell>
+                  <Box sx={{ display: "flex", gap: 0.5 }}>
+                    <Tooltip title="Modifier">
+                      <IconButton size="small" color="primary" onClick={() => openEdit(a)}>
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Supprimer">
+                      <IconButton size="small" color="error" onClick={() => setDeleteDialog(a)}>
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      <Dialog open={dialog} onClose={() => setDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle fontWeight={700}>{editItem ? "✏️ Modifier" : "➕ Ajouter destinataire"}</DialogTitle>
+        <DialogContent dividers>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
+            <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
+              <Button size="small" variant="outlined"
+                onClick={() => { setPickerSource("ldap"); setPickerOpen(true); }}>
+                Depuis AD
+              </Button>
+              <Button size="small" variant="outlined"
+                onClick={() => { setPickerSource("entra"); setPickerOpen(true); }}>
+                Depuis Entra ID
+              </Button>
+              <Typography variant="caption" color="text.secondary">
+                ou saisissez un email externe ci-dessous
+              </Typography>
+            </Box>
+            <TextField size="small" label="Email *" value={form.email}
+              onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
+              type="email" helperText="Email où l'alerte plafond heures sup sera envoyée" />
+            <DirectoryUserPicker
+              open={pickerOpen}
+              onClose={() => setPickerOpen(false)}
+              source={pickerSource}
+              onSelect={(u) => setForm(p => ({
+                ...p,
+                email: u.email || "",
+                username: u.cn || u.username || "",
+              }))}
+            />
+            <TextField size="small" label="Nom (optionnel)" value={form.username}
+              onChange={e => setForm(p => ({ ...p, username: e.target.value }))} />
+            <FormControlLabel
+              control={<Switch checked={form.is_active}
+                onChange={e => setForm(p => ({ ...p, is_active: e.target.checked }))} />}
+              label={form.is_active ? "Actif" : "Inactif"}
+            />
+            <TextField size="small" label="Groupe de pointeuses (site)" value={form.factory}
+              onChange={e => setForm(f => ({ ...f, factory: e.target.value }))}
+              placeholder="PBI1, PBI2 ou PBI3"
+              helperText="Vide = destinataire global (reçoit tous les sites). Rempli = uniquement les employés de ce site." />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDialog(false)} disabled={saving}>Annuler</Button>
+          <Button variant="contained" onClick={handleSave} disabled={saving}>
+            {saving ? "Enregistrement..." : "Sauvegarder"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={!!deleteDialog} onClose={() => setDeleteDialog(null)} maxWidth="xs" fullWidth>
+        <DialogTitle fontWeight={700}>🗑️ Supprimer</DialogTitle>
+        <DialogContent>
+          <Typography>Supprimer <strong>{deleteDialog?.email}</strong> des destinataires ?</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialog(null)} disabled={deleting}>Annuler</Button>
+          <Button variant="contained" color="error" onClick={handleDelete} disabled={deleting}>
+            {deleting ? "Suppression..." : "Supprimer"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+}
+
+
+
+
 export default function NotificationsRH() {
   const [tab, setTab]             = useState(0);
   const [profiles, setProfiles]   = useState([]);
@@ -717,6 +922,7 @@ export default function NotificationsRH() {
         <Tab label="Destinataires alertes CDD & Maternité" />
         <Tab label="Destinataires alertes Retards" />
         <Tab label="Destinataires rapport mensuel HC" />
+        <Tab label="Destinataires plafond heures sup" />
         <Tab label="Configuration alertes" />
       </Tabs>
 
@@ -743,6 +949,10 @@ export default function NotificationsRH() {
       )}
 
       {tab === 3 && (
+        <OvertimeLimitAssignmentTab hrClient={hrClient} />
+      )}
+
+      {tab === 4 && (
         <Paper sx={{ p: 3 }} elevation={1}>
           <Typography fontWeight={700} mb={2}>Alertes automatiques configurées</Typography>
           <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -766,6 +976,11 @@ export default function NotificationsRH() {
               <Typography fontWeight={600} mb={1}>⏰ Alertes Retards</Typography>
               <Typography variant="body2">• Envoyée chaque matin à 10h00</Typography>
               <Typography variant="body2">• Liste des employés en retard, groupée par usine</Typography>
+            </Paper>
+            <Paper variant="outlined" sx={{ p: 2 }}>
+              <Typography fontWeight={600} mb={1}>⏱️ Plafond heures supplémentaires</Typography>
+              <Typography variant="body2">• 40h normales, jusqu'à 60h tolérées</Typography>
+              <Typography variant="body2">• Email envoyé une fois par mois et par employé à 60h</Typography>
             </Paper>
           </Box>
         </Paper>

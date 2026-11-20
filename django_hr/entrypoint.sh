@@ -6,6 +6,7 @@ python manage.py migrate
 # Register cron jobs — every day at 07:00
 echo "0 7 * * * cd /app && python3 manage.py send_cdd_alerts >> /var/log/cdd_alerts.log 2>&1" > /etc/cron.d/hr-alerts
 echo "0 7 * * * cd /app && python3 manage.py send_maternity_alerts >> /var/log/maternity_alerts.log 2>&1" >> /etc/cron.d/hr-alerts
+echo "0 8 * * * cd /app && python3 manage.py send_overtime_limit_alerts >> /var/log/overtime_limit_alerts.log 2>&1" >> /etc/cron.d/hr-alerts
 chmod 0644 /etc/cron.d/hr-alerts
 crontab /etc/cron.d/hr-alerts
 

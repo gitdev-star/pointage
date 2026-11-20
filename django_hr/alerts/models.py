@@ -147,3 +147,34 @@ class DeviceAlertState(models.Model):
 
     def __str__(self):
         return f"{self.name or self.ip_address}: {'up' if self.reachable else 'down'}"
+
+
+class OvertimeLimitAssignment(models.Model):
+    """Config: who receives the 'overtime limit reached' email."""
+    email      = models.EmailField()
+    username   = models.CharField(max_length=150, blank=True, default="")
+    factory    = models.CharField(max_length=50, blank=True, default="",
+                                  help_text="Site (ex: pbi1). Vide = tous les sites")
+    is_active  = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["factory", "email"]
+        unique_together = ("email", "factory")
+        verbose_name = "Destinataire alerte plafond HS"
+        verbose_name_plural = "Destinataires alerte plafond HS"
+
+    def __str__(self):
+        return f"{self.email} [{self.factory or 'tous sites'}] ({self.username or 'sans nom'})"
+
+
+class OvertimeLimitAlertState(models.Model):
+    """Remembers which employee was already notified for which month."""
+    employee    = models.ForeignKey(Employee, on_delete=models.CASCADE,
+                                    related_name="overtime_limit_alerts")
+    period      = models.CharField(max_length=7, help_text="AAAA-MM")
+    hours       = models.FloatField()
+    notified_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("employee", "period")

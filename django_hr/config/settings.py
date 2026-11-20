@@ -359,3 +359,8 @@ RECRUTEMENT_CODE_SOCIETE_PATH = (
     / "documents_onboarding"
     / "code-societe.pdf"
 )
+
+
+# Heures supplémentaires : 40h normales, jusqu'à 60h (20h tolérées)
+OVERTIME_NORMAL_HOURS = float(os.getenv("OVERTIME_NORMAL_HOURS", "40"))
+OVERTIME_LIMIT_HOURS  = float(os.getenv("OVERTIME_LIMIT_HOURS", "60"))
