@@ -136,9 +136,9 @@ class Command(BaseCommand):
             return
 
         batch = int(getattr(settings, "OVERTIME_BATCH_SIZE", 10))
-        if len(rows_all) < batch and not options["flush"]:
-            self.stdout.write(f"{len(rows_all)}/{batch} employé(s) au-delà du plafond : "
-                              "en attente, rien envoyé.")
+        if len(rows_all) <= batch and not options["flush"]:
+            self.stdout.write(f"{len(rows_all)} employé(s) au-delà du plafond : il en faut "
+                              f"plus de {batch} pour envoyer le mail, rien envoyé.")
             return
 
         assignments = list(OvertimeLimitAssignment.objects.filter(is_active=True))
