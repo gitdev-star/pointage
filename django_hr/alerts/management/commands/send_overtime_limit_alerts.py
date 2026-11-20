@@ -126,6 +126,7 @@ class Command(BaseCommand):
                 "employee_id": emp.employee_id,
                 "factory": group_name or _label(getattr(emp, "factory", "")),
                 "department": _label(getattr(emp, "department", "")),
+                "section": _label(getattr(emp, "section", "")),
                 "overtime_hours": o["overtime_hours"],
                 "group_key": _site_key(group_name),
                 "emp": emp,

@@ -117,7 +117,7 @@ def notify_overtime_limit_exceeded(periode_label: str, normal: float, limit: flo
         h = float(r["overtime_hours"])
         w.writerow([r.get("last_name") or r["full_name"], r.get("first_name") or "",
                     r["employee_id"], r.get("factory") or "",
-                    r.get("section") or r.get("department") or "",
+                    r.get("section") or "",
                     format_heures(max(h - limit_h, 0.0))])
 
     slug = re.sub(r"[^A-Za-z0-9]+", "_", f"{periode_label}_{scope}").strip("_")
