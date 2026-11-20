@@ -112,11 +112,13 @@ def notify_overtime_limit_exceeded(periode_label: str, normal: float, limit: flo
 
     buf = io.StringIO()
     w = csv.writer(buf, delimiter=";")
-    w.writerow(["Nom", "Prénom", "Matricule", f"Heures au-delà de {limit_h:g}h"])
+    w.writerow(["Nom", "Prénom", "Matricule", "Usine", "Section", f"Heures au-delà de {limit_h:g}h"])
     for r in sorted(rows, key=lambda r: -r["overtime_hours"]):
         h = float(r["overtime_hours"])
         w.writerow([r.get("last_name") or r["full_name"], r.get("first_name") or "",
-                    r["employee_id"], format_heures(max(h - limit_h, 0.0))])
+                    r["employee_id"], r.get("factory") or "",
+                    r.get("section") or r.get("department") or "",
+                    format_heures(max(h - limit_h, 0.0))])
 
     slug = re.sub(r"[^A-Za-z0-9]+", "_", f"{periode_label}_{scope}").strip("_")
     filename = f"heures_sup_{slug}.csv"
