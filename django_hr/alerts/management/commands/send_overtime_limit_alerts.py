@@ -55,11 +55,15 @@ class Command(BaseCommand):
                             help="Plafond en heures (défaut : settings.OVERTIME_LIMIT_HOURS)")
         parser.add_argument("--dry-run", action="store_true",
                             help="Affiche sans envoyer ni mémoriser")
+        parser.add_argument("--test-to", default="",
+                            help="Test : envoie tous les mails uniquement à ces adresses "
+                                 "(séparées par des virgules), sans mémoriser les employés")
 
     def handle(self, *args, **options):
         limit = options["limit"] or settings.OVERTIME_LIMIT_HOURS
         normal = settings.OVERTIME_NORMAL_HOURS
         dry = options["dry_run"]
+        test_to = [e.strip() for e in (options["test_to"] or "").split(",") if e.strip()]
 
         if options["date"]:
             try:
@@ -124,7 +128,7 @@ class Command(BaseCommand):
             return
 
         assignments = list(OvertimeLimitAssignment.objects.filter(is_active=True))
-        global_rcpt = sorted({a.email for a in assignments if not a.factory.strip()})
+        global_rcpt = test_to or sorted({a.email for a in assignments if not a.factory.strip()})
 
         by_group = defaultdict(list)
         for r in rows_all:
@@ -141,7 +145,8 @@ class Command(BaseCommand):
                 has_mail[r["emp"].pk] = True
             if dry:
                 return
-            ok = notify_overtime_limit_exceeded(label, normal, limit, rows, rcpts, scope=scope)
+            ok = notify_overtime_limit_exceeded(label, normal, limit, rows, rcpts,
+                                                scope=scope + (" [TEST]" if test_to else ""))
             if not ok:
                 self.stderr.write(self.style.ERROR(f"[{scope}] échec d'envoi"))
                 for r in rows:
@@ -157,15 +162,15 @@ class Command(BaseCommand):
         for key, rows in sorted(by_group.items()):
             if key == "-":
                 continue
-            rcpts = sorted({a.email for a in assignments if _site_key(a.factory) == key})
+            rcpts = test_to or sorted({a.email for a in assignments if _site_key(a.factory) == key})
             scope = rows[0]["factory"]
             if not rcpts:
                 self.stdout.write(self.style.WARNING(f"[{scope}] aucun responsable actif pour {key}"))
                 continue
             send(scope, rows, rcpts)
 
-        if dry:
-            self.stdout.write("Dry-run : rien envoyé ni mémorisé.")
+        if dry or test_to:
+            self.stdout.write("Dry-run ou test : employés NON marqués comme notifiés.")
             return
 
         total = 0
