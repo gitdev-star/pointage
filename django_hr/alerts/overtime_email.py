@@ -94,9 +94,8 @@ def notify_overtime_report(factory, periode_label: str, slug: str, rows: list,
 
 def notify_overtime_limit_exceeded(periode_label: str, normal: float, limit: float,
                                    rows: list, recipients: list, scope: str = "") -> bool:
-    """Un mail avec le détail en CSV joint.
-    rows : [{full_name, employee_id, factory, department, overtime_hours}]
-    La règle affichée vient des settings (40h + 20h tolérées), pas de --limit."""
+    """Un mail avec un CSV joint : Nom, Prénom, Matricule, heures au-delà du plafond.
+    La règle affichée vient des settings (40h normales + 20h tolérées)."""
     import csv
     import io
     import logging
@@ -109,43 +108,33 @@ def notify_overtime_limit_exceeded(periode_label: str, normal: float, limit: flo
     tolerated_h = limit_h - normal_h
     count = len(rows)
     sfx = f" — {scope}" if scope else ""
-    subject = f"[RH] Plafond d'heures supplémentaires atteint — {periode_label}{sfx} ({count})"
-
-    def dec(v):
-        return f"{v:.2f}".replace(".", ",")
+    subject = f"[RH] Plafond d'heures supplémentaires dépassé — {periode_label}{sfx} ({count})"
 
     buf = io.StringIO()
     w = csv.writer(buf, delimiter=";")
-    w.writerow(["Nom", "Matricule", "Groupe de pointeuses", "Département",
-                "HS cumulées (heures)", "HS cumulées (h min)",
-                f"Normales (jusqu'à {normal_h:g}h)", f"Tolérées ({tolerated_h:g}h max)",
-                f"Au-delà de {limit_h:g}h", "Statut"])
+    w.writerow(["Nom", "Prénom", "Matricule", f"Heures au-delà de {limit_h:g}h"])
     for r in sorted(rows, key=lambda r: -r["overtime_hours"]):
         h = float(r["overtime_hours"])
-        statut = ("Dépassé" if h > limit_h else "Atteint" if h >= limit_h
-                  else "Sous le plafond (test)")
-        w.writerow([r["full_name"], r["employee_id"], r["factory"], r["department"],
-                    dec(h), format_heures(h),
-                    dec(min(h, normal_h)),
-                    dec(min(max(h - normal_h, 0.0), tolerated_h)),
-                    dec(max(h - limit_h, 0.0)), statut])
+        w.writerow([r.get("last_name") or r["full_name"], r.get("first_name") or "",
+                    r["employee_id"], format_heures(max(h - limit_h, 0.0))])
 
     slug = re.sub(r"[^A-Za-z0-9]+", "_", f"{periode_label}_{scope}").strip("_")
     filename = f"heures_sup_{slug}.csv"
 
     body_html = (
         "<p>Bonjour,</p>"
-        f"<p><strong>{count}</strong> employé(s) ont atteint le plafond d'heures "
+        f"<p><strong>{count}</strong> employé(s) ont dépassé le plafond d'heures "
         f"supplémentaires pour <strong>{periode_label}</strong>{sfx}.</p>"
         f"<p>Règle : <strong>{normal_h:g}h normales</strong> + "
         f"<strong>{tolerated_h:g}h tolérées</strong> (plafond {limit_h:g}h d'heures "
         "supplémentaires cumulées sur le mois).</p>"
-        "<p>Le détail par employé est dans le fichier CSV joint (ouvrable dans Excel).</p>"
+        "<p>La liste (nom, prénom, matricule, heures au-delà du plafond) est dans le "
+        "fichier CSV joint, ouvrable dans Excel.</p>"
         "<p style='margin-top:12px;'>Cordialement,<br>Systeme RH</p>"
     )
-    text = (f"{count} employé(s) ont atteint le plafond d'heures supplémentaires "
+    text = (f"{count} employé(s) ont dépassé le plafond d'heures supplémentaires "
             f"({normal_h:g}h normales + {tolerated_h:g}h tolérées = {limit_h:g}h) "
-            f"pour {periode_label}{sfx}. Détail en pièce jointe (CSV).")
+            f"pour {periode_label}{sfx}. Liste en pièce jointe (CSV).")
     html = _base_html(f"Plafond heures supplémentaires — {periode_label}", body_html)
 
     try:

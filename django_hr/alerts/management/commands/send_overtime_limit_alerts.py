@@ -61,6 +61,8 @@ class Command(BaseCommand):
         parser.add_argument("--no-save", action="store_true",
                             help="Envoie réellement aux destinataires configurés, sujet [TEST], "
                                  "sans mémoriser les employés")
+        parser.add_argument("--flush", action="store_true",
+                            help="Envoie même s'il y a moins d'employés que le seuil de regroupement")
 
     def handle(self, *args, **options):
         limit = options["limit"] or settings.OVERTIME_LIMIT_HOURS
@@ -95,7 +97,7 @@ class Command(BaseCommand):
             self.stderr.write(self.style.ERROR(f"Failed to fetch overtime-report: {exc}"))
             return
 
-        over = [o for o in overtime if o["overtime_hours"] >= limit]
+        over = [o for o in overtime if o["overtime_hours"] > limit]
         if not over:
             self.stdout.write("Personne n'a atteint le plafond.")
             return
@@ -119,6 +121,8 @@ class Command(BaseCommand):
             group_name = o.get("clocker_group") or ""
             rows_all.append({
                 "full_name": _full_name(emp),
+                "last_name": str(getattr(emp, "last_name", "") or ""),
+                "first_name": str(getattr(emp, "first_name", "") or ""),
                 "employee_id": emp.employee_id,
                 "factory": group_name or _label(getattr(emp, "factory", "")),
                 "department": _label(getattr(emp, "department", "")),
@@ -129,6 +133,12 @@ class Command(BaseCommand):
 
         if not rows_all:
             self.stdout.write("Aucun employé actif à notifier (non appariés, inactifs ou déjà notifiés).")
+            return
+
+        batch = int(getattr(settings, "OVERTIME_BATCH_SIZE", 10))
+        if len(rows_all) < batch and not options["flush"]:
+            self.stdout.write(f"{len(rows_all)}/{batch} employé(s) au-delà du plafond : "
+                              "en attente, rien envoyé.")
             return
 
         assignments = list(OvertimeLimitAssignment.objects.filter(is_active=True))
