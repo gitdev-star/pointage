@@ -177,6 +177,11 @@ class Command(BaseCommand):
         for key, rows in sorted(by_group.items()):
             if key == "-":
                 continue
+            if len(rows) <= batch and not options["flush"]:
+                self.stdout.write(f"[{rows[0]['factory']}] {len(rows)} employé(s) : il en faut "
+                                  f"plus de {batch} dans ce site pour le mail du responsable, "
+                                  "pas de mail site (le global reçoit tout).")
+                continue
             rcpts = test_to or sorted({a.email for a in assignments if _site_key(a.factory) == key})
             scope = rows[0]["factory"]
             if not rcpts:
