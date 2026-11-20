@@ -91,43 +91,69 @@ def notify_overtime_report(factory, periode_label: str, slug: str, rows: list,
     return _send(subject, html, text, recipients, cc=cc,
                  attachments=[(filename, csv_content, "text/csv")])
 
+
 def notify_overtime_limit_exceeded(periode_label: str, normal: float, limit: float,
                                    rows: list, recipients: list, scope: str = "") -> bool:
-    """rows : [{full_name, employee_id, factory, department, overtime_hours}]"""
-    count = len(rows)
-    subject = (f"[RH] Plafond d'heures supplémentaires atteint — {periode_label}"
-               f"{' — ' + scope if scope else ''} ({count})")
+    """Un mail avec le détail en CSV joint.
+    rows : [{full_name, employee_id, factory, department, overtime_hours}]
+    La règle affichée vient des settings (40h + 20h tolérées), pas de --limit."""
+    import csv
+    import io
+    import logging
+    import re
+    from django.conf import settings
+    from django.core.mail import EmailMultiAlternatives
 
-    tr = "".join(
-        "<tr>"
-        f"<td style='padding:6px;border-bottom:1px solid #eee;'>{r['full_name']}</td>"
-        f"<td style='padding:6px;border-bottom:1px solid #eee;'>{r['employee_id']}</td>"
-        f"<td style='padding:6px;border-bottom:1px solid #eee;'>{r['factory']} / {r['department']}</td>"
-        f"<td style='padding:6px;border-bottom:1px solid #eee;color:#c62828;font-weight:bold;'>"
-        f"{format_heures(r['overtime_hours'])}</td>"
-        f"<td style='padding:6px;border-bottom:1px solid #eee;'>"
-        f"{'Dépassé' if r['overtime_hours'] > limit else 'Atteint'}</td>"
-        "</tr>"
-        for r in sorted(rows, key=lambda r: -r["overtime_hours"])
-    )
+    normal_h = float(settings.OVERTIME_NORMAL_HOURS)
+    limit_h = float(settings.OVERTIME_LIMIT_HOURS)
+    tolerated_h = limit_h - normal_h
+    count = len(rows)
+    sfx = f" — {scope}" if scope else ""
+    subject = f"[RH] Plafond d'heures supplémentaires atteint — {periode_label}{sfx} ({count})"
+
+    def dec(v):
+        return f"{v:.2f}".replace(".", ",")
+
+    buf = io.StringIO()
+    w = csv.writer(buf, delimiter=";")
+    w.writerow(["Nom", "Matricule", "Groupe de pointeuses", "Département",
+                "HS cumulées (heures)", "HS cumulées (h min)",
+                f"Normales (jusqu'à {normal_h:g}h)", f"Tolérées ({tolerated_h:g}h max)",
+                f"Au-delà de {limit_h:g}h", "Statut"])
+    for r in sorted(rows, key=lambda r: -r["overtime_hours"]):
+        h = float(r["overtime_hours"])
+        statut = ("Dépassé" if h > limit_h else "Atteint" if h >= limit_h
+                  else "Sous le plafond (test)")
+        w.writerow([r["full_name"], r["employee_id"], r["factory"], r["department"],
+                    dec(h), format_heures(h),
+                    dec(min(h, normal_h)),
+                    dec(min(max(h - normal_h, 0.0), tolerated_h)),
+                    dec(max(h - limit_h, 0.0)), statut])
+
+    slug = re.sub(r"[^A-Za-z0-9]+", "_", f"{periode_label}_{scope}").strip("_")
+    filename = f"heures_sup_{slug}.csv"
+
     body_html = (
-        f"<p>Bonjour,</p>"
-        f"<p><strong>{count}</strong> employé(s) ont atteint le plafond de "
-        f"<strong>{format_heures(limit)}</strong> d'heures supplémentaires pour <strong>{periode_label}</strong> "
-        f"({format_heures(normal)} normales, tolérance jusqu'à {format_heures(limit)}).</p>"
-        "<table style='border-collapse:collapse;width:100%;'>"
-        "<tr style='background:#1565c0;color:#fff;'>"
-        "<th style='padding:8px;text-align:left;'>Nom</th>"
-        "<th style='padding:8px;text-align:left;'>Matricule</th>"
-        "<th style='padding:8px;text-align:left;'>Usine / Dépt</th>"
-        "<th style='padding:8px;text-align:left;'>HS cumulées</th>"
-        "<th style='padding:8px;text-align:left;'>Statut</th></tr>"
-        f"{tr}</table>"
+        "<p>Bonjour,</p>"
+        f"<p><strong>{count}</strong> employé(s) ont atteint le plafond d'heures "
+        f"supplémentaires pour <strong>{periode_label}</strong>{sfx}.</p>"
+        f"<p>Règle : <strong>{normal_h:g}h normales</strong> + "
+        f"<strong>{tolerated_h:g}h tolérées</strong> (plafond {limit_h:g}h d'heures "
+        "supplémentaires cumulées sur le mois).</p>"
+        "<p>Le détail par employé est dans le fichier CSV joint (ouvrable dans Excel).</p>"
         "<p style='margin-top:12px;'>Cordialement,<br>Systeme RH</p>"
     )
-    text = "\n".join(
-        [f"Plafond HS ({format_heures(limit)}) atteint — {periode_label}"]
-        + [f"- {r['full_name']} ({r['employee_id']}) : {format_heures(r['overtime_hours'])}" for r in rows]
-    )
+    text = (f"{count} employé(s) ont atteint le plafond d'heures supplémentaires "
+            f"({normal_h:g}h normales + {tolerated_h:g}h tolérées = {limit_h:g}h) "
+            f"pour {periode_label}{sfx}. Détail en pièce jointe (CSV).")
     html = _base_html(f"Plafond heures supplémentaires — {periode_label}", body_html)
-    return _send(subject, html, text, recipients)
+
+    try:
+        msg = EmailMultiAlternatives(subject, text, None, list(recipients))
+        msg.attach_alternative(html, "text/html")
+        msg.attach(filename, buf.getvalue().encode("utf-8-sig"), "text/csv")
+        msg.send(fail_silently=False)
+        return True
+    except Exception:
+        logging.getLogger(__name__).exception("Echec envoi alerte plafond HS")
+        return False
