@@ -58,11 +58,15 @@ class Command(BaseCommand):
         parser.add_argument("--test-to", default="",
                             help="Test : envoie tous les mails uniquement à ces adresses "
                                  "(séparées par des virgules), sans mémoriser les employés")
+        parser.add_argument("--no-save", action="store_true",
+                            help="Envoie réellement aux destinataires configurés, sujet [TEST], "
+                                 "sans mémoriser les employés")
 
     def handle(self, *args, **options):
         limit = options["limit"] or settings.OVERTIME_LIMIT_HOURS
         normal = settings.OVERTIME_NORMAL_HOURS
         dry = options["dry_run"]
+        no_save = options["no_save"]
         test_to = [e.strip() for e in (options["test_to"] or "").split(",") if e.strip()]
 
         if options["date"]:
@@ -146,7 +150,7 @@ class Command(BaseCommand):
             if dry:
                 return
             ok = notify_overtime_limit_exceeded(label, normal, limit, rows, rcpts,
-                                                scope=scope + (" [TEST]" if test_to else ""))
+                                                scope=scope + (" [TEST]" if (test_to or no_save) else ""))
             if not ok:
                 self.stderr.write(self.style.ERROR(f"[{scope}] échec d'envoi"))
                 for r in rows:
@@ -169,7 +173,7 @@ class Command(BaseCommand):
                 continue
             send(scope, rows, rcpts)
 
-        if dry or test_to:
+        if dry or test_to or no_save:
             self.stdout.write("Dry-run ou test : employés NON marqués comme notifiés.")
             return
 
