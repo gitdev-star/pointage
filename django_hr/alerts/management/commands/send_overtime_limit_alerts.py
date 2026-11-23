@@ -61,8 +61,6 @@ class Command(BaseCommand):
         parser.add_argument("--no-save", action="store_true",
                             help="Envoie réellement aux destinataires configurés, sujet [TEST], "
                                  "sans mémoriser les employés")
-        parser.add_argument("--flush", action="store_true",
-                            help="Envoie même s'il y a moins d'employés que le seuil de regroupement")
 
     def handle(self, *args, **options):
         limit = options["limit"] or settings.OVERTIME_LIMIT_HOURS
@@ -136,10 +134,10 @@ class Command(BaseCommand):
             self.stdout.write("Aucun employé actif à notifier (non appariés, inactifs ou déjà notifiés).")
             return
 
-        batch = int(getattr(settings, "OVERTIME_BATCH_SIZE", 10))
-        if len(rows_all) <= batch and not options["flush"]:
-            self.stdout.write(f"{len(rows_all)} employé(s) au-delà du plafond : il en faut "
-                              f"plus de {batch} pour envoyer le mail, rien envoyé.")
+        # Un seul envoi par jour (les dry-run et tests ne comptent pas)
+        if not (dry or test_to or no_save) and OvertimeLimitAlertState.objects.filter(
+                notified_at__date=timezone.localdate()).exists():
+            self.stdout.write("Un envoi a déjà eu lieu aujourd'hui : un seul mail par jour, rien envoyé.")
             return
 
         assignments = list(OvertimeLimitAssignment.objects.filter(is_active=True))

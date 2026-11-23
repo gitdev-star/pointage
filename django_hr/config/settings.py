@@ -365,6 +365,4 @@ RECRUTEMENT_CODE_SOCIETE_PATH = (
 OVERTIME_NORMAL_HOURS = float(os.getenv("OVERTIME_NORMAL_HOURS", "40"))
 OVERTIME_LIMIT_HOURS  = float(os.getenv("OVERTIME_LIMIT_HOURS", "60"))
 
-# Alerte plafond HS : le mail part seulement s'il y a PLUS de N employés au-delà du plafond
-OVERTIME_BATCH_SIZE = int(os.getenv("OVERTIME_BATCH_SIZE", "5"))
 
