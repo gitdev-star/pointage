@@ -5,8 +5,8 @@
 import React, { useEffect, useState } from "react";
 import {
   Accordion, AccordionDetails, AccordionSummary, Alert, Button, Chip,
-  CircularProgress, Table, TableBody, TableCell, TableContainer, TableHead,
-  TableRow, TextField,
+  CircularProgress, FormControl, InputLabel, MenuItem, Select, Table,
+  TableBody, TableCell, TableContainer, TableHead, TableRow, TextField,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import DownloadIcon from "@mui/icons-material/Download";
@@ -16,9 +16,10 @@ const formaterDate = (valeur) =>
   valeur ? new Date(`${valeur}T00:00:00`).toLocaleDateString("fr-FR") : "—";
 
 // Mêmes filtres que la liste, sauf le statut : les personnes embauchées sur la
-// période comptent même si elles sont parties depuis.
+// période comptent même si elles sont parties depuis (sauf « Exclues »).
 const parametresRecap = (filters, periode) => {
   const params = { embauche_du: periode.du, embauche_au: periode.au };
+  if (periode.exclurePartis) params.exclure_partis = "1";
   ["factory", "department", "contract_type", "search", "sexe"].forEach((cle) => {
     if (filters[cle]) params[cle] = filters[cle];
   });
@@ -45,7 +46,8 @@ const messageErreur = async (error) => {
 export default function RecapEmbauchesPeriode({ filters, onPeriodeChange }) {
   const [du, setDu] = useState("");
   const [au, setAu] = useState("");
-  const [periode, setPeriode] = useState(null); // { du, au } une fois appliquée
+  const [exclurePartis, setExclurePartis] = useState(false);
+  const [periode, setPeriode] = useState(null); // { du, au, exclurePartis } une fois appliquée
   const [recap, setRecap] = useState(null);
   const [chargement, setChargement] = useState(false);
   const [exportEnCours, setExportEnCours] = useState(false);
@@ -87,14 +89,26 @@ export default function RecapEmbauchesPeriode({ filters, onPeriodeChange }) {
       setErreur("La date de fin doit être après la date de début.");
       return;
     }
-    const nouvelle = { du, au };
+    const nouvelle = { du, au, exclurePartis };
     setPeriode(nouvelle);
     onPeriodeChange?.(nouvelle);
+  };
+
+  // Personnes parties incluses / exclues : appliqué tout de suite si une
+  // période est déjà choisie.
+  const changerPartis = (exclure) => {
+    setExclurePartis(exclure);
+    if (periode) {
+      const nouvelle = { ...periode, exclurePartis: exclure };
+      setPeriode(nouvelle);
+      onPeriodeChange?.(nouvelle);
+    }
   };
 
   const effacer = () => {
     setDu("");
     setAu("");
+    setExclurePartis(false);
     setPeriode(null);
     setErreur("");
     onPeriodeChange?.(null);
@@ -142,6 +156,17 @@ export default function RecapEmbauchesPeriode({ filters, onPeriodeChange }) {
           onChange={(e) => setAu(e.target.value)}
           InputLabelProps={{ shrink: true }}
         />
+        <FormControl size="small" sx={{ minWidth: 190 }}>
+          <InputLabel>Personnes parties</InputLabel>
+          <Select
+            value={exclurePartis ? "exclues" : "incluses"}
+            label="Personnes parties"
+            onChange={(e) => changerPartis(e.target.value === "exclues")}
+          >
+            <MenuItem value="incluses">Incluses</MenuItem>
+            <MenuItem value="exclues">Exclues</MenuItem>
+          </Select>
+        </FormControl>
         <Button size="small" variant="contained" onClick={appliquer}>
           Appliquer
         </Button>
@@ -187,7 +212,9 @@ export default function RecapEmbauchesPeriode({ filters, onPeriodeChange }) {
       {periode && recap && recap.total > 0 && !chargement && (
         <div className="mt-3">
           <p className="mb-2 text-xs text-slate-500">
-            Détail par site. Les personnes parties depuis sont comprises.
+            {periode.exclurePartis
+              ? "Détail par site, sans les personnes parties depuis."
+              : "Détail par site. Les personnes parties depuis sont comprises."}
           </p>
           {recap.sites.map((site) => (
             <Accordion key={site.site} disableGutters variant="outlined">

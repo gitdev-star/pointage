@@ -217,6 +217,7 @@ const fetchEmployees = useCallback(async () => {
         ...(periodeEmbauche
           ? { embauche_du: periodeEmbauche.du, embauche_au: periodeEmbauche.au }
           : {}),
+        ...(periodeEmbauche?.exclurePartis ? { exclure_partis: "1" } : {}),
         ordering: "-employee_id",  // ✅ tri décroissant
       }
     });
@@ -601,6 +602,14 @@ function LastActionCell({ action, at, by }) {
         <RecapEmbauchesPeriode
           filters={filters}
           onPeriodeChange={(periode) => {
+            // Avec une période, la liste montre tous les statuts (les
+            // personnes parties restent visibles) ; sans, retour à « Actif ».
+            if (periode && !periodeEmbauche && filters.status === "ACTIVE") {
+              setFilter("status", "");
+            }
+            if (!periode && periodeEmbauche) {
+              setFilter("status", "ACTIVE");
+            }
             setPeriodeEmbauche(periode);
             setPage(0);
           }}

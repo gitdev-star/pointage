@@ -722,6 +722,10 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         if embauche_au:
             qs = qs.filter(hire_date__lte=embauche_au)
 
+        # Filtre facultatif « Personnes parties : exclues »
+        if self.request.query_params.get("exclure_partis") in ("1", "true"):
+            qs = qs.exclude(status=Employee.Status.TERMINATED)
+
         # ── Annotation audit log : toujours appliquée, indépendamment des filtres ci-dessus ──
         latest_log = AuditLog.objects.filter(
             model_name="employee",
@@ -738,7 +742,8 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     def _embauches_de_la_periode(self):
         """Employés embauchés sur la période demandée (les deux dates sont
         obligatoires), avec les autres filtres de la liste. Les personnes
-        parties depuis sont comprises, sauf si un statut est choisi."""
+        parties depuis sont comprises, sauf avec « exclure_partis » ou si un
+        statut est choisi."""
         from rest_framework.exceptions import ValidationError as DRFValidationError
 
         embauche_du, embauche_au = _lire_periode_embauche(self.request)
