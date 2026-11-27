@@ -448,6 +448,53 @@ class DepartmentViewSet(AuditedModelViewSet):
         return Response(EmployeeListSerializer(emps, many=True).data)
 
 
+# ── Embauches sur une période (filtre, récapitulatif par site, export) ────────
+STATUTS_FR = {"ACTIVE": "Actif", "INACTIVE": "Inactif", "ON_LEAVE": "En congé", "TERMINATED": "Parti"}
+CONTRATS_FR = {"CDI": "CDI", "CDD": "CDD", "INTERN": "Stage", "PART": "Temps partiel", "SEASONAL": "Saisonnier"}
+
+
+def _lire_periode_embauche(request):
+    """Dates « embauche_du » / « embauche_au » (AAAA-MM-JJ), chacune facultative."""
+    from rest_framework.exceptions import ValidationError as DRFValidationError
+
+    periode = {}
+    for cle in ("embauche_du", "embauche_au"):
+        valeur = (request.query_params.get(cle) or "").strip()
+        if valeur:
+            try:
+                periode[cle] = date.fromisoformat(valeur)
+            except ValueError:
+                raise DRFValidationError({cle: "Date invalide (format attendu : AAAA-MM-JJ)."})
+    if len(periode) == 2 and periode["embauche_du"] > periode["embauche_au"]:
+        raise DRFValidationError({"embauche_au": "La date de fin doit être après la date de début."})
+    return periode.get("embauche_du"), periode.get("embauche_au")
+
+
+def _embauches_par_site(employes):
+    """Regroupe les employés par site, sites triés par nom, personnes par date d'embauche."""
+    sites = {}
+    for emp in employes:
+        nom_site = emp.factory.name if emp.factory else "Sans site"
+        site = sites.setdefault(nom_site, {"site": nom_site, "nombre": 0, "employes": []})
+        site["nombre"] += 1
+        site["employes"].append({
+            "id": emp.id,
+            "matricule": emp.employee_id,
+            "nom": emp.last_name or "",
+            "prenom": emp.first_name or "",
+            "poste": emp.job_title.name if emp.job_title else "",
+            "departement": emp.department.name if emp.department else "",
+            "date_embauche": emp.hire_date.isoformat() if emp.hire_date else None,
+            "contrat": CONTRATS_FR.get(emp.contract_type, emp.contract_type or ""),
+            "statut": STATUTS_FR.get(emp.status, emp.status or ""),
+            "date_depart": emp.termination_date.isoformat() if emp.termination_date else None,
+        })
+    resultat = sorted(sites.values(), key=lambda s: (s["site"] == "Sans site", s["site"].lower()))
+    for site in resultat:
+        site["employes"].sort(key=lambda e: (e["date_embauche"] or "", e["nom"].lower()))
+    return resultat
+
+
 def _exiger_perm_compte_bancaire(request):
     """Seules les personnes autorisées modifient le compte bancaire d'un employé existant."""
     profile = get_hr_profile(request)
@@ -668,6 +715,13 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 hire_date__month=target_month,
             )
 
+        # Période d'embauche (page Employés)
+        embauche_du, embauche_au = _lire_periode_embauche(self.request)
+        if embauche_du:
+            qs = qs.filter(hire_date__gte=embauche_du)
+        if embauche_au:
+            qs = qs.filter(hire_date__lte=embauche_au)
+
         # ── Annotation audit log : toujours appliquée, indépendamment des filtres ci-dessus ──
         latest_log = AuditLog.objects.filter(
             model_name="employee",
@@ -680,6 +734,105 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         )
 
         return qs
+
+    def _embauches_de_la_periode(self):
+        """Employés embauchés sur la période demandée (les deux dates sont
+        obligatoires), avec les autres filtres de la liste. Les personnes
+        parties depuis sont comprises, sauf si un statut est choisi."""
+        from rest_framework.exceptions import ValidationError as DRFValidationError
+
+        embauche_du, embauche_au = _lire_periode_embauche(self.request)
+        if not (embauche_du and embauche_au):
+            raise DRFValidationError({"detail": "Choisissez une date de début et une date de fin."})
+        employes = self.filter_queryset(self.get_queryset()).select_related(
+            "factory", "department", "job_title"
+        )
+        return embauche_du, embauche_au, _embauches_par_site(employes)
+
+    @action(detail=False, methods=["get"], url_path="embauches-periode")
+    def embauches_periode(self, request):
+        embauche_du, embauche_au, sites = self._embauches_de_la_periode()
+        return Response({
+            "embauche_du": embauche_du.isoformat(),
+            "embauche_au": embauche_au.isoformat(),
+            "total": sum(site["nombre"] for site in sites),
+            "partis": sum(1 for site in sites for e in site["employes"] if e["statut"] == "Parti"),
+            "sites": sites,
+        })
+
+    @action(detail=False, methods=["get"], url_path="embauches-periode-excel")
+    def embauches_periode_excel(self, request):
+        from django.http import HttpResponse
+        from openpyxl import Workbook
+        from openpyxl.styles import Alignment, Font, PatternFill
+
+        embauche_du, embauche_au, sites = self._embauches_de_la_periode()
+        periode = f"du {embauche_du:%d/%m/%Y} au {embauche_au:%d/%m/%Y}"
+        gras = Font(bold=True)
+        entete = PatternFill("solid", fgColor="DDEBF7")
+
+        classeur = Workbook()
+        recap = classeur.active
+        recap.title = "Récapitulatif"
+        recap.append([f"Embauches {periode}"])
+        recap["A1"].font = Font(bold=True, size=13)
+        recap.append([])
+        recap.append(["Site", "Nombre d'embauches"])
+        for cellule in recap[3]:
+            cellule.font, cellule.fill = gras, entete
+        for site in sites:
+            recap.append([site["site"], site["nombre"]])
+        recap.append(["Total", sum(site["nombre"] for site in sites)])
+        for cellule in recap[recap.max_row]:
+            cellule.font = gras
+        recap.column_dimensions["A"].width = 35
+        recap.column_dimensions["B"].width = 22
+
+        colonnes = [
+            ("Matricule", "matricule", 14), ("Nom", "nom", 22), ("Prénom", "prenom", 22),
+            ("Poste", "poste", 30), ("Département", "departement", 24),
+            ("Date d'embauche", "date_embauche", 16), ("Contrat", "contrat", 14),
+            ("Statut", "statut", 12), ("Date de départ", "date_depart", 16),
+        ]
+        noms_utilises = set()
+        for site in sites:
+            # Nom d'onglet Excel : 31 caractères maximum, sans / \ ? * [ ] :
+            nom = re.sub(r"[\\/?*\[\]:]", "-", site["site"])[:31] or "Site"
+            base, numero = nom, 2
+            while nom.lower() in noms_utilises:
+                nom = f"{base[:28]} ({numero})"
+                numero += 1
+            noms_utilises.add(nom.lower())
+
+            feuille = classeur.create_sheet(nom)
+            feuille.append([f"{site['site']} : {site['nombre']} embauche(s) {periode}"])
+            feuille["A1"].font = Font(bold=True, size=12)
+            feuille.append([])
+            feuille.append([titre for titre, _, _ in colonnes])
+            for cellule in feuille[3]:
+                cellule.font, cellule.fill = gras, entete
+                cellule.alignment = Alignment(horizontal="center")
+            for employe in site["employes"]:
+                ligne = []
+                for _, cle, _ in colonnes:
+                    valeur = employe[cle]
+                    if cle in ("date_embauche", "date_depart") and valeur:
+                        valeur = date.fromisoformat(valeur).strftime("%d/%m/%Y")
+                    ligne.append(valeur or "")
+                feuille.append(ligne)
+            for index, (_, _, largeur) in enumerate(colonnes, start=1):
+                feuille.column_dimensions[feuille.cell(row=3, column=index).column_letter].width = largeur
+            feuille.freeze_panes = "A4"
+
+        contenu = io.BytesIO()
+        classeur.save(contenu)
+        reponse = HttpResponse(
+            contenu.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        nom_fichier = f"embauches_{embauche_du:%Y%m%d}_{embauche_au:%Y%m%d}.xlsx"
+        reponse["Content-Disposition"] = f'attachment; filename="{nom_fichier}"'
+        return reponse
 
     def get_serializer_class(self):
         if self.action == "list":

@@ -28,6 +28,7 @@ import {
 } from "../utils/EmployeUtil";
 import EmployeeModal from "../components/EmployeForm";
 import EmployeePhotoEditor from "../components/EmployeePhotoEditor";
+import RecapEmbauchesPeriode from "../components/RecapEmbauchesPeriode";
 
 // ─── Styles d'impression ───────────────────────────────────────────────────────
 
@@ -176,6 +177,9 @@ export default function EmployeeList() {
     setFilter, handleSearch, resetFilters, hasActiveFilter,
   } = useEmployeeFilters();
 
+  // Période d'embauche appliquée ({ du, au } ou null)
+  const [periodeEmbauche, setPeriodeEmbauche] = useState(null);
+
   // ── Export ────────────────────────────────────────────────────────────────────
   const { exporting, exportCSV, exportError } = useExportCSV(filters, "employes");
 
@@ -208,7 +212,13 @@ const fetchEmployees = useCallback(async () => {
   setLoading(true);
   try {
     const r = await hrClient.get("employees/", { 
-      params: { ...buildApiParams(filters, page, pageSize), ordering: "-employee_id" }  // ✅ tri décroissant
+      params: {
+        ...buildApiParams(filters, page, pageSize),
+        ...(periodeEmbauche
+          ? { embauche_du: periodeEmbauche.du, embauche_au: periodeEmbauche.au }
+          : {}),
+        ordering: "-employee_id",  // ✅ tri décroissant
+      }
     });
     
     const data = r.data;
@@ -227,7 +237,7 @@ const fetchEmployees = useCallback(async () => {
   } finally { 
     setLoading(false); 
   }
-}, [filters, page, pageSize]);
+}, [filters, page, pageSize, periodeEmbauche]);
 
   useEffect(() => { fetchEmployees(); }, [fetchEmployees]);
 
@@ -587,6 +597,13 @@ function LastActionCell({ action, at, by }) {
           hasActiveFilter={hasActiveFilter}
           factories={factories}
           departments={departments}
+        />
+        <RecapEmbauchesPeriode
+          filters={filters}
+          onPeriodeChange={(periode) => {
+            setPeriodeEmbauche(periode);
+            setPage(0);
+          }}
         />
       </div>
 
